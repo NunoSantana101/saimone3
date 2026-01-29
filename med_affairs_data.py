@@ -2249,15 +2249,29 @@ def fda_drugs_search(
                 if isinstance(r.get("application_number"), list)
                 else r.get("application_number")
             )
+            # v4.0: Extract actual content the agent can reason over
+            #   indications_and_usage is the #1 field for understanding a drug
+            indications_raw = r.get("indications_and_usage") or r.get("purpose") or []
+            indications_text = indications_raw[0] if isinstance(indications_raw, list) and indications_raw else str(indications_raw or "")
+            # Clean HTML tags if present
+            if "<" in indications_text:
+                import re as _re
+                indications_text = _re.sub(r"<[^>]+>", " ", indications_text)
+            indications_text = " ".join(indications_text.split())[:800]  # Cap to 800 chars
+
+            route = (openfda.get("route") or [""])[0]
+            pharm_class = (openfda.get("pharm_class_epc") or openfda.get("pharm_class_moa") or [""])[0]
+
             hits.append(_norm(
                 "fda_drugs", id=r.get("id"), title=f"{brand_name} ({generic_name})",
                 date=_iso(r.get("effective_time")),
                 extra={
-                    "collection": coll,
+                    "content": indications_text,
                     "manufacturer": (openfda.get("manufacturer_name") or [""])[0],
                     "application_number": application_number,
                     "product_type": (openfda.get("product_type") or [""])[0],
-                    "raw_payload": r,
+                    "route": route,
+                    "pharm_class": pharm_class,
                 }
             ))
         
@@ -2406,6 +2420,20 @@ def search_faers(
             if event.get("seriousnessdisabling"): serious_reasons.append("disability")
             if event.get("seriousnesscongenitalanomali"): serious_reasons.append("congenital anomaly")
 
+            # v4.0: Build readable content summary for agent
+            content_parts = [f"Reactions: {', '.join(reaction_list)}"]
+            if is_serious:
+                content_parts.append(f"Serious: {', '.join(serious_reasons)}")
+            sex_map = {"1": "Male", "2": "Female"}
+            if patient.get("patientsex"):
+                content_parts.append(f"Patient: {sex_map.get(str(patient['patientsex']), 'Unknown')}")
+            if patient.get("patientonsetage"):
+                content_parts.append(f"Age: {patient['patientonsetage']}")
+            all_drugs_list = [d.get("medicinalproduct") for d in drugs if d.get("medicinalproduct")]
+            if len(all_drugs_list) > 1:
+                content_parts.append(f"Concomitant drugs: {', '.join(all_drugs_list[:5])}")
+            content_text = ". ".join(content_parts)
+
             hits.append(_norm(
                 "faers",
                 id=event.get("safetyreportid"),
@@ -2413,17 +2441,11 @@ def search_faers(
                 url=f"https://www.fda.gov/drugs/questions-and-answers-fdas-adverse-event-reporting-system-faers",
                 date=_iso(event.get("receivedate")),
                 extra={
-                    "drug_name": drug_name,
-                    "reactions": reaction_list,
-                    "is_serious": is_serious,
-                    "serious_reasons": serious_reasons,
-                    "patient_sex": patient.get("patientsex"),
-                    "patient_age": patient.get("patientonsetage"),
-                    "reporter_country": event.get("occurcountry"),
-                    "report_type": event.get("reporttype"),
-                    "all_drugs": [d.get("medicinalproduct") for d in drugs],
-                    "clinical_outcomes": extract_clinical_outcomes(" ".join(reaction_list)),
-                    "raw_payload": event
+                    "content": content_text,
+                    "serious": is_serious,
+                    "outcome": ", ".join(serious_reasons) if serious_reasons else None,
+                    "reaction": ", ".join(reaction_list[:5]),
+                    "product_names": ", ".join(all_drugs_list[:3]),
                 }
             ))
 
@@ -2494,6 +2516,15 @@ def search_device_events(
         device_info = (event.get("device") or [{}])[0]
         brand_name = device_info.get("brand_name") or device_info.get("generic_name") or "Device"
         report_number = event.get("report_number") or event.get("mdr_report_key")
+        # v4.0: Extract narrative text as content
+        mdr_text = ""
+        for txt_entry in (event.get("mdr_text") or []):
+            if isinstance(txt_entry, dict) and txt_entry.get("text"):
+                mdr_text = str(txt_entry["text"])[:600]
+                break
+        if not mdr_text:
+            mdr_text = f"Device event: {event.get('event_type', 'Unknown')} involving {brand_name}"
+
         hits.append(_norm(
             "fda_device_events",
             id=report_number,
@@ -2501,13 +2532,10 @@ def search_device_events(
             url="https://www.accessdata.fda.gov/scripts/cdrh/cfdocs/cfmaude/search.cfm",
             date=_iso(event.get("date_received")),
             extra={
+                "content": mdr_text,
                 "event_type": event.get("event_type"),
                 "manufacturer": device_info.get("manufacturer_d_name"),
                 "product_code": device_info.get("device_report_product_code"),
-                "report_number": report_number,
-                "model_number": device_info.get("model_number"),
-                "reporter_occupation_code": event.get("reporter_occupation_code"),
-                "raw_payload": event,
             }
         ))
 
@@ -2609,6 +2637,16 @@ def search_openfda_enforcement(
     for record in data.get("results", []):
         product = record.get("product_description") or record.get("reason_for_recall") or "Recall"
         recall_number = record.get("recall_number") or record.get("event_id")
+        # v4.0: Use reason_for_recall as readable content
+        reason = record.get("reason_for_recall") or ""
+        if isinstance(reason, str):
+            reason = reason.strip()[:600]
+        classification = record.get("classification") or ""
+        recalling_firm = record.get("recalling_firm") or ""
+        content_text = reason
+        if not content_text:
+            content_text = f"Recall by {recalling_firm}" if recalling_firm else "Recall notice"
+
         hits.append(_norm(
             source_label,
             id=recall_number,
@@ -2616,16 +2654,10 @@ def search_openfda_enforcement(
             url="https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts",
             date=_iso(record.get(date_field) or record.get("report_date")),
             extra={
-                "recall_number": recall_number,
-                "classification": record.get("classification"),
+                "content": content_text,
+                "classification": classification,
+                "recalling_firm": recalling_firm,
                 "recall_status": record.get("status"),
-                "recalling_firm": record.get("recalling_firm"),
-                "recall_initiation_date": _iso(record.get("recall_initiation_date")),
-                "report_date": _iso(record.get("report_date")),
-                "reason_for_recall": record.get("reason_for_recall"),
-                "product_type": record.get("product_type"),
-                "product_code": record.get("product_code"),
-                "raw_payload": record,
             }
         ))
 
@@ -2737,6 +2769,20 @@ def search_fda_safety_communications(
         generic = (openfda.get("generic_name") or [""])[0]
         warnings = record.get("warnings") or record.get("boxed_warning") or []
         warnings_text = warnings[0] if isinstance(warnings, list) and warnings else warnings
+        # v4.0: Use warnings text as readable content
+        content_text = ""
+        if isinstance(warnings_text, str):
+            content_text = warnings_text.strip()[:600]
+        elif isinstance(warnings_text, list) and warnings_text:
+            content_text = str(warnings_text[0]).strip()[:600]
+        # Fall back to boxed_warning if no warnings text
+        if not content_text:
+            bw = record.get("boxed_warning")
+            if isinstance(bw, list) and bw:
+                content_text = str(bw[0]).strip()[:600]
+            elif isinstance(bw, str):
+                content_text = bw.strip()[:600]
+
         hits.append(_norm(
             "fda_safety_communications",
             id=record.get("set_id"),
@@ -2745,11 +2791,7 @@ def search_fda_safety_communications(
                 if record.get("set_id") else None,
             date=_iso(record.get("effective_time")),
             extra={
-                "set_id": record.get("set_id"),
-                "boxed_warning": record.get("boxed_warning"),
-                "warnings": record.get("warnings"),
-                "warnings_excerpt": warnings_text,
-                "raw_payload": record,
+                "content": content_text,
             }
         ))
 
@@ -2897,6 +2939,22 @@ def search_dailymed(
                 if product.get("dosage_form"):
                     dosage_forms.append(product.get("dosage_form"))
 
+            # v4.0: Build readable content from available fields
+            content_parts = []
+            if active_ingredients:
+                content_parts.append(f"Active ingredients: {', '.join(list(set(active_ingredients))[:5])}")
+            if routes:
+                content_parts.append(f"Route: {', '.join(list(set(routes))[:3])}")
+            if dosage_forms:
+                content_parts.append(f"Form: {', '.join(list(set(dosage_forms))[:3])}")
+            labeler = spl.get("labeler") or ""
+            if labeler:
+                content_parts.append(f"Labeler: {labeler}")
+            mkt = spl.get("marketing_category") or ""
+            if mkt:
+                content_parts.append(f"Category: {mkt}")
+            content_text = ". ".join(content_parts) if content_parts else title
+
             hits.append(_norm(
                 "dailymed",
                 id=setid,
@@ -2904,16 +2962,10 @@ def search_dailymed(
                 url=f"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid={setid}" if setid else None,
                 date=_iso(spl.get("published_date") or spl.get("effective_time")),
                 extra={
-                    "setid": setid,
-                    "spl_version": spl.get("spl_version"),
-                    "labeler": spl.get("labeler"),
-                    "active_ingredients": list(set(active_ingredients)),
-                    "routes": list(set(routes)),
-                    "dosage_forms": list(set(dosage_forms)),
+                    "content": content_text,
+                    "active_ingredients": list(set(active_ingredients))[:5],
+                    "route": ", ".join(list(set(routes))[:3]),
                     "product_type": spl.get("product_type"),
-                    "marketing_category": spl.get("marketing_category"),
-                    "dea_schedule": spl.get("dea_schedule"),
-                    "raw_payload": spl,
                 }
             ))
 
@@ -8592,7 +8644,9 @@ def get_med_affairs_data(
 
     hits = _rerank_results(hits, prioritize_recent=prioritize_recent)
 
-    # v3.0: Build comprehensive response with full transparency for agent reasoning
+    # v4.0: Lean response – content-rich results, minimal overhead.
+    #   Audit metadata is logged server-side, NOT sent to the agent.
+    #   The agent needs substance to synthesize, not metadata to parse.
     import datetime as dt_module
     search_timestamp = dt_module.datetime.now().isoformat() + "Z"
 
@@ -8602,67 +8656,28 @@ def get_med_affairs_data(
         "total_results": len(hits),
         "results": hits,
         "next_cursor": next_cursor,
-        "fallback_triggered": fallback_triggered,
     }
 
-    # v3.0: Add MeSH metadata to response (NOW ENABLED BY DEFAULT)
-    if include_mesh_metadata and mesh_metadata:
-        response["mesh_metadata"] = mesh_metadata
+    # v4.0: Only include MeSH drug_mapping for safety/regulatory intents
+    #   (indications + mechanism help the agent contextualise safety data)
+    if include_mesh_metadata and mesh_metadata and detected_intent in ("safety", "regulatory"):
+        dm = mesh_metadata.get("drug_mapping")
+        if isinstance(dm, dict):
+            drug_ctx = {}
+            if dm.get("indications"):
+                drug_ctx["indications"] = dm["indications"][:4]
+            if dm.get("mechanism"):
+                drug_ctx["mechanism"] = dm["mechanism"][:2]
+            if drug_ctx:
+                response["drug_context"] = drug_ctx
 
-    # v3.0: Add intent_context for agent reasoning transparency
-    # This helps the agent understand WHY certain filters/expansions were applied
-    if detected_intent:
-        intent_days = QUERY_INTENT_PATTERNS.get(detected_intent, {}).get("days", 1095)
-        intent_desc = QUERY_INTENT_PATTERNS.get(detected_intent, {}).get("description", "General query")
-        response["intent_context"] = {
-            "detected_intent": detected_intent,
-            "description": intent_desc,
-            "temporal_window_days": intent_days,
-            "mesh_expansion_applied": mesh and mesh_intent_aware,
-            "recency_prioritization": prioritize_recent,
-        }
-    else:
-        response["detected_intent"] = "general"
-
-    # v3.0: Add search_metadata for audit trail (critical for regulated environments)
-    response["search_metadata"] = {
-        "timestamp": search_timestamp,
-        "original_query": query,
-        "source_requested": source,
-        "source_used": used_source,
-        "max_results_requested": max_results,
-        "results_returned": len(hits),
-        "filters_applied": {
-            "date_range": date_range,
-            "datetype": datetype,
-            "sort": sort,
-            "fda_decision_type": fda_decision_type,
-            "prioritize_recent": prioritize_recent,
-            "countries": countries,
-            "filter_eu_only": filter_eu_only,
-            "expand_query": expand_query,
-            "region": region,
-            "search_type": search_type,
-            "category": category,
-            "data_type": data_type,
-        },
-        "mesh_config": {
-            "enabled": mesh,
-            "intent_aware": mesh_intent_aware,
-            "drug_mapping": mesh_include_drug_mapping,
-            "recursive_depth": mesh_recursive_depth,
-        },
-        "fallback_config": {
-            "sources": effective_fallback_sources,
-            "min_results_threshold": fallback_min_results,
-            "triggered": fallback_triggered,
-            "auto_fallback": auto_fallback and bool(effective_fallback_sources),
-        },
-    }
-
-    logger.info(f"Returning {len(hits)} results for query='{query}' from source='{used_source}'. "
-                f"Intent: {detected_intent or 'general'}. "
-                f"Date prioritization: {'enabled' if prioritize_recent else 'disabled'}.")
+    # v4.0: Log audit metadata server-side only
+    logger.info(
+        f"[AUDIT] query={query!r} source_requested={source} source_used={used_source} "
+        f"results={len(hits)} intent={detected_intent or 'general'} "
+        f"fallback={fallback_triggered} mesh={mesh} "
+        f"timestamp={search_timestamp}"
+    )
     return response
 
 
@@ -10886,41 +10901,23 @@ def aggregated_search(
                 "error": str(e),
             })
 
-    # Generate refinement suggestions
-    refinement_suggestions = []
-    if include_refinement_suggestions:
-        refinement_suggestions = _generate_refinement_suggestions(
-            query=query,
-            intent=intent,
-            results_by_source=results_by_source,
-            mesh_metadata=mesh_metadata,
-        )
+    # v4.0: Lean response – _truncate_search_results will flatten and
+    #   deduplicate results_by_source into a ranked list.  We just need
+    #   to provide the raw material.  Refinements, mesh_metadata, and
+    #   pass_summary are not sent to the agent (logged only).
+    successful = len([p for p in pass_records if p.get("hits", 0) > 0])
+    total_sources = len(pass_records)
 
-    # Build response
     response = {
         "query": query,
-        "detected_intent": intent,
-        "sources_searched": [s for s, _ in source_list if s in SEARCH_MAP],
         "results_by_source": results_by_source,
-        "all_results": all_results,
-        "total_hits": len(all_results),
-        "pass_summary": {
-            "total_sources": len(pass_records),
-            "successful_sources": len([p for p in pass_records if p.get("hits", 0) > 0]),
-            "passes": pass_records,
-        },
+        "total_results": len(all_results),
     }
 
-    if include_mesh_metadata and mesh_metadata:
-        response["mesh_metadata"] = mesh_metadata
-
-    if include_refinement_suggestions:
-        response["refinement_suggestions"] = refinement_suggestions
-
     logger.info(
-        f"Aggregated search complete: query='{query}', intent={intent}, "
-        f"sources={len(pass_records)}, total_hits={len(all_results)}, "
-        f"suggestions={len(refinement_suggestions)}"
+        f"[AUDIT] aggregated_search query={query!r} intent={intent} "
+        f"sources={total_sources} successful={successful} "
+        f"total_hits={len(all_results)}"
     )
 
     return response
@@ -11249,9 +11246,7 @@ def get_fda_data(
         sources[dataset] = {"source": used_source, "query": ds_query, "count": len(hits)}
         next_cursors[dataset] = next_cursor
         next_pages[dataset] = ((next_cursor // max_results) + 1) if next_cursor is not None else None
-        raw_results[dataset] = [
-            (hit.get("extra") or {}).get("raw_payload", hit) for hit in hits
-        ]
+        raw_results[dataset] = hits  # v4.0: raw_payload removed from adapters
 
     if sort == "date_desc":
         results = _sort_by_date(results)
