@@ -1127,6 +1127,39 @@ def generate_json_download():
         st.error(f"Error generating JSON: {str(e)}")
         return None, None
 
+def generate_search_history_json():
+    """Generate a JSON file with the full uncapped search history for the session."""
+    try:
+        search_entries = st.session_state.get("search_history", [])
+        export_payload = {
+            "export_metadata": {
+                "export_timestamp": datetime.now().isoformat(),
+                "session_id": get_session_id(),
+                "export_type": "search_history",
+                "total_searches": len(search_entries),
+            },
+            "user_profile": {
+                "name": user_info.get("name", "") if user_info else "",
+                "email": user_info.get("email", "") if user_info else "",
+                "role": user_info.get("role", "") if user_info else "",
+                "client": user_info.get("client", "") if user_info else "",
+                "access_level": user_info.get("access_level", "") if user_info else "",
+            },
+            "searches": search_entries,
+        }
+        json_string = json.dumps(export_payload, indent=2, default=str, ensure_ascii=False)
+        json_bytes = json_string.encode("utf-8")
+
+        name = user_info.get("name", "anonymous") if user_info else "anonymous"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"sAImone_search_history_{name}_{timestamp}.json"
+
+        return json_bytes, filename
+    except Exception as e:
+        st.error(f"Error generating search history JSON: {str(e)}")
+        return None, None
+
+
 def create_download_button(file_data, filename, button_text, button_key, mime_type):
     """Create a styled download button matching sidebar theme"""
     if file_data and filename:
@@ -1293,6 +1326,8 @@ if "uploaded_file_ids" not in st.session_state:
     st.session_state["uploaded_file_ids"] = []
 if "last_save" not in st.session_state:
     st.session_state["last_save"] = time.time()
+if "search_history" not in st.session_state:
+    st.session_state["search_history"] = []
 
 # Pre-populate user info from authentication
 if user_info:
@@ -1722,9 +1757,16 @@ with st.sidebar:
     # Send button
     if st.button("🎯 Expand", key="deep_dive_btn"):
         if deep_dive_term.strip():
+            # Track search in full search history (uncapped)
+            st.session_state["search_history"].append({
+                "query": deep_dive_term.strip(),
+                "source": "deep_dive",
+                "timestamp": datetime.now().isoformat(),
+                "user": user_info.get("email", "unknown") if user_info else "unknown"
+            })
             # Create the silent prompt
             expand_prompt = f"Expand on: {deep_dive_term}. always run live data search and regulatory validation. Please provide the information in a matrix or tabular format if applicable."
-        
+
             # Execute it
             st.session_state["silent_prompt_to_run"] = expand_prompt
             st.rerun()
@@ -1750,6 +1792,13 @@ with st.sidebar:
     # Send button
     if st.button("🔍 Verify", key="fact_check_btn"):
         if fact_check_claim.strip():
+            # Track search in full search history (uncapped)
+            st.session_state["search_history"].append({
+                "query": fact_check_claim.strip(),
+                "source": "fact_check",
+                "timestamp": datetime.now().isoformat(),
+                "user": user_info.get("email", "unknown") if user_info else "unknown"
+            })
             # Create the fact-check prompt with specialized instructions
             fact_check_prompt = f"""Fact-check and validate the following claim:
 
@@ -2010,6 +2059,34 @@ Output format:
                 help="Export generation failed",
             )
 
+        # Search History JSON
+        if st.session_state.get("search_history"):
+            sh_data, sh_filename = generate_search_history_json()
+            if sh_data and sh_filename:
+                if create_download_button(
+                    sh_data,
+                    sh_filename,
+                    "🔎 Download Search History (JSON)",
+                    "download_search_history",
+                    "application/json",
+                ):
+                    log_user_action(
+                        "download_search_history",
+                        f"Downloaded search history: {sh_filename}",
+                    )
+            else:
+                st.button(
+                    "🔎 Download Search History (JSON)",
+                    disabled=True,
+                    help="Export generation failed",
+                )
+        else:
+            st.button(
+                "🔎 Download Search History (JSON)",
+                disabled=True,
+                help="No searches recorded yet",
+            )
+
         st.markdown("</div>", unsafe_allow_html=True)  # close Downloads
     else:
         st.markdown(
@@ -2019,6 +2096,7 @@ Output format:
         st.warning("🔒 Download features require full access level")
         st.button("📄 Download Session Report (PDF)", disabled=True)
         st.button("🔧 Download Audit Data (JSON)", disabled=True)
+        st.button("🔎 Download Search History (JSON)", disabled=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ─────────────────── QUICK ACTIONS (2×2 with tooltips) ───────────────
@@ -2086,6 +2164,13 @@ Output format:
                 if st.button(label, key=f"qa_{r}_{label}", disabled=disabled, use_container_width=True, help=tip):
                     if not disabled:
                         log_user_action("quick_action", f"Executed quick action: {label}")
+                        # Track search in full search history (uncapped)
+                        st.session_state["search_history"].append({
+                            "query": label,
+                            "source": "quick_action",
+                            "timestamp": datetime.now().isoformat(),
+                            "user": user_info.get("email", "unknown") if user_info else "unknown"
+                        })
                         st.session_state["silent_prompt_to_run"] = silent_prompt
                         st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
@@ -2299,6 +2384,13 @@ Output format:
                                 f"project context. {func_desc}"
                             )
                             log_user_action("automated_function", func_name)
+                            # Track search in full search history (uncapped)
+                            st.session_state["search_history"].append({
+                                "query": func_name,
+                                "source": "automated_function",
+                                "timestamp": datetime.now().isoformat(),
+                                "user": user_info.get("email", "unknown") if user_info else "unknown"
+                            })
                             st.session_state["silent_prompt_to_run"] = automated_prompt
                             st.rerun()
     else:
@@ -2570,7 +2662,15 @@ if send and user_input.strip():
     else:
         # Log the message attempt
         log_user_action("message_sent", f"User sent message: {user_input[:100]}...")
-        
+
+        # Track search in full search history (uncapped)
+        st.session_state["search_history"].append({
+            "query": user_input,
+            "source": "chat",
+            "timestamp": datetime.now().isoformat(),
+            "user": user_info.get("email", "unknown") if user_info else "unknown"
+        })
+
         date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         # Include user info in the message for audit trail
