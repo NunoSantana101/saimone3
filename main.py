@@ -1127,16 +1127,155 @@ def generate_json_download():
         st.error(f"Error generating JSON: {str(e)}")
         return None, None
 
+def _fetch_run_steps(thread_id, run_id):
+    """Fetch all run steps from the OpenAI API and return parsed tool-call data.
+
+    Returns a list of step dicts, each containing the full tool call details
+    (function name, arguments, output/results) with no capping or truncation.
+    """
+    try:
+        steps_page = openai.beta.threads.runs.steps.list(
+            thread_id=thread_id,
+            run_id=run_id,
+            limit=100,
+        )
+        actions = []
+        for step in steps_page.data:
+            if step.type == "tool_calls":
+                tool_calls_data = []
+                for tc in step.step_details.tool_calls:
+                    call_entry = {"id": tc.id, "type": tc.type}
+                    if tc.type == "function":
+                        call_entry["function_name"] = tc.function.name
+                        try:
+                            call_entry["arguments"] = json.loads(tc.function.arguments) if tc.function.arguments else {}
+                        except (json.JSONDecodeError, TypeError):
+                            call_entry["arguments"] = tc.function.arguments
+                        # Full output returned to the agent
+                        try:
+                            call_entry["output"] = json.loads(tc.function.output) if tc.function.output else None
+                        except (json.JSONDecodeError, TypeError):
+                            call_entry["output"] = tc.function.output
+                    elif tc.type == "file_search":
+                        fs = getattr(tc, "file_search", None)
+                        call_entry["results"] = []
+                        if fs and hasattr(fs, "results") and fs.results:
+                            for r in fs.results:
+                                call_entry["results"].append({
+                                    "file_id": getattr(r, "file_id", None),
+                                    "file_name": getattr(r, "file_name", None),
+                                    "score": getattr(r, "score", None),
+                                    "content": getattr(r, "content", None),
+                                })
+                    elif tc.type == "code_interpreter":
+                        ci = getattr(tc, "code_interpreter", None)
+                        if ci:
+                            call_entry["input"] = getattr(ci, "input", None)
+                            call_entry["outputs"] = []
+                            if hasattr(ci, "outputs") and ci.outputs:
+                                for o in ci.outputs:
+                                    call_entry["outputs"].append({
+                                        "type": getattr(o, "type", None),
+                                        "text": getattr(o, "text", None) if hasattr(o, "text") else None,
+                                        "image_file_id": getattr(o.image, "file_id", None) if hasattr(o, "image") and o.image else None,
+                                    })
+                    elif tc.type == "web_search":
+                        ws = getattr(tc, "web_search", None)
+                        if ws and hasattr(ws, "results") and ws.results:
+                            call_entry["results"] = []
+                            for r in ws.results:
+                                call_entry["results"].append({
+                                    "url": getattr(r, "url", None),
+                                    "title": getattr(r, "title", None),
+                                    "snippet": getattr(r, "snippet", None),
+                                })
+                        else:
+                            call_entry["raw"] = str(ws)
+                    tool_calls_data.append(call_entry)
+
+                actions.append({
+                    "step_id": step.id,
+                    "type": step.type,
+                    "status": step.status,
+                    "created_at": step.created_at,
+                    "completed_at": getattr(step, "completed_at", None),
+                    "tool_calls": tool_calls_data,
+                })
+            elif step.type == "message_creation":
+                actions.append({
+                    "step_id": step.id,
+                    "type": step.type,
+                    "status": step.status,
+                    "created_at": step.created_at,
+                    "completed_at": getattr(step, "completed_at", None),
+                    "message_id": getattr(step.step_details.message_creation, "message_id", None),
+                })
+        return actions
+    except Exception as e:
+        return [{"error": f"Failed to fetch run steps: {str(e)}"}]
+
+
+def _enrich_last_search_entry(thread_id):
+    """Attach full run-steps data to the most recent search_history entry.
+
+    Works for both improved_assistant_run() (which pre-stores _last_run_id/steps)
+    and run_assistant() (falls back to querying the thread for the latest run).
+    """
+    if not st.session_state.get("search_history"):
+        return
+
+    entry = st.session_state["search_history"][-1]
+
+    # Check if improved_assistant_run() already captured the data
+    run_id = st.session_state.pop("_last_run_id", None)
+    run_steps = st.session_state.pop("_last_run_steps", None)
+
+    if not run_id:
+        # Fallback: get the most recent completed run from the thread
+        try:
+            runs = openai.beta.threads.runs.list(
+                thread_id=thread_id, limit=1, order="desc"
+            )
+            if runs.data:
+                run_id = runs.data[0].id
+        except Exception:
+            return
+
+    if run_id and not run_steps:
+        run_steps = _fetch_run_steps(thread_id, run_id)
+
+    entry["run_id"] = run_id
+    entry["agent_actions"] = run_steps or []
+
+
 def generate_search_history_json():
-    """Generate a JSON file with the full uncapped search history for the session."""
+    """Generate a JSON file with the full uncapped search history for the session.
+
+    Each entry includes the user query AND the complete agent actions:
+    every tool call (function name, arguments, full output/results) the
+    assistant executed during the corresponding run.
+    """
     try:
         search_entries = st.session_state.get("search_history", [])
+
+        # Build summary counts
+        total_tool_calls = 0
+        tool_type_counts = {}
+        for entry in search_entries:
+            for action in entry.get("agent_actions", []):
+                for tc in action.get("tool_calls", []):
+                    total_tool_calls += 1
+                    fn = tc.get("function_name") or tc.get("type", "unknown")
+                    tool_type_counts[fn] = tool_type_counts.get(fn, 0) + 1
+
         export_payload = {
             "export_metadata": {
                 "export_timestamp": datetime.now().isoformat(),
                 "session_id": get_session_id(),
-                "export_type": "search_history",
-                "total_searches": len(search_entries),
+                "export_type": "search_history_full",
+                "total_user_searches": len(search_entries),
+                "total_agent_tool_calls": total_tool_calls,
+                "tool_call_breakdown": tool_type_counts,
             },
             "user_profile": {
                 "name": user_info.get("name", "") if user_info else "",
@@ -1479,6 +1618,10 @@ def improved_assistant_run(thread_id, assistant_id, message):
                     if run_status.status == "requires_action":
                         _handle_function_call(run_status, thread_id, run.id)
                     elif run_status.status == "completed":
+                        # Capture full run steps (tool calls + outputs) for search history export
+                        st.session_state["_last_run_id"] = run.id
+                        st.session_state["_last_run_steps"] = _fetch_run_steps(thread_id, run.id)
+
                         # Use run_id filtering to get the correct assistant message
                         messages = openai.beta.threads.messages.list(thread_id=thread_id, order="desc", limit=10)
                         status_placeholder.empty()
@@ -2521,6 +2664,8 @@ if "silent_prompt_to_run" in st.session_state:
                 response = improved_assistant_run(thread_id, ASSISTANT_ID, silent_prompt)
                 if response and response != "All attempts failed":
                     st.session_state["history"].append({"role": "assistant", "content": response})
+                    # Attach full run steps (tool calls + results) to search history
+                    _enrich_last_search_entry(thread_id)
                     save_medical_context()
                     st.success("✅ Quick action completed!")
                     log_user_action("quick_action_completed", f"Successfully completed: {silent_prompt[:50]}...")
@@ -2720,13 +2865,15 @@ if send and user_input.strip():
                         "role": "assistant",
                         "content": response
                     })
+                    # Attach full run steps (tool calls + results) to search history
+                    _enrich_last_search_entry(thread_id)
                     save_medical_context()
                     st.success("✅ Response received!")
                     log_user_action("message_completed", f"Successfully processed message with {len(response)} characters")
                 else:
                     st.error(f"❌ Error: {response}")
                     log_user_action("message_failed", f"Assistant error: {response}")
-                    
+
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
                 log_user_action("message_error", f"Error processing message: {str(e)}")
