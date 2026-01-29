@@ -129,11 +129,11 @@ INTENT_BASED_LIMITS = {
 }
 
 # Field truncation limits for individual results
-# v3.2: Reduced to prevent output size overflow
+# v4: Content-first – the agent needs substance, not metadata overhead.
+#     Increased content budget, stripped redundant fields in core_assistant.
 RESULT_FIELD_LIMITS = {
-    "title_max_chars": 150,          # Reduced from 200
-    "snippet_max_chars": 300,        # Reduced from 400 (major size contributor)
-    "abstract_max_chars": 400,       # Reduced from 600
+    "title_max_chars": 150,
+    "content_max_chars": 800,        # Up from 300 – actual text the agent reasons over
 }
 
 

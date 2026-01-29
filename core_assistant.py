@@ -51,13 +51,10 @@ from agent_data_pipeline import (
 from tool_config import (
     DEFAULT_MAX_PER_SOURCE,
     DEFAULT_MAX_TOTAL,
-    DEFAULT_MAX_REFINEMENT_SUGGESTIONS,
-    MESH_METADATA_LIMITS,
     RESULT_FIELD_LIMITS,
     QueryIntent,
     detect_query_intent,
     get_truncation_limits,
-    get_mesh_limits,
     get_preserve_fields,
     should_extract_clinical_outcomes,
 )
@@ -263,14 +260,13 @@ def _truncate_search_results(
     intent: QueryIntent = None,
 ) -> dict:
     """
-    Truncate search results while preserving agent-critical context.
+    Slim search results to maximise content-per-token for the agent.
 
-    v3.0 PHILOSOPHY:
-    - Backend provides RICH, structured data
-    - Agent handles interpretation and prioritization
-    - Preserve intent-specific fields (phase, status, outcomes)
-    - Extract clinical outcomes from abstracts/snippets
-    - Include search transparency metadata for audit trail
+    Philosophy: the agent needs DATA, not metadata.
+    - Content / abstract / excerpt is king – give it the most room.
+    - Title, date, url are kept only when they add signal.
+    - Null / empty / duplicate fields are omitted entirely.
+    - Internal debugging keys (_limits_applied, _truncated, etc.) are stripped.
     """
     if not isinstance(res, dict):
         return res
@@ -280,140 +276,147 @@ def _truncate_search_results(
 
     if intent:
         limits = get_truncation_limits(intent)
-        mesh_limits = get_mesh_limits(intent)
     else:
         limits = get_truncation_limits()
-        mesh_limits = MESH_METADATA_LIMITS
 
     max_per_source = max_per_source or limits.get("max_per_source", DEFAULT_MAX_PER_SOURCE)
     max_total = max_total or limits.get("max_total", DEFAULT_MAX_TOTAL)
-    max_refinement_suggestions = limits.get("refinement_suggestions", DEFAULT_MAX_REFINEMENT_SUGGESTIONS)
 
-    title_max = RESULT_FIELD_LIMITS.get("title_max_chars", 200)
-    snippet_max = RESULT_FIELD_LIMITS.get("snippet_max_chars", 400)
+    content_max = RESULT_FIELD_LIMITS.get("content_max_chars", 800)
+    title_max = RESULT_FIELD_LIMITS.get("title_max_chars", 150)
 
     preserve_fields = get_preserve_fields(intent)
     extract_outcomes = should_extract_clinical_outcomes(intent)
 
+    # ── per-result slimming ──────────────────────────────────────
     def _process_result(r: dict, source: str = None) -> dict:
         extra = r.get("extra", {})
-        slim = {
-            "title": r.get("title", "")[:title_max],
-            "id": r.get("id", ""),
-            "url": r.get("url", ""),
-            "date": r.get("date", extra.get("date", "")),
-        }
-        if source:
-            slim["_source"] = source
 
-        snippet = r.get("snippet") or extra.get("abstract") or extra.get("content") or ""
-        if snippet:
-            slim["snippet"] = snippet[:snippet_max] + "..." if len(str(snippet)) > snippet_max else snippet
+        # 1. CONTENT first – the substance the agent actually needs
+        content = (
+            r.get("snippet")
+            or extra.get("abstract")
+            or extra.get("content")
+            or ""
+        )
+        if isinstance(content, str):
+            content = content.strip()
+        if content and len(content) > content_max:
+            content = content[:content_max] + "..."
 
+        slim: dict = {}
+
+        # Always include title (short)
+        title = r.get("title", "")
+        if title:
+            slim["title"] = title[:title_max]
+
+        # Content – the main payload
+        if content:
+            slim["content"] = content
+
+        # URL – single field, only if present
+        url = r.get("url") or r.get("id") or ""
+        if url:
+            slim["url"] = url
+
+        # Date – only if non-null
+        date = r.get("date") or extra.get("date")
+        if date:
+            slim["date"] = date
+
+        # 2. Intent-specific fields from extra (the useful metadata)
         for field in preserve_fields:
-            if field in extra and extra[field]:
-                value = extra[field]
-                if isinstance(value, str) and len(value) > 200:
-                    slim[field] = value[:200] + "..."
-                elif isinstance(value, list) and len(value) > 5:
-                    slim[field] = value[:5]
-                else:
-                    slim[field] = value
-            elif field in r and r[field]:
-                slim[field] = r[field]
+            val = extra.get(field) or r.get(field)
+            if not val:
+                continue
+            # Skip fields that duplicate what we already captured
+            if field in ("content", "abstract", "snippet", "id", "url", "title", "date", "source"):
+                continue
+            if isinstance(val, str) and len(val) > 250:
+                slim[field] = val[:250] + "..."
+            elif isinstance(val, list) and len(val) > 5:
+                slim[field] = val[:5]
+            else:
+                slim[field] = val
 
-        if extract_outcomes and snippet:
-            outcomes = extract_clinical_outcomes(snippet)
+        # 3. Clinical outcome extraction (safety/trial intents)
+        if extract_outcomes and content:
+            outcomes = extract_clinical_outcomes(content)
             if outcomes:
-                slim["_clinical_outcomes"] = outcomes
-
-        if "_authority" in r:
-            slim["_authority"] = r["_authority"]
+                slim["outcomes"] = outcomes
 
         return slim
 
+    # ── apply to result sets ─────────────────────────────────────
     if "results_by_source" in res:
-        truncated_by_source = {}
+        trimmed = {}
         total_count = 0
         for source, results in res.get("results_by_source", {}).items():
-            if isinstance(results, list):
-                truncated = results[:max_per_source]
-                slimmed = []
-                for r in truncated:
-                    if total_count >= max_total:
-                        break
-                    slim = _process_result(r, source)
-                    slimmed.append(slim)
-                    total_count += 1
-                truncated_by_source[source] = slimmed
-
-        res["results_by_source"] = truncated_by_source
-        res["all_results"] = []
-        res["total_hits"] = total_count
-        res["_truncated"] = True
-        res["_limits_applied"] = {
-            "max_per_source": max_per_source,
-            "max_total": max_total,
-            "intent": intent.value if intent else "default",
-            "preserved_fields": preserve_fields[:10],
-            "clinical_outcomes_extracted": extract_outcomes,
-        }
+            if not isinstance(results, list):
+                continue
+            batch = []
+            for r in results[:max_per_source]:
+                if total_count >= max_total:
+                    break
+                batch.append(_process_result(r, source))
+                total_count += 1
+            if batch:
+                trimmed[source] = batch
+        res["results_by_source"] = trimmed
+        res.pop("all_results", None)
+        res["total_results"] = total_count
 
     elif "results" in res and isinstance(res["results"], list):
-        source = res.get("source", "unknown")
         results = res["results"][:max_total]
-        slimmed = [_process_result(r, source) for r in results]
-        res["results"] = slimmed
-        res["total_results"] = len(slimmed)
-        res["_truncated"] = True
-        res["_limits_applied"] = {
-            "max_total": max_total,
-            "intent": intent.value if intent else "default",
-            "preserved_fields": preserve_fields[:10],
-            "clinical_outcomes_extracted": extract_outcomes,
-        }
+        res["results"] = [_process_result(r) for r in results]
+        res["total_results"] = len(res["results"])
 
+    # ── MeSH: keep only the parts that help the agent reason ─────
     if "mesh_metadata" in res and isinstance(res["mesh_metadata"], dict):
         mesh = res["mesh_metadata"]
-        truncated_mesh = {
-            "intent": mesh.get("intent"),
-            "expanded_terms_count": mesh.get("expanded_terms_count"),
-            "qualifiers": mesh.get("qualifiers", [])[:mesh_limits.get("qualifiers", 10)],
-            "major_only": mesh.get("major_only"),
-            "pv_terms_count": mesh.get("pv_terms_count"),
-        }
-        if "mesh_records" in mesh and isinstance(mesh["mesh_records"], list):
-            truncated_mesh["mesh_records"] = [
-                {"name": r.get("name", "")[:100], "ui": r.get("ui", "")}
-                for r in mesh["mesh_records"][:mesh_limits.get("mesh_records", 7)]
-            ]
-        if "tree_numbers" in mesh:
-            truncated_mesh["tree_numbers"] = mesh["tree_numbers"][:mesh_limits.get("tree_numbers", 8)] if isinstance(mesh["tree_numbers"], list) else []
-        if "pharmacological_actions" in mesh:
-            truncated_mesh["pharmacological_actions"] = mesh["pharmacological_actions"][:mesh_limits.get("pharmacological_actions", 5)] if isinstance(mesh["pharmacological_actions"], list) else []
-        if "drug_mapping" in mesh and isinstance(mesh["drug_mapping"], dict):
-            dm = mesh["drug_mapping"]
-            truncated_mesh["drug_mapping"] = {
-                "indications": dm.get("indications", [])[:mesh_limits.get("drug_mapping_indications", 5)],
-                "mechanism": dm.get("mechanism", [])[:mesh_limits.get("drug_mapping_mechanism", 4)],
-                "mesh_scr": dm.get("mesh_scr"),
-            }
-        res["mesh_metadata"] = truncated_mesh
+        slim_mesh: dict = {}
+        # Expanded terms tell the agent what synonyms were searched
+        if mesh.get("expanded_terms_count"):
+            slim_mesh["expanded_terms"] = mesh.get("expanded_terms_count")
+        # Qualifiers narrow the search context
+        quals = mesh.get("qualifiers", [])
+        if quals:
+            slim_mesh["qualifiers"] = quals[:6]
+        # Drug mapping gives mechanism/indications context
+        dm = mesh.get("drug_mapping")
+        if isinstance(dm, dict):
+            drug_info = {}
+            if dm.get("indications"):
+                drug_info["indications"] = dm["indications"][:5]
+            if dm.get("mechanism"):
+                drug_info["mechanism"] = dm["mechanism"][:4]
+            if drug_info:
+                slim_mesh["drug_info"] = drug_info
+        if slim_mesh:
+            res["mesh_context"] = slim_mesh
+        res.pop("mesh_metadata", None)
 
+    # ── Strip refinement suggestions to bare strings ─────────────
     if "refinement_suggestions" in res and isinstance(res["refinement_suggestions"], list):
-        res["refinement_suggestions"] = res["refinement_suggestions"][:max_refinement_suggestions]
+        res["refinement_suggestions"] = res["refinement_suggestions"][:4]
 
-    if "pass_summary" in res and isinstance(res["pass_summary"], dict):
-        res["pass_summary"] = {
-            "total_sources": res["pass_summary"].get("total_sources"),
-            "successful": res["pass_summary"].get("successful_sources", res["pass_summary"].get("successful")),
-        }
+    # ── Strip pass_summary to one line ───────────────────────────
+    if "pass_summary" in res:
+        ps = res["pass_summary"]
+        if isinstance(ps, dict):
+            ok = ps.get("successful_sources", ps.get("successful"))
+            total = ps.get("total_sources")
+            if ok is not None and total is not None:
+                res["sources_ok"] = f"{ok}/{total}"
+        res.pop("pass_summary", None)
 
-    if "intent_context" not in res and intent:
-        res["intent_context"] = {
-            "detected_intent": intent.value,
-            "preserved_fields": preserve_fields[:10],
-        }
+    # ── Remove all internal/debug keys the agent doesn't need ────
+    for key in list(res.keys()):
+        if key.startswith("_"):
+            del res[key]
+    res.pop("intent_context", None)
+    res.pop("search_metadata", None)
 
     return res
 
@@ -446,8 +449,6 @@ def _enforce_output_size_limit(res: dict, max_bytes: int = MAX_TOOL_OUTPUT_BYTES
         return {"error": "Serialization failed", "query": query}
 
     if current_size <= max_bytes:
-        # Add size metadata for debugging (only if not already over limit)
-        res["_output_size_bytes"] = current_size
         return res
 
     _logger.warning(f"Output size {current_size} bytes exceeds limit {max_bytes}, applying progressive truncation")
@@ -490,54 +491,42 @@ def _enforce_output_size_limit(res: dict, max_bytes: int = MAX_TOOL_OUTPUT_BYTES
         serialized = json.dumps(res)
         current_size = len(serialized.encode('utf-8'))
 
-    res["_output_size_bytes"] = current_size
-    res["_truncated_for_size"] = True
-    res["_original_estimated_size"] = "exceeded_limit"
-
     return res
 
 
 def _aggressive_truncation(res: dict, max_bytes: int) -> dict:
     """
     Aggressive truncation when progressive reduction isn't enough.
-
-    - Strips mesh_metadata to minimal
-    - Shortens all snippets to 200 chars
-    - Removes clinical_outcomes
-    - Removes refinement_suggestions
-    - Keeps only essential fields
+    Still content-first: shorten content per result but keep it present.
     """
-    # Strip non-essential top-level keys
-    keys_to_remove = ["refinement_suggestions", "pass_summary", "intent_context", "search_metadata"]
-    for key in keys_to_remove:
+    # Strip all non-essential top-level keys
+    for key in ("refinement_suggestions", "pass_summary", "intent_context",
+                "search_metadata", "mesh_context", "mesh_metadata", "sources_ok"):
         res.pop(key, None)
+    for key in list(res.keys()):
+        if key.startswith("_"):
+            del res[key]
 
-    # Minimal mesh_metadata
-    if "mesh_metadata" in res:
-        mesh = res["mesh_metadata"]
-        res["mesh_metadata"] = {
-            "intent": mesh.get("intent"),
-            "expanded_terms_count": mesh.get("expanded_terms_count"),
-        }
-
-    # Shorten all results
-    def _slim_result(r: dict) -> dict:
-        return {
-            "title": str(r.get("title", ""))[:100],
-            "id": r.get("id", ""),
-            "url": r.get("url", ""),
-            "date": r.get("date", ""),
-            "_source": r.get("_source", ""),
-            "snippet": str(r.get("snippet", ""))[:150] + "..." if r.get("snippet") else "",
-        }
+    # Shorten results but keep content as the priority field
+    def _slim(r: dict) -> dict:
+        out: dict = {}
+        if r.get("title"):
+            out["title"] = str(r["title"])[:100]
+        content = r.get("content") or r.get("snippet") or ""
+        if content:
+            out["content"] = str(content)[:300] + "..."
+        if r.get("url"):
+            out["url"] = r["url"]
+        return out
 
     if "results_by_source" in res:
-        for source, results in res.get("results_by_source", {}).items():
+        for source in list(res["results_by_source"].keys()):
+            results = res["results_by_source"][source]
             if isinstance(results, list):
-                res["results_by_source"][source] = [_slim_result(r) for r in results[:10]]
+                res["results_by_source"][source] = [_slim(r) for r in results[:10]]
 
     if "results" in res and isinstance(res["results"], list):
-        res["results"] = [_slim_result(r) for r in res["results"][:20]]
+        res["results"] = [_slim(r) for r in res["results"][:20]]
 
     return res
 
