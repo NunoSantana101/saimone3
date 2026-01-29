@@ -129,11 +129,11 @@ INTENT_BASED_LIMITS = {
 }
 
 # Field truncation limits for individual results
-# v3.2: Reduced to prevent output size overflow
+# v4: Content-first – the agent needs substance, not metadata overhead.
+#     Increased content budget, stripped redundant fields in core_assistant.
 RESULT_FIELD_LIMITS = {
-    "title_max_chars": 150,          # Reduced from 200
-    "snippet_max_chars": 300,        # Reduced from 400 (major size contributor)
-    "abstract_max_chars": 400,       # Reduced from 600
+    "title_max_chars": 150,
+    "content_max_chars": 800,        # Up from 300 – actual text the agent reasons over
 }
 
 
@@ -250,6 +250,7 @@ INTENT_PRESERVE_FIELDS = {
         "decision_type", "approval_date", "indication", "application_number",
         "submission_type", "review_priority", "orphan_status", "accelerated",
         "breakthrough", "fast_track", "applicant", "active_ingredient",
+        "manufacturer", "product_type", "content", "score",
     ],
     "kol": [
         "authors", "affiliation", "institution", "h_index", "citation_count",
@@ -289,6 +290,7 @@ INTENT_PRESERVE_FIELDS = {
     ],
     "general": [
         "authors", "journal", "publication_type", "doi", "mesh_terms",
+        "content", "score",
     ],
 }
 

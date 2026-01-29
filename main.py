@@ -1244,6 +1244,7 @@ def _enrich_last_search_entry(thread_id):
     if run_id and not run_steps:
         run_steps = _fetch_run_steps(thread_id, run_id)
 
+    entry["thread_id"] = thread_id
     entry["run_id"] = run_id
     entry["agent_actions"] = run_steps or []
 
@@ -1272,6 +1273,7 @@ def generate_search_history_json():
             "export_metadata": {
                 "export_timestamp": datetime.now().isoformat(),
                 "session_id": get_session_id(),
+                "thread_id": st.session_state.get("thread_id", ""),
                 "export_type": "search_history_full",
                 "total_user_searches": len(search_entries),
                 "total_agent_tool_calls": total_tool_calls,
@@ -1905,7 +1907,8 @@ with st.sidebar:
                 "query": deep_dive_term.strip(),
                 "source": "deep_dive",
                 "timestamp": datetime.now().isoformat(),
-                "user": user_info.get("email", "unknown") if user_info else "unknown"
+                "user": user_info.get("email", "unknown") if user_info else "unknown",
+                "thread_id": st.session_state.get("thread_id", ""),
             })
             # Create the silent prompt
             expand_prompt = f"Expand on: {deep_dive_term}. always run live data search and regulatory validation. Please provide the information in a matrix or tabular format if applicable."
@@ -1940,7 +1943,8 @@ with st.sidebar:
                 "query": fact_check_claim.strip(),
                 "source": "fact_check",
                 "timestamp": datetime.now().isoformat(),
-                "user": user_info.get("email", "unknown") if user_info else "unknown"
+                "user": user_info.get("email", "unknown") if user_info else "unknown",
+                "thread_id": st.session_state.get("thread_id", ""),
             })
             # Create the fact-check prompt with specialized instructions
             fact_check_prompt = f"""Fact-check and validate the following claim:
@@ -2312,7 +2316,8 @@ Output format:
                             "query": label,
                             "source": "quick_action",
                             "timestamp": datetime.now().isoformat(),
-                            "user": user_info.get("email", "unknown") if user_info else "unknown"
+                            "user": user_info.get("email", "unknown") if user_info else "unknown",
+                            "thread_id": st.session_state.get("thread_id", ""),
                         })
                         st.session_state["silent_prompt_to_run"] = silent_prompt
                         st.rerun()
@@ -2532,7 +2537,8 @@ Output format:
                                 "query": func_name,
                                 "source": "automated_function",
                                 "timestamp": datetime.now().isoformat(),
-                                "user": user_info.get("email", "unknown") if user_info else "unknown"
+                                "user": user_info.get("email", "unknown") if user_info else "unknown",
+                                "thread_id": st.session_state.get("thread_id", ""),
                             })
                             st.session_state["silent_prompt_to_run"] = automated_prompt
                             st.rerun()
@@ -2813,7 +2819,8 @@ if send and user_input.strip():
             "query": user_input,
             "source": "chat",
             "timestamp": datetime.now().isoformat(),
-            "user": user_info.get("email", "unknown") if user_info else "unknown"
+            "user": user_info.get("email", "unknown") if user_info else "unknown",
+            "thread_id": st.session_state.get("thread_id", ""),
         })
 
         date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
