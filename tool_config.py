@@ -250,6 +250,7 @@ INTENT_PRESERVE_FIELDS = {
         "decision_type", "approval_date", "indication", "application_number",
         "submission_type", "review_priority", "orphan_status", "accelerated",
         "breakthrough", "fast_track", "applicant", "active_ingredient",
+        "manufacturer", "product_type", "content", "score",
     ],
     "kol": [
         "authors", "affiliation", "institution", "h_index", "citation_count",
@@ -289,6 +290,7 @@ INTENT_PRESERVE_FIELDS = {
     ],
     "general": [
         "authors", "journal", "publication_type", "doi", "mesh_terms",
+        "content", "score",
     ],
 }
 

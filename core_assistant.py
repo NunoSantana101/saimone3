@@ -306,7 +306,7 @@ def _truncate_search_results(
         if source:
             slim["_source"] = source
 
-        snippet = r.get("snippet", extra.get("abstract", ""))
+        snippet = r.get("snippet") or extra.get("abstract") or extra.get("content") or ""
         if snippet:
             slim["snippet"] = snippet[:snippet_max] + "..." if len(str(snippet)) > snippet_max else snippet
 
