@@ -2013,8 +2013,14 @@ def search_europe_pmc(
             elif source.upper() == "PMC": url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/PMC{hit_id}/"
             else: url = f"https://europepmc.org/article/{source}/{hit_id}"
 
+            # v4.1: Extract abstract text for agent content
+            abstract_text = r.get("abstractText") or ""
+            if isinstance(abstract_text, str):
+                abstract_text = abstract_text.strip()[:1000]
+
             hits.append(_norm("europe_pmc", id=hit_id, title=r.get("title"), url=url, date=_iso(r.get("firstPublicationDate")),
                 extra={
+                    "abstract": abstract_text,
                     "journal": r.get("journalTitle"),
                     "authors": r.get("authorString", "").split(", ")[:5],
                     "source_db": source,
@@ -2082,9 +2088,21 @@ def search_crossref(
         hits = []
         for w in msg.get("items", []):
             title = (w.get("title") or [None])[0]
+            # v4.1: Extract abstract (Crossref provides it for many articles)
+            abstract_raw = w.get("abstract") or ""
+            if isinstance(abstract_raw, str):
+                # Crossref abstracts often have JATS XML tags; strip them
+                abstract_clean = re.sub(r"<[^>]+>", " ", abstract_raw)
+                abstract_clean = " ".join(abstract_clean.split()).strip()[:1000]
+            else:
+                abstract_clean = ""
             hits.append(_norm("crossref", id=w.get("DOI"), title=title, url=w.get("URL"),
                 date=str(w.get("issued", {}).get("date-parts", [[None]])[0][0]),
-                extra={"publisher": w.get("publisher")}))
+                extra={
+                    "abstract": abstract_clean,
+                    "publisher": w.get("publisher"),
+                    "type": w.get("type"),
+                }))
 
         return hits, msg.get("next-cursor")
     except Exception as e:
@@ -2179,14 +2197,31 @@ def search_clinicaltrials(
         if not nct_id: continue
         status_mod = proto.get("statusModule", {})
         sponsor_mod = proto.get("sponsorCollaboratorsModule", {})
+        # v4.1: Extract brief summary as content for the agent
+        desc_mod = proto.get("descriptionModule", {})
+        brief_summary = (desc_mod.get("briefSummary") or "").strip()[:800]
+        # Also grab eligibility criteria snippet and interventions
+        arms_mod = proto.get("armsInterventionsModule", {})
+        interventions = [i.get("name", "") for i in arms_mod.get("interventions", []) if i.get("name")]
+        intervention_text = ", ".join(interventions[:5])
+        # Build content: summary + interventions
+        content_parts = []
+        if brief_summary:
+            content_parts.append(brief_summary)
+        if intervention_text:
+            content_parts.append(f"Interventions: {intervention_text}")
+        content_text = " | ".join(content_parts)
+
         hits.append(_norm(
             "clinicaltrials", id=nct_id, title=id_mod.get("briefTitle"),
             url=f"https://clinicaltrials.gov/study/{nct_id}", date=_iso(status_mod.get("startDateStruct", {}).get("date")),
             extra={
+                "content": content_text,
                 "status": status_mod.get("overallStatus"),
                 "sponsor": sponsor_mod.get("leadSponsor", {}).get("name"),
                 "phase": ", ".join(proto.get("designModule", {}).get("phases", [])),
                 "conditions": ", ".join(proto.get("conditionsModule", {}).get("conditions", [])),
+                "enrollment": proto.get("designModule", {}).get("enrollmentInfo", {}).get("count"),
             }))
     return hits, data.get("nextPageToken")
 
@@ -3065,6 +3100,29 @@ def search_orange_book(query: str, max_results: int, cursor: int = 0, prioritize
                         approval_type = sub.get("submission_type")
                         break
 
+                # v4.1: Build content summary from patent/exclusivity data
+                content_parts = []
+                if ingredient_names:
+                    content_parts.append(f"Active: {', '.join(ingredient_names)}")
+                if sponsor:
+                    content_parts.append(f"Sponsor: {sponsor}")
+                dosage_form = product.get("dosage_form") or ""
+                route = product.get("route") or ""
+                if dosage_form or route:
+                    content_parts.append(f"Form: {dosage_form} {route}".strip())
+                strengths = [ai.get("strength") for ai in active_ingredients if ai.get("strength")]
+                if strengths:
+                    content_parts.append(f"Strength: {', '.join(str(s) for s in strengths[:3])}")
+                if te_code:
+                    content_parts.append(f"TE code: {te_code}")
+                mkt = product.get("marketing_status") or ""
+                if mkt:
+                    content_parts.append(f"Marketing: {mkt}")
+                is_ref = product.get("reference_drug", "").upper() == "YES"
+                if is_ref:
+                    content_parts.append("Reference listed drug: Yes")
+                content_text = ". ".join(content_parts)
+
                 hits.append(_norm(
                     "orange_book",
                     id=f"{app_number}_{product.get('product_number', '')}",
@@ -3072,17 +3130,18 @@ def search_orange_book(query: str, max_results: int, cursor: int = 0, prioritize
                     url=f"https://www.accessdata.fda.gov/scripts/cder/ob/results_product.cfm?Appl_Type={'N' if app_number.startswith('N') else 'A'}&Appl_No={app_number[3:] if len(app_number) > 3 else app_number}",
                     date=_iso(approval_date),
                     extra={
+                        "content": content_text,
                         "application_number": app_number,
                         "sponsor": sponsor,
                         "brand_name": brand_name,
                         "active_ingredients": ingredient_names,
-                        "dosage_form": product.get("dosage_form"),
-                        "route": product.get("route"),
+                        "dosage_form": dosage_form,
+                        "route": route,
                         "strength": [ai.get("strength") for ai in active_ingredients],
                         "te_code": te_code,
-                        "reference_drug": product.get("reference_drug", "").upper() == "YES",
+                        "reference_drug": is_ref,
                         "reference_standard": product.get("reference_standard", "").upper() == "YES",
-                        "marketing_status": product.get("marketing_status"),
+                        "marketing_status": mkt,
                     }
                 ))
 
@@ -3623,6 +3682,23 @@ def search_ema(
             url = r.get("medicine_url") or r.get("url")
             ema_no = r.get("ema_product_number") or url
             date = _iso(r.get("last_updated_date") or r.get("lastUpdatedDate") or r.get("last_updated"))
+            # v4.1: Build readable content from therapeutic indication + key fields
+            indication_raw = r.get("therapeutic_indication") or ""
+            if isinstance(indication_raw, list):
+                indication_text = "; ".join(str(x) for x in indication_raw if x)[:800]
+            else:
+                indication_text = str(indication_raw).strip()[:800]
+            content_parts = []
+            if indication_text:
+                content_parts.append(f"Indication: {indication_text}")
+            holder = r.get("marketing_authorisation_developer_applicant_holder") or ""
+            if holder:
+                content_parts.append(f"MAH: {holder}")
+            status = r.get("medicine_status") or ""
+            if status:
+                content_parts.append(f"Status: {status}")
+            content_text = ". ".join(content_parts)
+
             hits.append(_norm(
                 "ema",
                 id=ema_no,
@@ -3630,6 +3706,7 @@ def search_ema(
                 url=url,
                 date=date,
                 extra={
+                    "content": content_text,
                     "ema_product_number": r.get("ema_product_number"),
                     "medicine_status": r.get("medicine_status"),
                     "opinion_status": r.get("opinion_status"),
@@ -3689,8 +3766,18 @@ def search_who_ictrp(query: str, max_results: int, prioritize_recent: bool = Tru
         for row in reader:
             # Search across a few key fields
             if any(query_lower in (row[i].lower() if len(row) > i else '') for i in [1, 3, 18]): # Title, Condition, Interventions
+                # v4.1: Build content from condition + intervention fields
+                condition = row[18] if len(row) > 18 else ""
+                intervention = row[3] if len(row) > 3 else ""
+                content_parts = []
+                if condition:
+                    content_parts.append(f"Condition: {condition}")
+                if intervention:
+                    content_parts.append(f"Intervention: {intervention}")
+                content_text = ". ".join(content_parts)[:600]
+
                 hits.append(_norm("who_ictrp", id=row[0], title=row[1], date=_iso(row[2]),
-                    extra={"countries": row[6], "condition": row[18]}))
+                    extra={"content": content_text, "countries": row[6], "condition": condition, "intervention": intervention}))
                 if len(hits) >= max_results * 2:  # Get extra for sorting
                     break
         
@@ -3793,6 +3880,16 @@ def search_who_ictrp_v2(
             elif trial_id.upper().startswith("ChiCTR"):
                 source_registry = "ChiCTR (China)"
 
+            # v4.1: Build content from condition + intervention for agent
+            content_parts = []
+            if condition:
+                content_parts.append(f"Condition: {condition}")
+            if intervention:
+                content_parts.append(f"Intervention: {intervention}")
+            if source_registry and source_registry != "Unknown":
+                content_parts.append(f"Registry: {source_registry}")
+            content_text = ". ".join(content_parts)[:600]
+
             hits.append(_norm(
                 "who_ictrp",
                 id=trial_id,
@@ -3800,6 +3897,7 @@ def search_who_ictrp_v2(
                 url=f"https://trialsearch.who.int/Trial2.aspx?TrialID={trial_id}",
                 date=_iso(date_reg),
                 extra={
+                    "content": content_text,
                     "source_registry": source_registry,
                     "countries": trial_countries,
                     "condition": condition,
@@ -3878,6 +3976,9 @@ def search_eu_clinical_trials(
                 if isinstance(description, dict):
                     description = description.get("en", description.get("de", ""))
 
+                # v4.1: Map description to content for agent consumption
+                desc_text = str(description).strip()[:600] if description else ""
+
                 all_hits.append(_norm(
                     "eu_clinical_trials",
                     id=item.get("id", ""),
@@ -3885,7 +3986,7 @@ def search_eu_clinical_trials(
                     url=item.get("landingPage", f"https://data.europa.eu/data/datasets/{item.get('id', '')}"),
                     date=_iso(item.get("modified", item.get("issued"))),
                     extra={
-                        "description": str(description)[:500],
+                        "content": desc_text,
                         "publisher": item.get("publisher", {}).get("name", "EU Open Data"),
                         "source": "EU Open Data Portal",
                     }
@@ -4736,11 +4837,25 @@ def search_open_payments(query: str, max_results: int, cursor: int = 0, prioriti
             recipient = f"{first} {last}".strip() or get_val(['teaching_hospital_name'])
             if not recipient: continue
             
+            # v4.1: Build content from payment data
+            amount = get_val(['total_amount_of_payment_usdollars']) or ""
+            company = get_val(['submitting_applicable_manufacturer_or_applicable_gpo_name']) or ""
+            nature = get_val(['nature_of_payment_or_transfer_of_value']) or ""
+            content_parts = []
+            if company:
+                content_parts.append(f"From: {company}")
+            if amount:
+                content_parts.append(f"Amount: ${amount}")
+            if nature:
+                content_parts.append(f"Nature: {nature}")
+            content_text = ". ".join(content_parts)
+
             hits.append(_norm(
                 "open_payments", id=get_val(['record_id']), title=recipient, date=_iso(get_val(['date_of_payment'])),
-                extra={ "amount": get_val(['total_amount_of_payment_usdollars']),
-                        "company": get_val(['submitting_applicable_manufacturer_or_applicable_gpo_name']),
-                        "payment_nature": get_val(['nature_of_payment_or_transfer_of_value']) }))
+                extra={ "content": content_text,
+                        "amount": amount,
+                        "company": company,
+                        "payment_nature": nature }))
         next_cursor = (cursor or 0) + len(hits) if len(hits) == max_results else None
         return hits, next_cursor
     except Exception as e:
@@ -4895,6 +5010,8 @@ def _fetch_congress_abstracts_api(society: str, query: str, max_results: int) ->
         for item in items[:max_results]:
             if society == "asco":
                 abstract_id = item.get("abstractId") or item.get("id")
+                # v4.1: Extract abstract body from API response
+                abstract_body = (item.get("abstract") or item.get("body") or item.get("abstractBody") or "").strip()[:800]
                 hits.append(_norm(
                     "asco",
                     id=abstract_id,
@@ -4902,6 +5019,7 @@ def _fetch_congress_abstracts_api(society: str, query: str, max_results: int) ->
                     url=f"https://meetings.asco.org/abstracts-presentations/{abstract_id}" if abstract_id else None,
                     date=_iso(item.get("presentationDate")),
                     extra={
+                        "abstract": abstract_body,
                         "authors": item.get("authors", []),
                         "session": item.get("sessionTitle"),
                         "meeting": item.get("meetingName"),
@@ -4910,6 +5028,7 @@ def _fetch_congress_abstracts_api(society: str, query: str, max_results: int) ->
                 ))
             else:  # esmo
                 item_id = item.get("id")
+                abstract_body = (item.get("abstract") or item.get("body") or item.get("content") or "").strip()[:800]
                 hits.append(_norm(
                     "esmo",
                     id=item_id,
@@ -4917,6 +5036,7 @@ def _fetch_congress_abstracts_api(society: str, query: str, max_results: int) ->
                     url=f"https://www.esmo.org/meeting-resources/esmo-congress/abstracts/{item_id}" if item_id else None,
                     date=_iso((item.get("startAt") or item.get("date") or "")[:10]),
                     extra={
+                        "abstract": abstract_body,
                         "authors": [a.get("fullName") for a in item.get("authors", []) if isinstance(a, dict)],
                         "session": item.get("sessionTitle"),
                         "source_type": "api"
@@ -5078,7 +5198,10 @@ def search_nice(
             params={"q": expanded_query, "apiKey": NICE_API_KEY, "page": cursor, "pageSize": min(max_results, 50)},
         ).json()
         hits = [_norm("nice", id=g["id"], title=g["title"], url=g["links"][0]["href"], date=_iso(g.get("publicationDate")),
-                      extra={"guidance_type": g.get("type")}) for g in j.get("documents", [])]
+                      extra={
+                          "content": (g.get("summary") or g.get("description") or g.get("title") or "")[:600],
+                          "guidance_type": g.get("type"),
+                      }) for g in j.get("documents", [])]
         next_cursor = cursor + 1 if cursor < j.get("totalPages", 1) else None
         return hits, next_cursor
     except Exception:
@@ -6515,16 +6638,44 @@ def search_openalex_authors(query: str, max_results: int = 20, cursor: str | Non
 
     results = []
     for a in (data.get("results") or []):
+        institution = (a.get("last_known_institution") or {}).get("display_name") if isinstance(a.get("last_known_institution"), dict) else None
+        institution_country = (a.get("last_known_institution") or {}).get("country_code") if isinstance(a.get("last_known_institution"), dict) else None
+        h_index = (a.get("summary_stats") or {}).get("h_index")
+        works_count = a.get("works_count")
+        cited_by_count = a.get("cited_by_count")
+
+        # v4.1: Build KOL profile content for agent reasoning
+        content_parts = []
+        if institution:
+            content_parts.append(f"Institution: {institution}")
+        if institution_country:
+            content_parts.append(f"Country: {institution_country}")
+        if h_index is not None:
+            content_parts.append(f"h-index: {h_index}")
+        if works_count is not None:
+            content_parts.append(f"Publications: {works_count}")
+        if cited_by_count is not None:
+            content_parts.append(f"Citations: {cited_by_count}")
+        # Top concepts/topics if available
+        top_concepts = []
+        for c in (a.get("x_concepts") or [])[:3]:
+            if isinstance(c, dict) and c.get("display_name"):
+                top_concepts.append(c["display_name"])
+        if top_concepts:
+            content_parts.append(f"Topics: {', '.join(top_concepts)}")
+        content_text = ". ".join(content_parts)
+
         extra = {
+            "content": content_text,
             "display_name": a.get("display_name"),
             "orcid": (a.get("orcid") or a.get("ids", {}).get("orcid")),
-            "works_count": a.get("works_count"),
-            "cited_by_count": a.get("cited_by_count"),
-            "h_index": (a.get("summary_stats") or {}).get("h_index"),
+            "works_count": works_count,
+            "cited_by_count": cited_by_count,
+            "h_index": h_index,
             "i10_index": (a.get("summary_stats") or {}).get("i10_index"),
             "2yr_mean_citedness": (a.get("summary_stats") or {}).get("2yr_mean_citedness"),
-            "last_known_institution": (a.get("last_known_institution") or {}).get("display_name") if isinstance(a.get("last_known_institution"), dict) else None,
-            "last_known_institution_country": (a.get("last_known_institution") or {}).get("country_code") if isinstance(a.get("last_known_institution"), dict) else None,
+            "last_known_institution": institution,
+            "last_known_institution_country": institution_country,
             "ids": a.get("ids") or {},
         }
         results.append(_norm("openalex_authors",
@@ -6590,7 +6741,23 @@ def search_openalex_works(query: str, max_results: int = 20, cursor: str | None 
     for w in (data.get("results") or []):
         ids = w.get("ids") or {}
         doi = ids.get("doi")
+        # v4.1: Reconstruct abstract from inverted index (OpenAlex format)
+        abstract_text = ""
+        aii = w.get("abstract_inverted_index")
+        if isinstance(aii, dict) and aii:
+            try:
+                # Inverted index: {"word": [pos1, pos2, ...], ...}
+                word_positions = []
+                for word, positions in aii.items():
+                    for pos in positions:
+                        word_positions.append((pos, word))
+                word_positions.sort(key=lambda x: x[0])
+                abstract_text = " ".join(word for _, word in word_positions)[:1000]
+            except Exception:
+                abstract_text = ""
+
         extra = {
+            "abstract": abstract_text,
             "publication_year": w.get("publication_year"),
             "type": w.get("type"),
             "cited_by_count": w.get("cited_by_count"),
@@ -6792,13 +6959,37 @@ def search_nih_reporter_projects(query: str, max_results: int = 20, cursor: Any 
     for p in (data.get("results") or []):
         title = p.get("project_title") or p.get("title") or "N/A"
         pid = p.get("project_num") or p.get("appl_id") or p.get("project_id")
+        # v4.1: Include abstract_text as content for agent
+        abstract_text = (p.get("abstract_text") or "").strip()[:800]
+        # Build PI info
+        pis = p.get("principal_investigators") or []
+        pi_names = []
+        for pi in (pis if isinstance(pis, list) else []):
+            if isinstance(pi, dict):
+                name = pi.get("full_name") or f"{pi.get('first_name', '')} {pi.get('last_name', '')}".strip()
+                if name:
+                    pi_names.append(name)
+        content_parts = []
+        if abstract_text:
+            content_parts.append(abstract_text)
+        elif pi_names:
+            content_parts.append(f"PI: {', '.join(pi_names[:3])}")
+        org = p.get("org_name") or ""
+        if org:
+            content_parts.append(f"Org: {org}")
+        award = p.get("award_amount")
+        if award:
+            content_parts.append(f"Award: ${award:,.0f}" if isinstance(award, (int, float)) else f"Award: {award}")
+        content_text = ". ".join(content_parts)
+
         extra = {
-            "org_name": p.get("org_name"),
+            "abstract": abstract_text,
+            "org_name": org,
             "award_amount": p.get("award_amount"),
             "project_start_date": _iso(p.get("project_start_date")),
             "project_end_date": _iso(p.get("project_end_date")),
             "agency_ic_admin": p.get("agency_ic_admin"),
-            "principal_investigators": p.get("principal_investigators"),
+            "principal_investigators": pi_names[:5],
         }
         results.append(_norm("nih_reporter_projects",
                             id=pid,
@@ -6975,15 +7166,34 @@ def search_anvisa(
                 name = item.get("nomeProduto") or item.get("nome") or item.get("medicamento") or "N/A"
                 company = item.get("razaoSocial") or item.get("empresa") or item.get("fabricante")
 
+                # v4.1: Build content from structured fields
+                ingredient = item.get("principioAtivo") or item.get("substancia") or ""
+                therapeutic_class = item.get("classesTerapeuticas") or item.get("classe") or ""
+                presentation = item.get("apresentacao") or ""
+                reg_status = item.get("situacao") or item.get("status") or ""
+                content_parts = []
+                if ingredient:
+                    content_parts.append(f"Active: {ingredient}")
+                if company:
+                    content_parts.append(f"Company: {company}")
+                if therapeutic_class:
+                    content_parts.append(f"Class: {therapeutic_class}")
+                if presentation:
+                    content_parts.append(f"Form: {presentation}")
+                if reg_status:
+                    content_parts.append(f"Status: {reg_status}")
+                content_text = ". ".join(content_parts)[:600]
+
                 extra = {
+                    "content": content_text,
                     "registration_number": reg_num,
                     "company": company,
-                    "active_ingredient": item.get("principioAtivo") or item.get("substancia"),
-                    "therapeutic_class": item.get("classesTerapeuticas") or item.get("classe"),
-                    "presentation": item.get("apresentacao"),
+                    "active_ingredient": ingredient,
+                    "therapeutic_class": therapeutic_class,
+                    "presentation": presentation,
                     "registration_date": _iso(item.get("dataRegistro") or item.get("dataPublicacao")),
                     "expiry_date": _iso(item.get("dataVencimento")),
-                    "status": item.get("situacao") or item.get("status"),
+                    "status": reg_status,
                     "category": item.get("categoria") or category,
                     "region": "LATAM",
                     "country": "BR",
@@ -7217,14 +7427,24 @@ def search_pmda(
                     for item in results:
                         title = item.get("title") or item.get("name")
                         if title:
+                            # v4.1: Use notes as content
+                            notes = (item.get("notes") or "").strip()[:600]
+                            org_title = (item.get("organization") or {}).get("title") or ""
+                            content_parts = []
+                            if notes:
+                                content_parts.append(notes)
+                            if org_title:
+                                content_parts.append(f"Organization: {org_title}")
+                            content_text = ". ".join(content_parts)
+
                             hits.append(_norm(
                                 "pmda",
                                 id=item.get("id") or item.get("name"),
                                 title=title,
                                 url=item.get("url"),
                                 extra={
-                                    "notes": item.get("notes"),
-                                    "organization": item.get("organization", {}).get("title"),
+                                    "content": content_text,
+                                    "organization": org_title,
                                     "region": "ASIA",
                                     "country": "JP",
                                     "regulatory_agency": "PMDA",
@@ -7343,6 +7563,19 @@ def search_nmpa(
                     for item in items[:max_results]:
                         name = item.get("drugName") or item.get("productName") or item.get("title")
                         if name:
+                            # v4.1: Build content from indication + company
+                            indication = item.get("indication") or ""
+                            company = item.get("company") or item.get("applicant") or ""
+                            approval_type = item.get("approvalType") or ""
+                            content_parts = []
+                            if indication:
+                                content_parts.append(f"Indication: {indication}")
+                            if company:
+                                content_parts.append(f"Applicant: {company}")
+                            if approval_type:
+                                content_parts.append(f"Type: {approval_type}")
+                            content_text = ". ".join(content_parts)[:600]
+
                             hits.append(_norm(
                                 "nmpa",
                                 id=item.get("id") or item.get("registrationNo"),
@@ -7350,10 +7583,11 @@ def search_nmpa(
                                 url=item.get("url"),
                                 date=_iso(item.get("approvalDate") or item.get("publishDate")),
                                 extra={
+                                    "content": content_text,
                                     "registration_number": item.get("registrationNo"),
-                                    "company": item.get("company") or item.get("applicant"),
-                                    "approval_type": item.get("approvalType"),
-                                    "indication": item.get("indication"),
+                                    "company": company,
+                                    "approval_type": approval_type,
+                                    "indication": indication,
                                     "region": "ASIA",
                                     "country": "CN",
                                     "regulatory_agency": "NMPA/CDE",
@@ -7473,14 +7707,25 @@ def search_cdsco(
                 data = resp.json()
                 records = data.get("records", [])
                 for record in records[:max_results]:
+                    # v4.1: Build content from structured fields
+                    mfr = record.get("manufacturer") or ""
+                    cat = record.get("category") or ""
+                    content_parts = []
+                    if mfr:
+                        content_parts.append(f"Manufacturer: {mfr}")
+                    if cat:
+                        content_parts.append(f"Category: {cat}")
+                    content_text = ". ".join(content_parts)
+
                     hits.append(_norm(
                         "cdsco",
                         id=record.get("id") or record.get("approval_number"),
                         title=record.get("drug_name") or record.get("product_name"),
                         date=_iso(record.get("approval_date")),
                         extra={
-                            "manufacturer": record.get("manufacturer"),
-                            "category": record.get("category"),
+                            "content": content_text,
+                            "manufacturer": mfr,
+                            "category": cat,
                             "region": "ASIA",
                             "country": "IN",
                             "regulatory_agency": "CDSCO",
@@ -7551,12 +7796,29 @@ def search_rebec(
                     trial_id = trial.get("trial_id") or trial.get("registro")
                     title = trial.get("public_title") or trial.get("titulo_publico") or trial.get("title")
 
+                    # v4.1: Build content from condition + intervention
+                    condition = trial.get("health_condition") or trial.get("condicao") or ""
+                    intervention = trial.get("intervention") or trial.get("intervencao") or ""
+                    sponsor = trial.get("primary_sponsor") or trial.get("patrocinador") or ""
+                    phase = trial.get("study_phase") or trial.get("fase") or ""
+                    content_parts = []
+                    if condition:
+                        content_parts.append(f"Condition: {condition}")
+                    if intervention:
+                        content_parts.append(f"Intervention: {intervention}")
+                    if sponsor:
+                        content_parts.append(f"Sponsor: {sponsor}")
+                    if phase:
+                        content_parts.append(f"Phase: {phase}")
+                    content_text = ". ".join(content_parts)[:600]
+
                     extra = {
+                        "content": content_text,
                         "status": trial.get("recruitment_status") or trial.get("status"),
-                        "phase": trial.get("study_phase") or trial.get("fase"),
-                        "condition": trial.get("health_condition") or trial.get("condicao"),
-                        "intervention": trial.get("intervention") or trial.get("intervencao"),
-                        "sponsor": trial.get("primary_sponsor") or trial.get("patrocinador"),
+                        "phase": phase,
+                        "condition": condition,
+                        "intervention": intervention,
+                        "sponsor": sponsor,
                         "enrollment": trial.get("target_enrollment") or trial.get("participantes"),
                         "region": "LATAM",
                         "country": "BR",
@@ -7652,10 +7914,22 @@ def search_latam_trials(
                     ident = protocol.get("identificationModule", {})
                     status_mod = protocol.get("statusModule", {})
 
+                    # v4.1: Add briefSummary as content
+                    desc_mod = protocol.get("descriptionModule", {})
+                    brief_summary = (desc_mod.get("briefSummary") or "").strip()[:600]
+                    conditions = ", ".join(protocol.get("conditionsModule", {}).get("conditions", []))
+                    content_parts = []
+                    if brief_summary:
+                        content_parts.append(brief_summary)
+                    elif conditions:
+                        content_parts.append(f"Conditions: {conditions}")
+
                     extra = {
+                        "content": ". ".join(content_parts),
                         "phase": protocol.get("designModule", {}).get("phases", []),
                         "status": status_mod.get("overallStatus"),
                         "enrollment": protocol.get("designModule", {}).get("enrollmentInfo", {}).get("count"),
+                        "conditions": conditions,
                         "region": "LATAM",
                         "registry": "ClinicalTrials.gov",
                     }
@@ -7730,6 +8004,7 @@ def search_ctri(
                         title=f"Clinical Trial: {ctri_id}",
                         url=f"{CTRI_BASE}/Clinicaltrials/pmaindet2.php?trialid={ctri_id.replace('/', '')}",
                         extra={
+                            "content": f"India clinical trial {ctri_id} matching '{query}'. Registry: CTRI (WHO Primary Registry).",
                             "region": "ASIA",
                             "country": "IN",
                             "registry": "CTRI",
@@ -7795,6 +8070,7 @@ def search_chictr(
                         title=f"Clinical Trial: {chictr_id}",
                         url=f"{CHICTR_BASE}/showprojen.aspx?proj={chictr_id}",
                         extra={
+                            "content": f"China clinical trial {chictr_id} matching '{query}'. Registry: ChiCTR (WHO Primary Registry).",
                             "region": "ASIA",
                             "country": "CN",
                             "registry": "ChiCTR",
@@ -7860,6 +8136,7 @@ def search_jprn(
                         title=f"Clinical Trial: {jrct_id}",
                         url=f"{JPRN_BASE}/en/detail?trial_id={jrct_id}",
                         extra={
+                            "content": f"Japan clinical trial {jrct_id} matching '{query}'. Registry: JPRN/jRCT (WHO Primary Registry).",
                             "region": "ASIA",
                             "country": "JP",
                             "registry": "JPRN/jRCT",
