@@ -1,0 +1,208 @@
+{
+  "name": "get_med_affairs_data",
+  "description": "Search medical affairs databases with full transparency for agent reasoning.\n\nDESIGN PHILOSOPHY (v3.2):\n- Backend = Transparent data provider (fetch, structure, audit trail)\n- Agent = Reasoning engine (interpret, prioritize, synthesize)\n- OUTPUT SIZE SAFETY: Hard 200KB limit enforced with progressive truncation\n- All metadata included for audit trail and agent context\n- Clinical outcomes extracted from abstracts automatically\n- Intent-specific fields preserved (phase, status, sponsor for trials)\n- Regional intent detection for LATAM and Asia markets\n\nOUTPUT SIZE LIMITS (v3.2 - Prevents Agent Silent Failures):\n- Maximum output: 200KB (OpenAI limit is ~256KB)\n- Progressive truncation applied automatically when approaching limit\n- Default max_results reduced to 30 for safety\n- Use compact_output=true for minimal response size\n\nRESPONSE INCLUDES:\n- results: Structured data with intent-specific fields preserved\n- intent_context: Why certain filters/expansions were applied\n- mesh_metadata: MeSH expansion details for transparency (enabled by default)\n- search_metadata: Full audit trail (timestamp, filters, sources tried)\n- refinement_suggestions: Follow-up queries with rationale\n- _clinical_outcomes: Extracted PFS, OS, HR, p-values from abstracts\n- _output_size_bytes: Size of response for debugging\n- _truncated_for_size: True if results were reduced due to size limits\n\nSOURCE CATEGORIES:\n\n📚 LITERATURE:\n- pubmed, europe_pmc, crossref, biorxiv, medrxiv\n\n🔬 CLINICAL TRIALS - GLOBAL:\n- clinicaltrials (US - ClinicalTrials.gov)\n- eu_clinical_trials (EU - CTIS/EudraCT)\n- who_ictrp (Global - WHO aggregation, 17+ registries)\n- who_ictrp_v2 (Enhanced with regional filtering)\n\n🔬 CLINICAL TRIALS - LATAM:\n- rebec (Brazil - REBEC, WHO Primary Registry)\n- latam_trials (Aggregated LATAM trials search)\n\n🔬 CLINICAL TRIALS - ASIA:\n- ctri (India - CTRI, WHO Primary Registry)\n- chictr (China - ChiCTR, WHO Primary Registry)\n- jprn (Japan - JPRN/jRCT, WHO Primary Registry)\n- asia_trials (Aggregated Asia trials search)\n\n🇺🇸 FDA (US REGULATORY):\n- fda_drugs, fda_guidance, faers, dailymed, orange_book\n- fda_recalls_drug, fda_recalls_device, fda_safety_communications\n- fda_warning_letters, fda_device_events\n\n🇪🇺 EMA/NICE (EU/UK REGULATORY):\n- ema, ema_guidance, nice, nice_guidance\n\n🌎 LATAM REGULATORY:\n- anvisa (Brazil - ANVISA, largest LATAM market)\n- cofepris (Mexico - COFEPRIS, 2nd largest LATAM market)\n- latam_regulatory (Combined LATAM regulatory search)\n\n🌏 ASIA REGULATORY:\n- pmda (Japan - PMDA, 3rd largest global market)\n- nmpa (China - NMPA/CDE, 2nd largest global market)\n- cdsco (India - CDSCO, major generics hub)\n- asia_regulatory (Combined Asia regulatory search)\n\n👤 KOL DISCOVERY:\n- openalex_authors, openalex_works, openalex_kol\n- orcid_search, orcid_record, pubmed_investigators\n- regional_kol (Regional KOL discovery for LATAM/Asia)\n\n💰 FUNDING & TRANSPARENCY:\n- open_payments, nih_reporter_projects\n\n📊 CONFERENCES:\n- asco, esmo\n\n🌍 EPIDEMIOLOGY & ECONOMICS:\n- who_gho, world_bank, eurostat, macro_trends, macro_trends_plus\n- imf_sdmx, oecd_sdmx, ilostat_sdmx, un_comtrade, un_population\n- paho (PAHO health indicators for Americas/LATAM)\n\n🔗 OTHER:\n- drug_entity, regulatory_combined, web_search",
+  "strict": false,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string",
+        "description": "Data source to search. Backend auto-detects regional intent (LATAM/Asia) and applies appropriate filters and language expansion. Use aggregated sources (latam_trials, asia_trials, latam_regulatory, asia_regulatory) for comprehensive regional coverage.",
+        "enum": [
+          "pubmed",
+          "europe_pmc",
+          "crossref",
+          "pubmed_investigators",
+          "clinicaltrials",
+          "eu_clinical_trials",
+          "who_ictrp",
+          "who_ictrp_v2",
+          "rebec",
+          "latam_trials",
+          "ctri",
+          "chictr",
+          "jprn",
+          "asia_trials",
+          "fda_drugs",
+          "fda_guidance",
+          "faers",
+          "fda_device_events",
+          "fda_recalls_drug",
+          "fda_recalls_device",
+          "fda_safety_communications",
+          "fda_warning_letters",
+          "dailymed",
+          "orange_book",
+          "ema",
+          "ema_guidance",
+          "nice",
+          "nice_guidance",
+          "anvisa",
+          "cofepris",
+          "latam_regulatory",
+          "pmda",
+          "nmpa",
+          "cdsco",
+          "asia_regulatory",
+          "regulatory_combined",
+          "drug_entity",
+          "openalex_authors",
+          "openalex_works",
+          "openalex_kol",
+          "regional_kol",
+          "orcid_search",
+          "orcid_record",
+          "open_payments",
+          "nih_reporter_projects",
+          "biorxiv",
+          "medrxiv",
+          "asco",
+          "esmo",
+          "who_gho",
+          "paho",
+          "world_bank",
+          "eurostat",
+          "macro_trends",
+          "macro_trends_plus",
+          "imf_sdmx",
+          "oecd_sdmx",
+          "ilostat_sdmx",
+          "un_comtrade",
+          "un_population",
+          "web_search"
+        ]
+      },
+      "query": {
+        "type": "string",
+        "description": "Search query. Backend auto-expands with MeSH synonyms and regional language terms (Spanish/Portuguese for LATAM). Accepts drug names, diseases, authors, NCT numbers, EudraCT IDs, PMIDs, CTRI IDs, ChiCTR IDs, or natural language."
+      },
+      "max_results": {
+        "type": "integer",
+        "description": "Maximum results to return. IMPORTANT: Lower values (20-50) are recommended to prevent output size issues that cause silent agent failures. Default: 30. Maximum: 80. Backend enforces a 200KB output limit with progressive truncation.",
+        "default": 30,
+        "minimum": 1,
+        "maximum": 80
+      },
+      "compact_output": {
+        "type": "boolean",
+        "description": "Enable compact output mode to minimize response size. When true: reduces snippet length, strips non-essential metadata, limits MeSH data. Use this when you need many results or are experiencing output truncation. Default: false.",
+        "default": false
+      },
+      "cursor": {
+        "type": "string",
+        "description": "Pagination cursor from previous response's next_cursor field. Use this to fetch additional results instead of requesting large max_results."
+      },
+      "fallback_sources": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Alternative sources if primary returns insufficient results. E.g., ['who_ictrp', 'pubmed'] as fallback for clinicaltrials, or ['latam_trials'] for rebec."
+      },
+      "fallback_min_results": {
+        "type": "integer",
+        "description": "Minimum results before triggering fallback. Default: 3.",
+        "default": 3
+      },
+      "mesh": {
+        "type": "boolean",
+        "description": "Enable MeSH term expansion for biomedical queries. Default: true.",
+        "default": true
+      },
+      "mesh_recursive_depth": {
+        "type": "integer",
+        "description": "MeSH expansion depth (0-2). Default: 1. Higher values expand to more related terms but increase response size. Use 0 for minimal expansion.",
+        "default": 1,
+        "minimum": 0,
+        "maximum": 2
+      },
+      "mesh_intent_aware": {
+        "type": "boolean",
+        "description": "Intent-aware MeSH strategy. Adds pharmacovigilance qualifiers for safety queries, regulatory terms for approval queries, regional terms for LATAM/Asia queries. Default: true.",
+        "default": true
+      },
+      "mesh_include_drug_mapping": {
+        "type": "boolean",
+        "description": "Include drug-indication MeSH mappings via RxNorm. Expands drug queries with known indications. Default: true. Set to false to reduce output size.",
+        "default": true
+      },
+      "include_mesh_metadata": {
+        "type": "boolean",
+        "description": "Include MeSH expansion metadata in response (what terms were expanded, which qualifiers applied). Default: true. Set to false to reduce output size.",
+        "default": true
+      },
+      "include_clinical_outcomes": {
+        "type": "boolean",
+        "description": "Extract clinical outcomes (PFS, OS, HR, p-values) from abstracts. Default: true for clinical/safety intents. Set to false to reduce output size.",
+        "default": true
+      },
+      "date_range": {
+        "type": "string",
+        "description": "Date filter in 'YYYYMMDD:YYYYMMDD' format. E.g., '20200101:20251231' for 2020-2025. Backend applies intent-aware defaults if not specified."
+      },
+      "datetype": {
+        "type": "string",
+        "description": "PubMed date type: pdat (publication), edat (Entrez), mdat (modification).",
+        "enum": ["pdat", "edat", "mdat"]
+      },
+      "sort": {
+        "type": "string",
+        "description": "PubMed sort order.",
+        "enum": ["pub_date", "relevance", "first_author", "journal", "title"]
+      },
+      "prioritize_recent": {
+        "type": "boolean",
+        "description": "Prioritize recent results with intelligent temporal windows by intent. Safety queries use 6-month window, regulatory uses 10-year. Default: true.",
+        "default": true
+      },
+      "fda_decision_type": {
+        "type": "string",
+        "description": "FDA filter: 'approval' for approved drugs only.",
+        "enum": ["approval"]
+      },
+      "collection": {
+        "type": "string",
+        "description": "Collection filter for multi-collection sources (e.g., specific EMA dataset)."
+      },
+      "countries": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Filter by country ISO codes. E.g., ['BR', 'MX'] for Brazil/Mexico (LATAM), ['JP', 'CN', 'IN'] for Japan/China/India (Asia). Works with regional trials, regulatory, and KOL sources."
+      },
+      "filter_eu_only": {
+        "type": "boolean",
+        "description": "For who_ictrp_v2: Only return trials from EU registries (EUCTR, CTIS). Default: false.",
+        "default": false
+      },
+      "expand_query": {
+        "type": "boolean",
+        "description": "For LATAM sources: Expand query with Spanish/Portuguese medical term translations for improved search accuracy. Default: true.",
+        "default": true
+      },
+      "region": {
+        "type": "string",
+        "description": "For regional_kol: Target region for KOL discovery. 'latam' filters to Brazil, Mexico, Argentina, Colombia, Chile institutions. 'asia' filters to Japan, China, India, Korea, Singapore.",
+        "enum": ["latam", "asia"]
+      },
+      "search_type": {
+        "type": "string",
+        "description": "For PMDA/NMPA: Specific search type. 'drugs' for drug products, 'devices' for medical devices, 'approval' for approval decisions.",
+        "enum": ["drugs", "devices", "approval"]
+      },
+      "category": {
+        "type": "string",
+        "description": "For ANVISA: Product category. 'medicamento' for drugs (default), 'produto' for medical devices/health products.",
+        "enum": ["medicamento", "produto"]
+      },
+      "data_type": {
+        "type": "string",
+        "description": "For PAHO: Data type to search. 'indicators' for health statistics, 'publications' for IRIS repository documents, 'all' for both.",
+        "enum": ["indicators", "publications", "all"],
+        "default": "indicators"
+      }
+    },
+    "required": ["source", "query"]
+  }
+}
