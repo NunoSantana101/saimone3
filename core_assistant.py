@@ -365,6 +365,13 @@ def build_tools_list() -> List[dict]:
     return tools
 
 
+# Required built-in tools that must be present in every API request.
+# web_search_preview is essential: the agent must always be able to
+# validate claims, check regulatory status, and retrieve up-to-date
+# medical information during any turn of the session.
+_REQUIRED_TOOL_TYPES = frozenset({"web_search_preview", "file_search", "code_interpreter"})
+
+
 # Cache the tools list.  Only cached once the code-interpreter
 # container has been resolved (success OR permanent fallback).
 # If the container creation fails transiently, the list is rebuilt
@@ -373,11 +380,26 @@ _cached_tools: Optional[List[dict]] = None
 
 
 def get_tools() -> List[dict]:
-    """Return cached tools list, rebuilding if container is unresolved."""
+    """Return cached tools list, rebuilding if container is unresolved.
+
+    Guarantees that web_search_preview, file_search, and code_interpreter
+    are always present — raises immediately if the invariant is violated
+    so the bug is caught during development, not silently in production.
+    """
     global _cached_tools
     if _cached_tools is not None:
         return _cached_tools
     tools = build_tools_list()
+
+    # ── Invariant: required built-in tools must always be present ──
+    present = {t.get("type") for t in tools}
+    missing = _REQUIRED_TOOL_TYPES - present
+    if missing:
+        raise RuntimeError(
+            f"Tool list is missing required built-in tools: {missing}. "
+            "web_search_preview must be available for every session turn."
+        )
+
     # Only cache if the container was resolved (present or permanently
     # unavailable after the grace window).  _ci_container_id is set to
     # a string on success; it stays None on transient failure.
