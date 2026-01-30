@@ -1423,8 +1423,8 @@ def assemble_medical_context():
 
 def checkpoint(history_slice):
     """
-    Create checkpoint summary using GPT-4.1.
-    Optimized for GPT-4.1 ecosystem with circuit breaker resilience.
+    Create checkpoint summary using GPT-5.2.
+    Optimized for GPT-5.2 ecosystem with circuit breaker resilience.
     """
     user_email = user_info['email'] if user_info else 'unknown'
     checkpoint_data = create_checkpoint_summary(history_slice, user_email)
@@ -2634,7 +2634,7 @@ if (
 # --- FOOTER WITH AUTHENTICATION INFO ---
 st.markdown(f"""
 <div class="footer-text">
-    All outputs require human review for accuracy. | sAİmone - your medaffairs assistant | Powered by GPT-4.1<br>
+    All outputs require human review for accuracy. | sAİmone - your medaffairs assistant | Powered by GPT-5.2<br>
     <small>🔒 Authenticated User: {user_info['name'] if user_info else 'Unknown'} ({user_info['email'] if user_info else 'Unknown'}) | 
     Access: {user_info['access_level'].title() if user_info else 'Unknown'} | 
     Session: {get_session_id()}</small>

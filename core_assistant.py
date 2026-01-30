@@ -10,6 +10,13 @@ v5.0 – OpenAI Responses API Migration:
 - Conversation continuity via previous_response_id
 - All data processing / truncation / pipeline logic preserved
 
+v6.0 – GPT-5.2 Upgrade:
+- Model upgraded from gpt-4.1 to gpt-5.2
+- 400K token context window (up from 1M effective)
+- 128K max output tokens (up from 32K)
+- Adaptive reasoning with dynamic compute allocation
+- Knowledge cutoff: August 31, 2025
+
 Key changes from v4.x:
 - No threads, no runs, no polling
 - response_id replaces thread_id for continuity
@@ -101,7 +108,7 @@ def reset_client():
 # ──────────────────────────────────────────────────────────────────────
 #  Default model
 # ──────────────────────────────────────────────────────────────────────
-DEFAULT_MODEL = "gpt-4.1"
+DEFAULT_MODEL = "gpt-5.2"
 
 # ──────────────────────────────────────────────────────────────────────
 #  Tool Definitions for Responses API
@@ -340,7 +347,7 @@ def get_tools() -> List[dict]:
 #  System Instructions for Responses API
 # ──────────────────────────────────────────────────────────────────────
 
-SYSTEM_INSTRUCTIONS = """You are sAImone, an expert Medical Affairs AI assistant powered by GPT-4.1.
+SYSTEM_INSTRUCTIONS = """You are sAImone, an expert Medical Affairs AI assistant powered by GPT-5.2.
 
 CORE CAPABILITIES:
 - Search 70+ medical/regulatory databases worldwide (PubMed, FDA, EMA, ClinicalTrials.gov, WHO, ANVISA, PMDA, NMPA, etc.)

@@ -10,10 +10,14 @@ v5.0 – OpenAI Responses API Migration:
 - Context building retained (more important now – no server-side history)
 - Checkpoint summaries retained for session continuity
 
+v6.0 – GPT-5.2 Upgrade:
+- Model upgraded from gpt-4.1 to gpt-5.2
+- 400K context window, 128K max output tokens
+
 Key features:
 1. Circuit breaker pattern for API failures
 2. Context building with deduplication and caching
-3. GPT-4.1 checkpoint summaries for session continuity
+3. GPT-5.2 checkpoint summaries for session continuity
 4. Token budget management
 5. Silent instructions optimization
 """
@@ -44,7 +48,7 @@ try:
     DEFAULT_TOKEN_BUDGET = CONTEXT_CONFIG.get("default_token_budget", 24_000)
     EXTENDED_TOKEN_BUDGET = CONTEXT_CONFIG.get("extended_token_budget", 48_000)
     MAXIMUM_TOKEN_BUDGET = CONTEXT_CONFIG.get("maximum_token_budget", 96_000)
-    MAX_CONTEXT_TOKENS = CONTEXT_CONFIG.get("max_context_tokens", 1_000_000)
+    MAX_CONTEXT_TOKENS = CONTEXT_CONFIG.get("max_context_tokens", 400_000)
     MAX_HISTORY_FOR_CONTEXT = CONTEXT_CONFIG.get("max_history_for_context", 40)
     CONTEXT_CACHE_TTL = CONTEXT_CONFIG.get("context_cache_ttl", 300)
     CHECKPOINT_MAX_TOKENS = CONTEXT_CONFIG.get("checkpoint_max_tokens", 600)
@@ -54,14 +58,14 @@ except ImportError:
     DEFAULT_TOKEN_BUDGET = 24_000
     EXTENDED_TOKEN_BUDGET = 48_000
     MAXIMUM_TOKEN_BUDGET = 96_000
-    MAX_CONTEXT_TOKENS = 1_000_000
+    MAX_CONTEXT_TOKENS = 400_000
     CONTEXT_CACHE_TTL = 300
     MAX_HISTORY_FOR_CONTEXT = 40
     CHECKPOINT_MAX_TOKENS = 600
 
-# GPT-4.1 Model Selection
-MODEL_GPT41 = "gpt-4.1"
-CHECKPOINT_MODEL = "gpt-4.1"
+# GPT-5.2 Model Selection
+MODEL_GPT52 = "gpt-5.2"
+CHECKPOINT_MODEL = "gpt-5.2"
 
 # Circuit breaker settings
 CIRCUIT_BREAKER_THRESHOLD = 3
@@ -261,7 +265,7 @@ def create_checkpoint_summary(
     user_email: str = "unknown"
 ) -> Dict[str, Any]:
     """
-    Create a checkpoint summary using GPT-4.1.
+    Create a checkpoint summary using GPT-5.2.
 
     Checkpoints are useful for:
     - Session resumption when previous_response_id chain is broken
@@ -409,7 +413,7 @@ def get_optimized_context(
 def get_context_config() -> Dict[str, Any]:
     """Get configuration for context management."""
     return {
-        "model": MODEL_GPT41,
+        "model": MODEL_GPT52,
         "default_token_budget": DEFAULT_TOKEN_BUDGET,
         "extended_token_budget": EXTENDED_TOKEN_BUDGET,
         "maximum_token_budget": MAXIMUM_TOKEN_BUDGET,

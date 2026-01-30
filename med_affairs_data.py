@@ -140,19 +140,19 @@ CTIS_PUBLIC_BASE = "https://euclinicaltrials.eu/ctis-public"
 EMA_CLINICAL_DATA_BASE = "https://www.ema.europa.eu/en/medicines"
 
 # ────────────────────────────────────────────────────────────────
-# TOKEN BUDGET CONFIGURATION - GPT-4.1 (1M context window)
+# TOKEN BUDGET CONFIGURATION - GPT-5.2 (400K context window)
 # ────────────────────────────────────────────────────────────────
-# GPT-4.1 is the primary model with 1,000,000 token context capacity.
-# These budgets are optimized for GPT-4.1's capabilities.
+# GPT-5.2 is the primary model with 400,000 token context capacity.
+# These budgets are optimized for GPT-5.2's capabilities.
 
 TOKEN_BUDGETS = {
-    "fast": 16_000,           # Quick lookups, single source (doubled for GPT-4.1)
-    "standard": 64_000,       # GPT-4.1 optimized default
+    "fast": 16_000,           # Quick lookups, single source
+    "standard": 64_000,       # GPT-5.2 optimized default
     "optimal": 128_000,       # Recommended for multi-source queries
-    "extended": 256_000,      # Complex research, 4-6 sources
-    "comprehensive": 512_000, # Deep analysis, all sources
-    "maximum_safe": 750_000,  # Large regulatory dossiers (75% of max)
-    "gpt41_max": 1_000_000,   # Full GPT-4.1 capacity
+    "extended": 200_000,      # Complex research, 4-6 sources
+    "comprehensive": 300_000, # Deep analysis, all sources
+    "maximum_safe": 350_000,  # Large regulatory dossiers (87.5% of max)
+    "gpt52_max": 400_000,     # Full GPT-5.2 capacity
 }
 
 # Estimated tokens per result by source type (for budget calculations)
@@ -7143,7 +7143,7 @@ def _expand_query_multilingual(
 ) -> str:
     """
     Expand query with regional language terms for improved search accuracy.
-    GPT-4.1 handles interpretation; backend provides broader coverage.
+    GPT-5.2 handles interpretation; backend provides broader coverage.
 
     Args:
         query: Original English query

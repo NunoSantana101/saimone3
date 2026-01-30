@@ -13,7 +13,7 @@ In a regulated medical affairs environment, the backend should:
 - NOT make clinical judgments: That's exclusively the agent's role
 - Preserve all potentially relevant data for agent reasoning
 
-The agent (GPT-4.1) handles:
+The agent (GPT-5.2) handles:
 - Intent interpretation from user queries
 - Result prioritization and relevance ranking
 - Cross-source synthesis and analysis
@@ -344,7 +344,7 @@ CONTEXT_CONFIG = {
     "default_token_budget": 24_000,
     "extended_token_budget": 48_000,
     "maximum_token_budget": 96_000,
-    "max_context_tokens": 1_000_000,
+    "max_context_tokens": 400_000,
     "max_history_for_context": 40,
     "must_include_exchanges": 8,
     "checkpoint_frequency": 8,
