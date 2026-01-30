@@ -1,5 +1,5 @@
 """
-workflow_agents.py (v2.1)
+workflow_agents.py (v2.2)
 
 Correct Python implementation of your exported JS workflow using the OpenAI Agents SDK.
 
@@ -13,10 +13,16 @@ v2.1 changes:
 - System instructions loaded from vector store via file_search (system_instructions.txt)
 - Agent now retrieves its own instructions from the config vector store at runtime
 - Inline instructions reduced to a bootstrap prompt that directs the agent to file_search
+
+v2.2 changes:
+- System instructions loaded from local system_instructions.txt at import time
+- Full MAPS 5-phase workflow injected directly into agent instructions
+- Vector store file_search still available for attached config JSONs and PDFs
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, Optional, List
 import traceback
 
@@ -26,15 +32,9 @@ from agents import Agent, Runner, WebSearchTool, FileSearchTool, function_tool, 
 WF_ID = "wf_694143ba69ac81908d6378babdaed7f20eeb3fa4d72095a6"
 VECTOR_STORE_ID = "vs_693fe785b1a081918f82e9f903e008ed"
 
-# Instructions bootstrap: the full system instructions live in system_instructions.txt
-# inside the vector store. The agent uses file_search to retrieve them at runtime.
-SAIMONE_V2_INSTRUCTIONS = (
-    "You are sAImone v2, a MAPS-compliant Medical Affairs AI assistant.\n\n"
-    "IMPORTANT: Your full system instructions and configuration are stored in the "
-    "attached vector store as 'system_instructions.txt'. Use file_search to retrieve "
-    "and follow those instructions for every interaction.\n\n"
-    "Always validate via tools and attached files. Provide structured outputs and footnotes."
-)
+# Load full system instructions from repo file (the same file is also in the vector store)
+_INSTRUCTIONS_PATH = Path(__file__).parent / "system_instructions.txt"
+SAIMONE_V2_INSTRUCTIONS = _INSTRUCTIONS_PATH.read_text(encoding="utf-8")
 
 
 # Hosted tools (Agents SDK)
