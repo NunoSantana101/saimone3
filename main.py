@@ -199,9 +199,13 @@ st.markdown("""
 }
 .stMarkdown th{ background:var(--navy-light)!important; font-weight:600!important; color:var(--white-primary)!important; }
 .stMarkdown h1,.stMarkdown h2,.stMarkdown h3{ color:var(--text-primary); font-family:'Playfair Display',serif; font-weight:600; }
-.stMarkdown h3{ border-bottom:2px solid var(--navy-light); padding-bottom:.5rem; margin-bottom:1rem; }
+.stMarkdown h1{ font-size:1.75rem!important; margin-top:1.5rem; margin-bottom:.75rem; }
+.stMarkdown h2{ font-size:1.4rem!important; margin-top:1.25rem; margin-bottom:.6rem; }
+.stMarkdown h3{ font-size:1.15rem!important; border-bottom:2px solid var(--navy-light); padding-bottom:.5rem; margin-bottom:1rem; }
+.stMarkdown p{ font-size:1rem!important; line-height:1.6; }
 .stMarkdown ul li::marker,.stMarkdown ol li::marker{ color:var(--light-blue)!important; }
-.stMarkdown ul li,.stMarkdown ol li{ color:var(--text-primary)!important; }
+.stMarkdown ul li,.stMarkdown ol li{ color:var(--text-primary)!important; font-size:1rem!important; line-height:1.6; }
+.stMarkdown ul ul li,.stMarkdown ol ol li,.stMarkdown ul ol li,.stMarkdown ol ul li{ font-size:.95rem!important; }
 hr.msg-divider{ border:none; border-top:2px solid var(--navy-light); margin:2em 0 1.5em 0; opacity:.6; }
 
 /* -----------------------------------------------------------
@@ -374,6 +378,9 @@ hr.msg-divider{ border:none; border-top:2px solid var(--navy-light); margin:2em 
   .main-title{ font-size:2.5rem; }
   .main-header{ padding:2rem 1rem; }
   .sidebar-section{ padding:1rem; }
+  .stMarkdown h1{ font-size:1.4rem!important; }
+  .stMarkdown h2{ font-size:1.2rem!important; }
+  .stMarkdown h3{ font-size:1.05rem!important; }
 }
 
 /* ---------- STRICT UNIFORM BUTTONS ---------- */
