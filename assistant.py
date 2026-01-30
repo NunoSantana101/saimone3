@@ -39,9 +39,13 @@ from core_assistant import (
 def _streamlit_tool_callback(fn_name: str, args: dict) -> None:
     """Called by the core runner for each function-call tool invocation.
 
+    v7.4: Added query_hard_logic callback (silent — instant in-memory lookup).
     v7.0: Web search is handled by OpenAI's built-in web_search_preview
     (server-side, no callback).  Only statistical analysis tools trigger here.
     """
+    if fn_name == "query_hard_logic":
+        # Silent — in-memory DataFrames are instant, no spinner needed
+        return
     if fn_name in {"run_statistical_analysis", "monte_carlo_simulation", "bayesian_analysis"}:
         st.info(f"🔬 Running {fn_name.replace('_', ' ').title()}...")
     else:
