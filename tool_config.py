@@ -605,6 +605,64 @@ PIPELINE_TOOL_SCHEMAS = {
 
 
 # ────────────────────────────────────────────────────────────────
+# 10. READ_WEBPAGE TOOL SCHEMA (NEW in v4.1)
+#     Copy-paste the JSON below into the Assistants API UI as a
+#     new function tool alongside the existing search tools.
+#     Enables the Search → Decide → Read pattern: the agent scans
+#     truncated search results, picks the 1-2 most relevant, and
+#     calls read_webpage to get the full page content on demand.
+# ────────────────────────────────────────────────────────────────
+
+READ_WEBPAGE_TOOL_SCHEMA = {
+    "name": "read_webpage",
+    "description": (
+        "Read the full text content of a specific URL from search results. "
+        "Use this AFTER reviewing search results when 1-2 results look particularly "
+        "relevant and you need the complete content to answer the user's question accurately. "
+        "The search results contain truncated snippets; this tool fetches the full page text. "
+        "Only call this for URLs that appear in the search results – do not guess URLs."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "url": {
+                "type": "string",
+                "description": "The URL to read (from the 'url' field in search results)"
+            },
+            "context_query": {
+                "type": "string",
+                "description": "Optional: the user's original query, helps rank content within long pages"
+            }
+        },
+        "required": ["url"]
+    }
+}
+
+# The above schema formatted for the Assistants API tools array:
+# {
+#     "type": "function",
+#     "function": {
+#         "name": "read_webpage",
+#         "description": "Read the full text content of a specific URL from search results. Use this AFTER reviewing search results when 1-2 results look particularly relevant and you need the complete content to answer the user's question accurately. The search results contain truncated snippets; this tool fetches the full page text. Only call this for URLs that appear in the search results – do not guess URLs.",
+#         "parameters": {
+#             "type": "object",
+#             "properties": {
+#                 "url": {
+#                     "type": "string",
+#                     "description": "The URL to read (from the 'url' field in search results)"
+#                 },
+#                 "context_query": {
+#                     "type": "string",
+#                     "description": "Optional: the user's original query, helps rank content within long pages"
+#                 }
+#             },
+#             "required": ["url"]
+#         }
+#     }
+# }
+
+
+# ────────────────────────────────────────────────────────────────
 # EXPORTS
 # ────────────────────────────────────────────────────────────────
 
@@ -631,6 +689,8 @@ __all__ = [
     # v3.3 Pipeline Constants
     "PIPELINE_CONFIG",
     "PIPELINE_TOOL_SCHEMAS",
+    # v4.1 Read Webpage
+    "READ_WEBPAGE_TOOL_SCHEMA",
     # Enums
     "QueryIntent",
     # Functions
