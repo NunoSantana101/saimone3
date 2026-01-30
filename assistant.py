@@ -30,9 +30,6 @@ from core_assistant import (
     run_responses_sync as _core_run,
     SYSTEM_INSTRUCTIONS,
     DEFAULT_MODEL,
-    # Data processing (still needed for exports/debug)
-    _truncate_search_results,
-    _enforce_output_size_limit,
 )
 
 
@@ -40,33 +37,13 @@ from core_assistant import (
 #  Streamlit tool-call callback (UI spinners / feedback)
 # ──────────────────────────────────────────────────────────────────────
 def _streamlit_tool_callback(fn_name: str, args: dict) -> None:
-    """Called by the core runner for each tool invocation – shows UI feedback."""
-    query = args.get("query", "")
-    source = args.get("source", "")
+    """Called by the core runner for each function-call tool invocation.
 
-    if fn_name in {
-        "get_med_affairs_data", "get_pubmed_data", "get_fda_data",
-        "get_ema_data", "get_core_data", "get_who_data",
-        "tavily_tool", "aggregated_search",
-    }:
-        label = f"Searching {source}" if source else f"Running {fn_name}"
-        if query:
-            label += f": {query[:60]}..."
-        st.info(f"🔍 {label}")
-
-    elif fn_name == "read_webpage":
-        url = args.get("url", "")[:80]
-        st.info(f"🌐 Reading webpage: {url}...")
-
-    elif fn_name == "decompress_pipeline_data":
-        st.info("📦 Decompressing pipeline data")
-
-    elif fn_name == "search_pipeline_manifest":
-        st.info(f"🔍 Searching manifest: {args.get('search_term', '')[:50]}")
-
-    elif fn_name in {"run_statistical_analysis", "monte_carlo_simulation", "bayesian_analysis"}:
+    v7.0: Web search is handled by OpenAI's built-in web_search_preview
+    (server-side, no callback).  Only statistical analysis tools trigger here.
+    """
+    if fn_name in {"run_statistical_analysis", "monte_carlo_simulation", "bayesian_analysis"}:
         st.info(f"🔬 Running {fn_name.replace('_', ' ').title()}...")
-
     else:
         st.info(f"🔧 Calling {fn_name}...")
 
