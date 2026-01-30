@@ -1,0 +1,225 @@
+{
+  "schema_name": "competitive_intelligence_v1",
+  "version": "1.0",
+  "last_updated": "2026-01-23",
+  "description": "Specialized schema for competitive intelligence, war gaming, and threat assessment. Features dedicated frameworks for comparative simulation and predictive timeline modeling.",
+  "taxonomy_dependencies": {
+    "required_taxonomies": [
+      "stakeholder_taxonomy_v2.json",
+      "pricing_market_access_v2.json",
+      "pillars_v2.json",
+      "tactics_taxonomy_v2.json",
+      "metrics_v2.json",
+      "role_taxonomy_v1.json",
+      "kol.json"
+    ],
+    "constraint_source": "pricing_market_access_v2.json, pillars_v2.json",
+    "stakeholder_source": "stakeholder_taxonomy_v2.json",
+    "kol_validation": "kol.json"
+  },
+  "inference_layer": {
+    "description": "Inference logic to determine specific CI intent (monitoring vs. simulation vs. deep dive) and select appropriate analytical frameworks.",
+    "outputs": [
+      "ci_intent",
+      "simulation_mode",
+      "time_horizon",
+      "competitor_set",
+      "frameworks",
+      "gates_to_apply"
+    ],
+    "steps": [
+      "Parse intent (competitor targets, specific threat, timeline, depth).",
+      "Select ci_activity_type based on triggers.",
+      "Identify competitor_set (primary, secondary, emerging).",
+      "Infer decision_context (defensive planning, offensive differentiation, launch readiness).",
+      "Select frameworks required.",
+      "Apply gates: rumor_validation_gate, prediction_confidence_gate."
+    ],
+    "activity_type_map": {
+      "competitor_deep_dive": {
+        "primary_triggers": [
+          "profile",
+          "deep dive",
+          "competitor analysis",
+          "capabilities assessment",
+          "swot"
+        ],
+        "decision_question": "What are this competitor's true capabilities and strategic vulnerabilities?",
+        "frameworks": "use four_corners_framework, swot_comparative_framework"
+      },
+      "war_gaming_simulation": {
+        "primary_triggers": [
+          "war game",
+          "simulation",
+          "scenario planning",
+          "counter-strategy",
+          "what if",
+          "response plan"
+        ],
+        "decision_question": "How would Competitor X respond to our move, and how do we counter?",
+        "frameworks": "use reaction_pattern_analysis, game_theory_matrix"
+      },
+      "pipeline_timeline_prediction": {
+        "primary_triggers": [
+          "timeline",
+          "launch date",
+          "approval estimation",
+          "trial completion",
+          "delay analysis"
+        ],
+        "decision_question": "When exactly will this threat materialize in the market?",
+        "frameworks": "use clinical_velocity_framework, regulatory_precedent_analyzer"
+      },
+      "congress_intelligence": {
+        "primary_triggers": [
+          "congress coverage",
+          "abstract analysis",
+          "poster data",
+          "conference report",
+          "scientific share of voice"
+        ],
+        "decision_question": "What new data was revealed and how does it shift the landscape?",
+        "frameworks": "use data_impact_assessment, share_of_voice_calculator"
+      },
+      "field_intelligence_synthesis": {
+        "primary_triggers": [
+          "MSL insights",
+          "field reports",
+          "rumor validation",
+          "customer feedback",
+          "objection handling"
+        ],
+        "decision_question": "What are customers saying about the competition on the ground?",
+        "frameworks": "use insight_validation_matrix, objection_cluster_analysis"
+      }
+    }
+  },
+  "four_corners_framework": {
+    "purpose": "Analyze a competitor's future strategic moves based on their internal drivers and assumptions (Porter's Four Corners)",
+    "when_to_use": [
+      "competitor_deep_dive",
+      "war_gaming_simulation",
+      "market_entry_strategy"
+    ],
+    "components": {
+      "drivers": {
+        "scope": "What motivates the competitor? (Corporate goals, financial pressure, leadership ego)",
+        "data_elements": ["investor_guidance", "ceo_statements", "bonus_structure_inference"]
+      },
+      "current_strategy": {
+        "scope": "What is the competitor actually doing and how are they competing?",
+        "data_elements": ["resource_allocation", "pricing_behavior", "hiring_patterns", "tactics_taxonomy_usage"]
+      },
+      "management_assumptions": {
+        "scope": "What does the competitor believe about the market and themselves?",
+        "data_elements": ["historical_blind_spots", "overconfidence_signals", "cultural_biases"]
+      },
+      "capabilities": {
+        "scope": "What are they physically/financially capable of doing?",
+        "data_elements": ["cash_reserves", "field_team_size", "manufacturing_capacity", "partnerships"]
+      }
+    },
+    "synthesis_requirements": {
+      "strategic_outputs_required": [
+        "predicted_next_move",
+        "vulnerability_identification",
+        "blind_spot_exploitation_strategy"
+      ]
+    }
+  },
+  "clinical_velocity_framework": {
+    "purpose": "Predict realistic timelines for competitor assets by analyzing recruitment rates and regulatory precedents",
+    "when_to_use": [
+      "pipeline_timeline_prediction",
+      "threat_assessment"
+    ],
+    "components": {
+      "trial_velocity_analysis": {
+        "metrics": [
+          "sites_activated_per_month",
+          "enrollment_rate_vs_benchmark",
+          "protocol_amendment_frequency"
+        ],
+        "output": "projected_completion_date_with_confidence_interval"
+      },
+      "regulatory_lag_analysis": {
+        "metrics": [
+          "competitor_regulatory_track_record",
+          "health_authority_processing_times",
+          "priority_review_eligibility"
+        ],
+        "output": "projected_approval_window"
+      }
+    },
+    "synthesis_requirements": {
+      "strategic_outputs_required": [
+        "launch_window_estimation",
+        "delay_probability_assessment",
+        "first_mover_advantage_calculation"
+      ]
+    }
+  },
+  "output_formatting": {
+    "general_principles": {
+      "structure_by_activity_type": "use activity-appropriate output structure",
+      "confidence_grading": "All CI insights must be graded (Confirmed Fact vs. Analytical Inference vs. Rumor)",
+      "source_protection": "Do not reveal specific confidential sources if derived from field intelligence",
+      "action_orientation": "Every intelligence finding must have a 'So What?' and 'Now What?'"
+    },
+    "required_sections_all_outputs": [
+      "executive_threat_summary",
+      "intelligence_confidence_assessment",
+      "strategic_implications_matrix"
+    ],
+    "scope_sections": {
+      "MONITORING_REPORT": [
+        "Recent Events Log",
+        "Data Impact Assessment",
+        "Timeline Updates",
+        "Implications"
+      ],
+      "DEEP_DIVE_PROFILE": [
+        "Executive Summary",
+        "Four Corners Analysis",
+        "Clinical/Commercial Capabilities",
+        "SWOT",
+        "Counter-Strategy Recommendations"
+      ],
+      "WAR_GAME_OUTPUT": [
+        "Scenario Definition",
+        "Competitor Response Modeling",
+        "Our Counter-Moves",
+        "Risk Mitigation Plan"
+      ]
+    }
+  },
+  "execution_sequence": [
+    "Run inference_layer to classify CI activity and competitor set.",
+    "Execute targeted search (clinical registries, investor decks, congress abstracts).",
+    "Apply validation_gates to distinguish fact from inference.",
+    "Run analytical frameworks (Four Corners, Clinical Velocity).",
+    "Synthesize outputs with 'So What?' strategic implications.",
+    "Format per output_formatting requirements."
+  ],
+  "quality_gates": {
+    "rumor_validation_gate": {
+      "rule": "Any claim not supported by public documentation (registry, pub, press release) must be labeled 'Unverified Intelligence' or 'Field Insight'.",
+      "fail_behavior": "Flag as 'Low Confidence' and require triangulation from a second source type."
+    },
+    "prediction_confidence_gate": {
+      "rule": "Timeline predictions must define a confidence interval (Best Case / Likely / Worst Case).",
+      "fail_behavior": "Reject single-point dates for future events; force range estimation."
+    },
+    "bias_check_gate": {
+      "rule": "Ensure analysis considers competitor strengths, not just weaknesses (avoid 'competitor bashing' bias).",
+      "fail_behavior": "Trigger 'Red Team' prompt to identify competitor's winning path."
+    }
+  },
+  "governance": {
+    "schema_owner": "competitive_intelligence_lead",
+    "last_reviewed": "2026-01-23",
+    "version_history": {
+      "v1.0": "Initial CI schema created to complement landscape_analysis_v3"
+    }
+  }
+}

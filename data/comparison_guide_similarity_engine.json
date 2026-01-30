@@ -1,0 +1,846 @@
+{
+  "version": "1.0_similarity_engine",
+  "schema_name": "comparison_guide_similarity_engine.json",
+  "description": "Dynamic multi-dimensional similarity matching engine for pharmaceutical launch comparison. Finds 3-4 most comparable historical launches for any new strategy through constraint-based matching.",
+  "last_updated": "2026-01-05",
+  "size_estimate": "~95KB",
+  
+  "taxonomy_anchoring": {
+    "description": "This schema extends existing JSON taxonomies, not replaces them",
+    "primary_constraint_source": "pricing_market_access_v2.json, stakeholder_taxonomy_v2.json, pillars_v2.json, tactics_taxonomy_v2.json, metrics_v2.json",
+    "constraint_detection": "Use existing taxonomy constraint identification as PRIMARY matching dimension",
+    "probability_distributions": "Use existing taxonomy distributions as theoretical baseline, empirical patterns as calibration"
+  },
+  
+  "feature_extraction_schema": {
+    "description": "Extract these features from any launch strategy for similarity scoring",
+    "extraction_priority": "Constraint profile > Therapeutic context > Regulatory pathway > Market dynamics",
+    
+    "constraint_profile": {
+      "source": "Run existing constraint analysis from taxonomies FIRST",
+      "extract": {
+        "detected_constraints": {
+          "method": "Use taxonomy constraint identification output",
+          "examples": [
+            "physician_switching_inertia",
+            "payer_evidence_threshold", 
+            "guideline_integration_dependency",
+            "kol_endorsement_criticality",
+            "rwe_generation_urgency",
+            "therapeutic_area_adoption_culture",
+            "cost_effectiveness_sensitivity",
+            "administration_complexity",
+            "safety_monitoring_burden",
+            "market_access_infrastructure"
+          ],
+          "format": "Array of constraint IDs from taxonomy analysis"
+        },
+        "constraint_criticality": {
+          "method": "Extract criticality scores from taxonomy constraint analysis",
+          "format": "Object mapping constraint_id to criticality_score (0.0-1.0)"
+        }
+      },
+      "similarity_weight": 0.35,
+      "matching_logic": "Jaccard similarity on constraint sets, weighted by criticality",
+      "rationale": "MOST IMPORTANT - launches with same binding constraints face same challenges regardless of other differences"
+    },
+    
+    "therapeutic_dimensions": {
+      "therapeutic_area": {
+        "extract_from": "Strategy document indication section",
+        "categories": [
+          "cardiovascular",
+          "oncology_solid_tumor",
+          "oncology_hematologic",
+          "neurology_cns",
+          "neurology_peripheral",
+          "immunology_autoimmune",
+          "immunology_inflammatory",
+          "rare_disease_metabolic",
+          "rare_disease_genetic",
+          "infectious_disease_acute",
+          "infectious_disease_chronic",
+          "respiratory",
+          "endocrine_metabolic",
+          "gastroenterology",
+          "nephrology",
+          "dermatology",
+          "ophthalmology",
+          "hematology_non_malignant",
+          "transplant_immunosuppression",
+          "pain_management",
+          "psychiatry",
+          "other_specify"
+        ],
+        "similarity_weight": 0.20,
+        "matching_logic": {
+          "exact_match": 1.0,
+          "related_match": 0.5,
+          "unrelated_match": 0.0
+        },
+        "related_groupings": {
+          "cardiovascular_cluster": ["cardiovascular", "nephrology", "endocrine_metabolic"],
+          "oncology_cluster": ["oncology_solid_tumor", "oncology_hematologic"],
+          "neurology_cluster": ["neurology_cns", "neurology_peripheral", "psychiatry"],
+          "immunology_cluster": ["immunology_autoimmune", "immunology_inflammatory", "dermatology"],
+          "rare_disease_cluster": ["rare_disease_metabolic", "rare_disease_genetic"]
+        },
+        "rationale": "Therapeutic area drives adoption culture, HCP specialty, payer behavior patterns"
+      },
+      
+      "mechanism_novelty": {
+        "extract_from": "Drug characteristics, mechanism of action description",
+        "categories": [
+          "first_in_class_novel_target",
+          "first_in_class_novel_moa",
+          "best_in_class_existing_target",
+          "me_too_incremental",
+          "new_indication_established_drug",
+          "combination_therapy_novel",
+          "combination_therapy_established",
+          "reformulation_delivery"
+        ],
+        "similarity_weight": 0.12,
+        "matching_logic": "Exact match 1.0, adjacent category 0.4, distant 0.0",
+        "rationale": "Novelty affects HCP adoption speed, payer evidence requirements, KOL influence patterns"
+      },
+      
+      "disease_characteristics": {
+        "extract_from": "Indication description, patient population",
+        "dimensions": {
+          "severity": {
+            "categories": ["mild", "moderate", "severe", "life_threatening", "progressive_fatal"],
+            "weight": 0.4
+          },
+          "prevalence": {
+            "categories": ["ultra_rare_<1000", "rare_<10K", "rare_<200K", "uncommon_200K-2M", "common_>2M"],
+            "weight": 0.3
+          },
+          "treatment_line": {
+            "categories": ["prevention", "first_line", "second_line", "third_line_plus", "salvage_last_resort"],
+            "weight": 0.3
+          }
+        },
+        "similarity_weight": 0.08,
+        "matching_logic": "Weighted average of dimension matches",
+        "rationale": "Disease severity affects risk tolerance, prevalence affects payer budget impact"
+      }
+    },
+    
+    "regulatory_dimensions": {
+      "approval_pathway": {
+        "extract_from": "Regulatory status section, FDA pathway",
+        "categories": [
+          "standard_approval_full",
+          "accelerated_approval_surrogate",
+          "priority_review",
+          "breakthrough_therapy",
+          "fast_track",
+          "orphan_drug_designation",
+          "conditional_approval_ema",
+          "combination_pathways"
+        ],
+        "similarity_weight": 0.15,
+        "matching_logic": {
+          "accelerated_approval": "High weight - fundamentally changes payer dynamics",
+          "standard_approval": "Moderate weight",
+          "orphan_designation": "Special consideration - different market dynamics"
+        },
+        "rationale": "Regulatory pathway determines evidence requirements, payer acceptance threshold, RWE urgency"
+      },
+      
+      "evidence_profile": {
+        "extract_from": "Clinical data section, pivotal trials",
+        "dimensions": {
+          "primary_endpoint": {
+            "categories": [
+              "survival_overall",
+              "survival_progression_free", 
+              "surrogate_biomarker",
+              "functional_patient_reported",
+              "clinical_event_reduction",
+              "composite_endpoint"
+            ],
+            "weight": 0.5
+          },
+          "effect_magnitude": {
+            "categories": ["modest_<20pct", "moderate_20-50pct", "large_50-100pct", "transformative_>100pct"],
+            "weight": 0.3
+          },
+          "evidence_robustness": {
+            "categories": ["single_trial", "dual_trials", "multiple_trials_meta", "long_term_followup"],
+            "weight": 0.2
+          }
+        },
+        "similarity_weight": 0.10,
+        "matching_logic": "Weighted dimension similarity",
+        "rationale": "Evidence strength determines payer evidence threshold risk, KOL conviction level"
+      }
+    },
+    
+    "market_dynamics_dimensions": {
+      "competitive_intensity": {
+        "extract_from": "Competitive landscape section",
+        "categories": [
+          "first_to_market_unmet_need",
+          "early_entrant_2-3_competitors",
+          "crowded_field_4plus_competitors",
+          "head_to_head_vs_incumbent",
+          "differentiated_positioning",
+          "undifferentiated_commodity"
+        ],
+        "similarity_weight": 0.08,
+        "matching_logic": "Match competitive dynamics pattern",
+        "rationale": "Competition affects adoption urgency, pricing power, KOL engagement strategy"
+      },
+      
+      "pricing_tier": {
+        "extract_from": "Pricing strategy section",
+        "categories": [
+          "low_cost_<5K_annual",
+          "moderate_cost_5-25K_annual",
+          "high_cost_25-100K_annual",
+          "ultra_high_cost_100-500K_annual",
+          "extreme_cost_>500K_annual",
+          "curative_single_dose_gene_therapy"
+        ],
+        "similarity_weight": 0.12,
+        "matching_logic": {
+          "same_tier": 1.0,
+          "adjacent_tier": 0.5,
+          "distant_tier": 0.0
+        },
+        "rationale": "Cost tier drives payer resistance mechanisms, step-edit requirements, value demonstration urgency"
+      },
+      
+      "access_complexity": {
+        "extract_from": "Market access section, administration details",
+        "dimensions": {
+          "prescriber_restriction": {
+            "categories": ["primary_care", "any_specialist", "subspecialist_only", "academic_center_only"],
+            "weight": 0.4
+          },
+          "administration_setting": {
+            "categories": ["oral_home", "injection_home", "infusion_outpatient", "infusion_hospital_only", "surgical_intervention"],
+            "weight": 0.4
+          },
+          "monitoring_burden": {
+            "categories": ["minimal_standard_labs", "moderate_frequent_monitoring", "intensive_specialized_tests"],
+            "weight": 0.2
+          }
+        },
+        "similarity_weight": 0.08,
+        "matching_logic": "Weighted dimension similarity",
+        "rationale": "Access complexity affects adoption velocity, infrastructure requirements, cascade patterns"
+      }
+    },
+    
+    "stakeholder_landscape_dimensions": {
+      "kol_structure": {
+        "extract_from": "Stakeholder mapping section",
+        "categories": [
+          "highly_concentrated_<25_global_kols",
+          "moderate_concentration_25-100_kols",
+          "diffuse_>100_kols",
+          "consensus_driven_societies",
+          "fragmented_conflicting_opinions"
+        ],
+        "similarity_weight": 0.06,
+        "matching_logic": "Match KOL landscape structure",
+        "rationale": "KOL concentration affects consensus-building speed, cascade multiplier effects"
+      },
+      
+      "guideline_dependency": {
+        "extract_from": "Strategic pillars, guideline integration priority",
+        "categories": [
+          "guideline_critical_gatekeeper",
+          "guideline_important_accelerator",
+          "guideline_helpful_validator",
+          "guideline_minimal_impact"
+        ],
+        "similarity_weight": 0.06,
+        "matching_logic": "Match dependency level",
+        "rationale": "Guideline dependency determines timeline criticality, society engagement priority"
+      }
+    }
+  },
+  
+  "similarity_scoring_algorithm": {
+    "description": "Multi-dimensional weighted similarity calculation",
+    "method": "weighted_cosine_similarity",
+    
+    "dimension_weights": {
+      "constraint_profile_match": 0.35,
+      "therapeutic_area_match": 0.20,
+      "approval_pathway_match": 0.15,
+      "pricing_tier_match": 0.12,
+      "mechanism_novelty_match": 0.12,
+      "evidence_profile_match": 0.10,
+      "competitive_intensity_match": 0.08,
+      "access_complexity_match": 0.08,
+      "kol_structure_match": 0.06,
+      "guideline_dependency_match": 0.06,
+      "disease_characteristics_match": 0.08
+    },
+    
+    "note": "Weights sum to >1.0 because some dimensions may not be extractable for all cases - normalization happens at scoring time",
+    
+    "constraint_matching_logic": {
+      "description": "Most important dimension - constraint profile similarity",
+      "method": "weighted_jaccard_similarity",
+      "formula": "weighted_intersection / weighted_union",
+      "weighting": "Use constraint criticality scores from taxonomy analysis",
+      "example": {
+        "new_strategy_constraints": {
+          "physician_switching_inertia": 0.9,
+          "payer_evidence_threshold": 0.7,
+          "guideline_integration_dependency": 0.6
+        },
+        "candidate_constraints": {
+          "physician_switching_inertia": 0.8,
+          "guideline_integration_dependency": 0.7,
+          "kol_endorsement_criticality": 0.5
+        },
+        "weighted_intersection": "(min(0.9,0.8) + min(0.6,0.7)) = 1.5",
+        "weighted_union": "(max(0.9,0.8) + max(0.7,0) + max(0.6,0.7) + max(0,0.5)) = 2.9",
+        "similarity": "1.5 / 2.9 = 0.52"
+      }
+    },
+    
+    "scoring_process": {
+      "step1": "Extract features from new strategy using extraction schema",
+      "step2": "Execute discovery searches to build candidate pool (10-30 candidates typical)",
+      "step3": "Extract features from each candidate (where data available)",
+      "step4": "Calculate similarity score for each candidate using weighted formula",
+      "step5": "Rank candidates by similarity score",
+      "step6": "Select top 3-4 matches with diversity consideration"
+    },
+    
+    "match_quality_thresholds": {
+      "excellent": {
+        "threshold": 0.80,
+        "interpretation": "Strong multi-dimensional match, high confidence in pattern transfer"
+      },
+      "good": {
+        "threshold": 0.70,
+        "interpretation": "Solid match, reasonable confidence in pattern transfer"
+      },
+      "moderate": {
+        "threshold": 0.60,
+        "interpretation": "Acceptable match, use with caution and explicit uncertainty"
+      },
+      "poor": {
+        "threshold": 0.60,
+        "interpretation": "Below threshold - exclude from analysis, search for better matches"
+      }
+    },
+    
+    "diversity_requirement": {
+      "description": "Avoid selecting 3-4 nearly identical cases",
+      "method": "If top 3 matches all have similarity >0.95 to each other, include 4th from different constraint cluster",
+      "rationale": "Want multiple perspectives for triangulation, not redundant confirmation"
+    }
+  },
+  
+  "search_execution_protocol": {
+    "description": "How to discover and evaluate candidate launches",
+    
+    "phase1_discovery": {
+      "objective": "Build candidate pool of potentially comparable launches",
+      "query_templates": [
+        "{therapeutic_area} drug approvals 2010-2024",
+        "{therapeutic_area} {mechanism_type} launch",
+        "{approval_pathway} approvals {therapeutic_area}",
+        "pharmaceutical launches {therapeutic_area} {disease_severity}",
+        "{therapeutic_area} {pricing_tier} market access"
+      ],
+      "variable_substitution": "Use extracted features from new strategy",
+      "expected_yield": "10-30 candidate launches identified",
+      "extraction": "Drug name, approval year, indication, company - just enough to proceed to phase 2"
+    },
+    
+    "phase2_candidate_evaluation": {
+      "objective": "Extract enough features to score similarity",
+      "for_each_candidate": {
+        "queries": [
+          "{candidate_name} FDA approval mechanism of action indication",
+          "{candidate_name} launch pricing market access",
+          "{candidate_name} clinical trial endpoints evidence"
+        ],
+        "extraction_target": ">=60% of feature dimensions",
+        "quality_gate": "If <60% features extractable, drop candidate and try next"
+      }
+    },
+    
+    "phase3_similarity_scoring": {
+      "objective": "Score all extractable candidates",
+      "method": "Apply similarity algorithm to each candidate with extracted features",
+      "output": "Ranked list with similarity scores"
+    },
+    
+    "phase4_top_match_selection": {
+      "objective": "Select 3-4 best matches for deep empirical extraction",
+      "selection_logic": {
+        "primary": "Top 3 by similarity score (if all >= 0.60 threshold)",
+        "diversity": "If top 3 too similar, substitute 3rd with highest-scoring different-cluster match",
+        "fallback": "If <3 candidates meet threshold, broaden search or flag insufficient matches"
+      }
+    },
+    
+    "phase5_empirical_extraction": {
+      "objective": "Extract detailed execution data from top matches",
+      "for_each_selected_match": {
+        "queries": [
+          "{match_name} launch revenue year 1 2 3 actual vs forecast",
+          "{match_name} patient adoption timeline actual",
+          "{match_name} payer coverage Medicare commercial actual",
+          "{match_name} guideline integration timeline actual",
+          "{match_name} physician adoption barriers challenges",
+          "{match_name} medical affairs strategy execution"
+        ],
+        "extraction_schema": "See empirical_extraction_schema section",
+        "quality_threshold": "Must extract >=3 key metrics or flag as limited data"
+      }
+    }
+  },
+  
+  "empirical_extraction_schema": {
+    "description": "What metrics to extract from matched historical launches",
+    
+    "adoption_velocity": {
+      "target_metrics": {
+        "planned_patients_year1": "Integer - if available from strategy docs or analyst reports",
+        "actual_patients_year1": "Integer - from company disclosures, market research",
+        "planned_revenue_year1": "Currency - from analyst forecasts pre-launch",
+        "actual_revenue_year1": "Currency - from earnings reports"
+      },
+      "calculated_metrics": {
+        "adoption_ratio": "planned / actual (>1.0 means slower than plan)",
+        "revenue_ratio": "forecast / actual (>1.0 means underperformance)"
+      },
+      "sources": "Earnings calls, analyst reports, market research, congress presentations",
+      "confidence_assessment": "High if from company disclosure, Medium if from market research, Low if extrapolated"
+    },
+    
+    "timeline_accuracy": {
+      "target_metrics": {
+        "guideline_planned_months": "Integer - from pre-launch strategy if available",
+        "guideline_actual_months": "Integer - from guideline publication date vs approval date",
+        "payer_coverage_planned_timeline": "Integer - planned months to X% coverage",
+        "payer_coverage_actual_timeline": "Integer - actual months to X% coverage",
+        "rwe_planned_start": "Integer - planned months post-approval to start RWE",
+        "rwe_actual_start": "Integer - actual start from study registrations"
+      },
+      "calculated_metrics": {
+        "timeline_extension_ratio": "actual / planned (>1.0 means took longer)",
+        "timeline_overrun_months": "actual - planned (absolute delay)"
+      },
+      "sources": "Guideline publication dates, CMS coverage decisions, study registrations",
+      "confidence_assessment": "High for objective dates, Medium for inferred timelines"
+    },
+    
+    "payer_coverage": {
+      "target_metrics": {
+        "planned_coverage_percent": "Float 0-1 - from pre-launch forecasts",
+        "actual_coverage_percent": "Float 0-1 - from coverage analysis reports",
+        "restriction_types": "Array - ['prior_auth', 'step_edit', 'narrow_criteria', etc]",
+        "coverage_timeline_months": "Integer - months to achieve X% coverage"
+      },
+      "calculated_metrics": {
+        "coverage_achievement_ratio": "actual / planned coverage percent"
+      },
+      "sources": "Payer policy databases, market access reports, company disclosures",
+      "confidence_assessment": "Medium typically - payer coverage data often incomplete"
+    },
+    
+    "resource_allocation_patterns": {
+      "target_observations": {
+        "initial_strategy": "Text - what was initial resource allocation approach",
+        "pivot_timing": "Integer - if strategy changed, when (months post-launch)",
+        "pivot_description": "Text - what changed in approach",
+        "effectiveness": "Text - did pivot improve outcomes"
+      },
+      "sources": "Case studies, interviews, congress presentations, company updates",
+      "confidence_assessment": "Low to Medium - often anecdotal or incomplete"
+    },
+    
+    "constraint_manifestations": {
+      "target_observations": {
+        "which_constraints_materialized": "Array of constraint IDs that actually occurred",
+        "timing_of_manifestation": "Integer months - when barrier became evident",
+        "severity": "Categorical ['minor', 'moderate', 'severe', 'catastrophic']",
+        "mitigation_attempted": "Text - what interventions were tried",
+        "mitigation_effectiveness": "Categorical ['ineffective', 'partially_effective', 'effective']"
+      },
+      "sources": "Analyst reports, case studies, earnings call discussions of challenges",
+      "confidence_assessment": "Medium - can observe constraints materialized, harder to quantify impact",
+      "critical_note": "This validates whether taxonomy constraint predictions match reality"
+    },
+    
+    "extraction_priorities": {
+      "tier1_critical": ["adoption_velocity metrics", "timeline_accuracy metrics"],
+      "tier2_important": ["payer_coverage metrics", "constraint_manifestations"],
+      "tier3_valuable": ["resource_allocation_patterns"],
+      "minimum_viable": "Must extract at least 2 tier1 metrics to include case in analysis"
+    }
+  },
+  
+  "multi_case_triangulation_logic": {
+    "description": "How to combine insights from 3-4 matched cases",
+    
+    "consensus_pattern_identification": {
+      "method": "Identify patterns appearing in majority of cases",
+      "thresholds": {
+        "strong_consensus": "3/3 or 4/4 cases show pattern",
+        "moderate_consensus": "2/3 or 3/4 cases show pattern",
+        "weak_consensus": "1/3 or 2/4 cases show pattern (insufficient for generalization)"
+      },
+      "example": {
+        "metric": "adoption_velocity_ratio",
+        "case1": 8.2,
+        "case2": 5.7,
+        "case3": 9.8,
+        "case4": 6.3,
+        "observation": "All 4 cases show slowdown ratio >5.0",
+        "consensus": "Strong - consistent direction",
+        "distribution_fitting": "Fit lognormal to [8.2, 5.7, 9.8, 6.3]"
+      }
+    },
+    
+    "divergence_analysis": {
+      "method": "Identify high variance patterns requiring caution",
+      "detection": "Coefficient of variation (CV) > 0.5",
+      "interpretation": "High variance suggests context-dependent outcomes",
+      "action": {
+        "inflate_uncertainty": "Widen distribution parameters to reflect variance",
+        "investigate_drivers": "Search for explanatory factors (e.g., different constraint profiles)",
+        "confidence_downgrade": "Flag as MODERATE or LOW confidence pattern"
+      },
+      "example": {
+        "metric": "payer_coverage_ratio",
+        "case1": 0.82,
+        "case2": 0.45,
+        "case3": 0.68,
+        "case4": 0.51,
+        "mean": 0.615,
+        "std": 0.167,
+        "cv": 0.27,
+        "interpretation": "Moderate variance, use inflated uncertainty in distribution"
+      }
+    },
+    
+    "outlier_handling": {
+      "detection": "Z-score > 2.0 from other cases",
+      "investigation": "Search for confounding factors in outlier case",
+      "decision_tree": {
+        "if_clear_confound": "Exclude outlier and document why (e.g., regulatory scandal, pandemic timing)",
+        "if_unclear_confound": "Include but use robust statistics (median instead of mean)",
+        "if_valid_outlier": "Include and use wider distribution to capture tail risk"
+      }
+    },
+    
+    "constraint_specific_clustering": {
+      "description": "Group cases by constraint profile for targeted pattern extraction",
+      "method": "If cases have different constraint subsets, analyze patterns separately",
+      "example": {
+        "all_cases": ["Case A", "Case B", "Case C", "Case D"],
+        "constraint_switching_inertia": ["Case A", "Case B"],
+        "constraint_payer_evidence_gap": ["Case C", "Case D"],
+        "analysis": "Cases A+B show 8-10x slowdown, Cases C+D show 3-5x slowdown",
+        "interpretation": "Switching constraint has incremental impact beyond baseline"
+      },
+      "application": "If new strategy has switching constraint, use A+B pattern; if not, use C+D pattern"
+    }
+  },
+  
+  "mc_distribution_generation": {
+    "description": "Convert empirical data into probability distributions for Monte Carlo sampling",
+    
+    "distribution_fitting_by_metric_type": {
+      "ratio_metrics": {
+        "examples": ["adoption_velocity_ratio", "revenue_miss_ratio"],
+        "characteristics": "Always >0, typically >1.0, right-skewed (outliers upward)",
+        "recommended_distribution": "lognormal",
+        "fitting_method": "Maximum likelihood estimation on log-transformed data",
+        "parameters": "mu (location), sigma (scale)",
+        "mc_sampling": "sample from lognormal(mu, sigma)"
+      },
+      
+      "proportion_metrics": {
+        "examples": ["payer_coverage_ratio", "resource_allocation_split"],
+        "characteristics": "Bounded 0-1, may be skewed",
+        "recommended_distribution": "beta",
+        "fitting_method": "Method of moments from sample mean and variance",
+        "parameters": "alpha, beta",
+        "mc_sampling": "sample from beta(alpha, beta)"
+      },
+      
+      "timeline_extension_metrics": {
+        "examples": ["guideline_timeline_ratio", "coverage_delay_months"],
+        "characteristics": "Typically >1.0 (rarely faster than plan), moderate skew",
+        "recommended_distribution": "truncated_normal",
+        "fitting_method": "Fit normal, truncate at lower bound (usually 1.0)",
+        "parameters": "mean, std, lower_bound",
+        "mc_sampling": "sample from truncated_normal(mean, std, lower=1.0)"
+      },
+      
+      "binary_outcome_metrics": {
+        "examples": ["major_payer_restriction_occurred", "guideline_achieved"],
+        "characteristics": "True/False outcome",
+        "recommended_distribution": "bernoulli",
+        "fitting_method": "Proportion of cases where outcome=True",
+        "parameters": "p (probability)",
+        "mc_sampling": "sample from bernoulli(p)"
+      }
+    },
+    
+    "small_sample_adjustment": {
+      "description": "With only 3-4 data points, uncertainty is higher than point estimates suggest",
+      "method": "Inflate variance to account for sampling uncertainty",
+      "formula": "adjusted_sigma = fitted_sigma × sqrt(reference_n / actual_n)",
+      "reference_n": 10,
+      "rationale": "With n=3, multiply sigma by sqrt(10/3) = 1.83x to reflect parameter uncertainty",
+      "example": {
+        "data": [8.2, 5.7, 9.8, 6.3],
+        "n": 4,
+        "fitted_lognormal": "mu=2.08, sigma=0.28",
+        "adjustment_factor": "sqrt(10/4) = 1.58",
+        "adjusted_sigma": "0.28 × 1.58 = 0.44",
+        "interpretation": "Wider distribution reflects parameter uncertainty from small sample"
+      }
+    },
+    
+    "constraint_conditional_distributions": {
+      "description": "Different empirical distributions for different constraint profiles",
+      "method": "If matched cases cluster by constraint profile, fit separate distributions",
+      "example": {
+        "metric": "adoption_velocity_ratio",
+        "constraint_cluster_A": {
+          "constraints": ["physician_switching_inertia"],
+          "cases": ["Case1", "Case2"],
+          "data": [10.2, 8.7],
+          "distribution": "lognormal(mu=2.25, sigma=0.50)"
+        },
+        "constraint_cluster_B": {
+          "constraints": ["no_switching_inertia"],
+          "cases": ["Case3", "Case4"],
+          "data": [4.1, 3.8],
+          "distribution": "lognormal(mu=1.38, sigma=0.30)"
+        },
+        "mc_application": "If new strategy has switching constraint → use cluster_A distribution; else use cluster_B"
+      }
+    },
+    
+    "mc_integration_with_taxonomies": {
+      "description": "How empirical distributions combine with taxonomy theoretical distributions",
+      
+      "dual_sampling_approach": {
+        "theoretical_layer": "Sample parameters from taxonomy probability distributions (e.g., payer_threshold ~ beta(4,6))",
+        "empirical_layer": "Sample adjustment factors from empirical distributions (e.g., adoption_ratio ~ lognormal(2.1, 0.5))",
+        "combination": "Apply both: adjusted_target = (plan_target / empirical_ratio) then evaluate against theoretical_threshold",
+        "uncertainty_propagation": "Both sources of uncertainty compound in final prediction"
+      },
+      
+      "iteration_logic": {
+        "step1": "Sample theoretical parameters from taxonomies",
+        "step2": "Sample empirical calibration factors from fitted distributions",
+        "step3": "Apply empirical calibration to strategy assumptions",
+        "step4": "Evaluate calibrated assumptions against theoretical constraint thresholds",
+        "step5": "Record outcome (pass/breach for each constraint)",
+        "step6": "Repeat 1000 times",
+        "step7": "Aggregate results → breach rates, confidence bands"
+      },
+      
+      "example_iteration": {
+        "iteration_n": 547,
+        "theoretical_samples": {
+          "payer_evidence_threshold": "0.73 (from taxonomy beta(4,6))"
+        },
+        "empirical_samples": {
+          "adoption_velocity_ratio": "7.8 (from fitted lognormal(2.08, 0.44))",
+          "payer_coverage_ratio": "0.58 (from fitted beta(3.2, 4.1))"
+        },
+        "calibrated_strategy": {
+          "original_plan": "40,000 patients year 1",
+          "empirically_adjusted": "40,000 / 7.8 = 5,128 patients",
+          "original_coverage_assumption": "70%",
+          "empirically_adjusted": "70% × 0.58 = 41% coverage"
+        },
+        "constraint_evaluation": {
+          "viability_threshold": 6000,
+          "comparison": "5,128 < 6,000",
+          "outcome": "year1_viability_breach"
+        }
+      }
+    }
+  },
+  
+  "output_format_specification": {
+    "description": "Structured output format for similarity-matched empirical calibration",
+    
+    "section_structure": [
+      {
+        "section_number": 1,
+        "title": "PRIMARY CONSTRAINT ANALYSIS",
+        "content": "Output from existing taxonomy constraint analysis",
+        "source": "pricing_market_access_v2.json, stakeholder_taxonomy_v2.json, etc",
+        "format": "Standard constraint analysis format - preserve existing output"
+      },
+      {
+        "section_number": 2,
+        "title": "SIMILARITY MATCHING RESULTS",
+        "content": "Top 3-4 matched historical launches with similarity scores",
+        "required_fields": [
+          "match_name",
+          "approval_year",
+          "similarity_score",
+          "match_quality_rating",
+          "similarity_breakdown (by dimension)",
+          "constraint_overlap (specific constraints matched)",
+          "rationale (why this is a good comparison)"
+        ],
+        "format": "Table or structured list with transparency on matching logic"
+      },
+      {
+        "section_number": 3,
+        "title": "EMPIRICAL PATTERNS (TRIANGULATED)",
+        "content": "Patterns extracted from matched cases",
+        "subsections": {
+          "consensus_patterns": {
+            "description": "Patterns appearing in majority of cases",
+            "format": "Pattern name, case data, fitted distribution, interpretation, consensus strength"
+          },
+          "divergent_patterns": {
+            "description": "High variance patterns flagged for caution",
+            "format": "Pattern name, case data, variance analysis, confidence downgrade rationale"
+          },
+          "constraint_validation": {
+            "description": "Did predicted constraints actually occur in historical cases?",
+            "format": "Constraint ID, predicted (yes/no), observed in N/M cases, timing, severity"
+          }
+        }
+      },
+      {
+        "section_number": 4,
+        "title": "MONTE CARLO WITH EMPIRICAL CALIBRATION",
+        "content": "MC simulation results combining theory + empirical",
+        "required_fields": {
+          "base_prediction_theory_only": "Viability % from taxonomy constraints alone",
+          "empirical_calibration_applied": "List of which empirical distributions used",
+          "combined_prediction": "Viability % after empirical calibration",
+          "uncertainty_breakdown": {
+            "theoretical_uncertainty": "± from taxonomy parameter uncertainty",
+            "empirical_uncertainty": "± from fitted distribution uncertainty",
+            "combined_uncertainty": "Total ± (compounded)"
+          },
+          "confidence_assessment": {
+            "constraint_reasoning": "HIGH/MODERATE/LOW",
+            "match_quality": "HIGH/MODERATE/LOW based on similarity scores",
+            "pattern_consensus": "HIGH/MODERATE/LOW based on triangulation",
+            "overall_confidence": "Final confidence rating with rationale"
+          }
+        }
+      },
+      {
+        "section_number": 5,
+        "title": "CALIBRATED RECOMMENDATIONS",
+        "content": "Specific adjustments to strategy based on empirical patterns",
+        "format": {
+          "original_assumption": "From strategy document",
+          "empirical_pattern": "Pattern from matched cases",
+          "calibrated_recommendation": "Adjusted target/timeline",
+          "rationale": "Why this adjustment based on which cases",
+          "confidence": "HIGH/MODERATE/LOW for this specific recommendation"
+        }
+      }
+    ],
+    
+    "transparency_requirements": {
+      "source_citations": "All empirical data must cite source URLs",
+      "confidence_explicit": "Every pattern, prediction, recommendation must state confidence level",
+      "match_quality": "Similarity scores and matching logic must be visible",
+      "data_limitations": "Explicitly state what data was unavailable or uncertain",
+      "no_hidden_logic": "User should be able to trace: constraint → match → pattern → calibration → recommendation"
+    }
+  },
+  
+  "system_instructions": {
+    "description": "Instructions for LLM executing this schema",
+    
+    "execution_sequence": [
+      "1. Run standard constraint analysis using existing taxonomies FIRST - this is PRIMARY foundation",
+      "2. Extract features from strategy document using feature_extraction_schema",
+      "3. Execute discovery searches using search_execution_protocol phase 1",
+      "4. Score candidates using similarity_scoring_algorithm",
+      "5. Select top 3-4 matches (diversity consideration)",
+      "6. Execute deep empirical extraction for top matches using phase 5 protocol",
+      "7. Triangulate patterns using multi_case_triangulation_logic",
+      "8. Fit distributions using mc_distribution_generation methods",
+      "9. Run MC simulation with dual sampling (theory + empirical)",
+      "10. Format output using output_format_specification"
+    ],
+    
+    "critical_principles": {
+      "taxonomy_anchoring": "ALWAYS anchor in existing taxonomy constraint analysis - this is the foundation",
+      "constraint_primacy": "Constraint profile matching is MOST IMPORTANT dimension (35% weight)",
+      "agnostic_execution": "Do not hard-code specific drugs or launches - find matches dynamically each session",
+      "transparency": "Always show matching logic, similarity scores, confidence levels, data sources",
+      "intellectual_honesty": "Flag when matches are poor, data is sparse, or uncertainty is high",
+      "empirical_validation": "Use historical data to CALIBRATE predictions, not replace constraint reasoning"
+    },
+    
+    "quality_gates": {
+      "minimum_match_quality": "If best match <0.60 similarity, flag insufficient comparables",
+      "minimum_data_extraction": "If <2 tier1 metrics extracted per case, flag limited empirical basis",
+      "minimum_case_count": "If <2 viable matches found, flag insufficient triangulation",
+      "pattern_consensus": "If high variance in patterns, downgrade confidence and explain"
+    },
+    
+    "failure_modes_to_avoid": {
+      "overfitting_to_examples": "Do not memorize Aduhelm/Entresto - find matches dynamically",
+      "false_precision": "Do not claim 0.743 viability - use appropriate significant figures with uncertainty",
+      "hidden_assumptions": "Do not make implicit assumptions - all logic must be transparent",
+      "pattern_matching_bias": "Do not assume surface similarity = meaningful comparison - constraint match is key",
+      "ignoring_uncertainty": "Do not hide when data is sparse or matches are poor - explicit confidence always"
+    }
+  },
+  
+  "version_history": {
+    "v1.0": {
+      "date": "2026-01-05",
+      "changes": "Initial release - dynamic similarity engine, MC-ready, taxonomy-anchored",
+      "tested_on": "Cardiovascular and oncology strategies",
+      "size": "~95KB"
+    }
+  },
+  
+  "future_enhancements": {
+    "v1.1_planned": {
+      "bayesian_updating": "Update distributions as more data accumulates from deployments",
+      "temporal_weighting": "Weight recent launches more heavily than older ones",
+      "geographic_specificity": "Add US vs EU vs Asia market dynamics differentiation"
+    },
+    "v2.0_planned": {
+      "multi_modal_distributions": "Handle bimodal patterns (e.g., rapid success vs slow adoption)",
+      "causal_inference": "Attempt to isolate causal factors vs correlations",
+      "active_learning": "Suggest which additional historical cases would reduce uncertainty most"
+    }
+  },
+  
+  "integration_with_existing_system": {
+    "load_sequence": [
+      "1. Load existing taxonomies (319KB) - ALWAYS FIRST",
+      "2. Load this comparison guide (95KB)",
+      "3. Run existing constraint analysis",
+      "4. If comparative function requested by user, execute similarity matching",
+      "5. Combine taxonomy predictions with empirical calibration"
+    ],
+    
+    "total_payload": {
+      "taxonomies": "319KB",
+      "comparison_guide": "95KB",
+      "total": "414KB",
+      "apollo_ratio": "5.75x Apollo Guidance Computer"
+    }
+  }
+}

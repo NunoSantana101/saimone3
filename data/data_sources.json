@@ -1,0 +1,489 @@
+{
+  "version": "1.0.0",
+  "generated_utc": "2026-01-22T00:00:00Z",
+  "purpose": "Authoritative, scraperless data-source registry for MedComms/MedAffairs research, landscape analysis, and compliance-aware evidence retrieval. Sources are ranked by authority and scoped by region and use-case. Aggregators may be included for convenience, but never outrank primary regulators, HTA bodies, peer-reviewed indices, or official registries.",
+  "global_policy": {
+    "scraperless_only": true,
+    "hostname_allowlist_required": true,
+    "evidence_preference_order": [
+      "Regulators (FDA/EMA/MHRA/etc.)",
+      "HTA / reimbursement authorities (NICE/etc.)",
+      "Official trial registries (ClinicalTrials.gov/EUCTR/ISRCTN/etc.)",
+      "Peer-reviewed indices (PubMed/Europe PMC)",
+      "Publisher metadata (Crossref)",
+      "Official global health bodies (WHO)",
+      "Professional societies / guidelines",
+      "Secondary aggregators (only as convenience, never as sole basis for regulatory claims)"
+    ],
+    "minimum_citation_fields": [
+      "title",
+      "publisher_or_owner",
+      "accessed_utc",
+      "canonical_url"
+    ],
+    "do_not_infer_rules_or_status": [
+      "Do not infer marketing status from label presence alone.",
+      "Do not infer regulatory approval from press releases or company marketing pages.",
+      "Do not infer contraindications, black-box warnings, or label changes without regulator-hosted documentation."
+    ],
+    "timeout_seconds_default": 20,
+    "max_results_default": 10
+  },
+  "sources": [
+    {
+      "id": "reg_fda_drugsatfda",
+      "name": "FDA Drugs@FDA",
+      "category": "regulator",
+      "authority_tier": "primary",
+      "regions": ["US"],
+      "owner": "U.S. Food and Drug Administration",
+      "access": {
+        "mode": "public_web",
+        "requires_api_key": false,
+        "scraping_policy": "no_html_scraping_if_api_or_download_exists",
+        "preferred_retrieval": ["official_download", "official_search"]
+      },
+      "base_urls": [
+        "https://www.accessdata.fda.gov",
+        "https://www.fda.gov"
+      ],
+      "capabilities": {
+        "regulatory_status": true,
+        "labeling_pdfs": true,
+        "approval_history": true,
+        "safety_communications": true
+      },
+      "use_cases": [
+        "US approval/indication verification",
+        "label retrieval and revision dating",
+        "regulatory history anchoring"
+      ],
+      "citation": {
+        "style": "canonical_url",
+        "required_fields": ["canonical_url", "accessed_utc"]
+      },
+      "quality": {
+        "reliability_score_0_100": 98,
+        "freshness_expectation": "high",
+        "known_gaps": ["search UX variability", "some legacy assets have fragmented pages"]
+      },
+      "guardrails": {
+        "disallow_company_marketing_pages_as_label": true,
+        "status_claim_requires_regulator_page": true
+      }
+    },
+    {
+      "id": "reg_fda_openfda",
+      "name": "FDA openFDA (Drugs)",
+      "category": "regulator_api",
+      "authority_tier": "primary",
+      "regions": ["US"],
+      "owner": "U.S. Food and Drug Administration",
+      "access": {
+        "mode": "public_api",
+        "requires_api_key": false,
+        "rate_limit_notes": "Subject to FDA openFDA limits; cache aggressively."
+      },
+      "base_urls": ["https://api.fda.gov"],
+      "capabilities": {
+        "adverse_events": true,
+        "label_structured": true,
+        "ndc_metadata": true
+      },
+      "use_cases": [
+        "rapid AE signal triage (non-causal)",
+        "structured label fields (where available)",
+        "NDC metadata checks (non-commercial availability proof)"
+      ],
+      "citation": {
+        "style": "canonical_url",
+        "required_fields": ["canonical_url", "accessed_utc", "query_params"]
+      },
+      "quality": {
+        "reliability_score_0_100": 92,
+        "freshness_expectation": "medium_high",
+        "known_gaps": ["coverage varies by endpoint", "not a substitute for Drugs@FDA PDFs"]
+      },
+      "guardrails": {
+        "no_causality_claims_from_ae": true,
+        "label_changes_must_be_confirmed_with_pdf": true
+      }
+    },
+    {
+      "id": "reg_ema_epar",
+      "name": "EMA EPAR (European Public Assessment Reports)",
+      "category": "regulator",
+      "authority_tier": "primary",
+      "regions": ["EU", "EEA"],
+      "owner": "European Medicines Agency",
+      "access": {
+        "mode": "public_web",
+        "requires_api_key": false,
+        "preferred_retrieval": ["official_document_download"]
+      },
+      "base_urls": ["https://www.ema.europa.eu"],
+      "capabilities": {
+        "regulatory_status": true,
+        "smPC": true,
+        "risk_management_plan_summary": true,
+        "assessment_reports": true
+      },
+      "use_cases": [
+        "EU approval/indication verification",
+        "SmPC anchoring for claims",
+        "safety and risk minimisation summary"
+      ],
+      "citation": {
+        "style": "canonical_url",
+        "required_fields": ["canonical_url", "accessed_utc"]
+      },
+      "quality": {
+        "reliability_score_0_100": 98,
+        "freshness_expectation": "high",
+        "known_gaps": ["navigational complexity"]
+      }
+    },
+    {
+      "id": "reg_mhra",
+      "name": "MHRA (UK medicines regulator)",
+      "category": "regulator",
+      "authority_tier": "primary",
+      "regions": ["UK"],
+      "owner": "Medicines and Healthcare products Regulatory Agency",
+      "access": {
+        "mode": "public_web",
+        "requires_api_key": false
+      },
+      "base_urls": ["https://www.gov.uk/government/organisations/medicines-and-healthcare-products-regulatory-agency"],
+      "capabilities": {
+        "safety_updates": true,
+        "regulatory_news": true
+      },
+      "use_cases": [
+        "UK safety updates and alerts",
+        "UK regulatory positioning (when applicable)"
+      ],
+      "citation": {
+        "style": "canonical_url",
+        "required_fields": ["canonical_url", "accessed_utc"]
+      },
+      "quality": {
+        "reliability_score_0_100": 96,
+        "freshness_expectation": "high",
+        "known_gaps": ["product-level pages may not mirror EMA detail for centrally authorised products"]
+      }
+    },
+    {
+      "id": "hta_nice",
+      "name": "NICE (National Institute for Health and Care Excellence)",
+      "category": "hta_reimbursement",
+      "authority_tier": "primary",
+      "regions": ["UK"],
+      "owner": "NICE",
+      "access": {
+        "mode": "public_web",
+        "requires_api_key": false,
+        "preferred_retrieval": ["guidance_download"]
+      },
+      "base_urls": ["https://www.nice.org.uk"],
+      "capabilities": {
+        "hta_guidance": true,
+        "technology_appraisals": true,
+        "clinical_guidelines": true
+      },
+      "use_cases": [
+        "UK access/reimbursement narrative",
+        "positioning vs standard of care",
+        "economic and clinical evidence summaries"
+      ],
+      "citation": {
+        "style": "canonical_url",
+        "required_fields": ["canonical_url", "accessed_utc"]
+      },
+      "quality": {
+        "reliability_score_0_100": 97,
+        "freshness_expectation": "high",
+        "known_gaps": ["some content may require careful document selection (TA vs NG vs QS)"]
+      }
+    },
+    {
+      "id": "trials_clinicaltrials_gov",
+      "name": "ClinicalTrials.gov",
+      "category": "trial_registry",
+      "authority_tier": "primary",
+      "regions": ["US", "Global"],
+      "owner": "U.S. National Library of Medicine (NIH)",
+      "access": {
+        "mode": "public_api",
+        "requires_api_key": false,
+        "preferred_retrieval": ["api", "json_export"]
+      },
+      "base_urls": ["https://clinicaltrials.gov"],
+      "capabilities": {
+        "trial_records": true,
+        "results_posted": true,
+        "sponsor_and_sites": true
+      },
+      "use_cases": [
+        "pipeline/indication mapping",
+        "trial design extraction (phase, endpoints, arms)",
+        "recruitment status and timelines"
+      ],
+      "citation": {
+        "style": "canonical_url",
+        "required_fields": ["nct_id", "canonical_url", "accessed_utc"]
+      },
+      "quality": {
+        "reliability_score_0_100": 95,
+        "freshness_expectation": "medium_high",
+        "known_gaps": ["sponsor-entered fields may lag real-world changes"]
+      },
+      "guardrails": {
+        "do_not_call_results_without_results_section": true
+      }
+    },
+    {
+      "id": "lit_pubmed",
+      "name": "PubMed (NCBI E-utilities)",
+      "category": "literature_index",
+      "authority_tier": "primary",
+      "regions": ["Global"],
+      "owner": "U.S. National Library of Medicine (NIH)",
+      "access": {
+        "mode": "public_api",
+        "requires_api_key": false,
+        "preferred_retrieval": ["eutils"]
+      },
+      "base_urls": ["https://eutils.ncbi.nlm.nih.gov", "https://pubmed.ncbi.nlm.nih.gov"],
+      "capabilities": {
+        "peer_reviewed_index": true,
+        "mesh_terms": true,
+        "abstracts": true
+      },
+      "use_cases": [
+        "evidence landscape mapping",
+        "KOL and institution signal (author networks)",
+        "systematic query formation via MeSH"
+      ],
+      "citation": {
+        "style": "pmid",
+        "required_fields": ["pmid", "accessed_utc"]
+      },
+      "quality": {
+        "reliability_score_0_100": 96,
+        "freshness_expectation": "high",
+        "known_gaps": ["full text may be paywalled; abstracts are not full evidence"]
+      },
+      "guardrails": {
+        "no_medical_claims_without_primary_paper": true
+      }
+    },
+    {
+      "id": "lit_europe_pmc",
+      "name": "Europe PMC",
+      "category": "literature_index",
+      "authority_tier": "primary",
+      "regions": ["Global", "EU"],
+      "owner": "EMBL-EBI / Europe PMC consortium",
+      "access": {
+        "mode": "public_api",
+        "requires_api_key": false
+      },
+      "base_urls": ["https://www.ebi.ac.uk/europepmc"],
+      "capabilities": {
+        "abstracts": true,
+        "full_text_open_access": true,
+        "grants_and_links": true
+      },
+      "use_cases": [
+        "OA full-text retrieval where permitted",
+        "linking preprints and related outputs",
+        "supplemental evidence expansion"
+      ],
+      "citation": {
+        "style": "doi_or_pmcid",
+        "required_fields": ["canonical_url", "accessed_utc"]
+      },
+      "quality": {
+        "reliability_score_0_100": 94,
+        "freshness_expectation": "high",
+        "known_gaps": ["metadata variability across providers"]
+      }
+    },
+    {
+      "id": "meta_crossref",
+      "name": "Crossref",
+      "category": "publisher_metadata",
+      "authority_tier": "supporting",
+      "regions": ["Global"],
+      "owner": "Crossref",
+      "access": {
+        "mode": "public_api",
+        "requires_api_key": false,
+        "rate_limit_notes": "Polite pool usage expected; add contact mailto header if available."
+      },
+      "base_urls": ["https://api.crossref.org"],
+      "capabilities": {
+        "doi_metadata": true,
+        "references": true,
+        "publisher_info": true
+      },
+      "use_cases": [
+        "DOI validation and canonicalization",
+        "bibliography enrichment",
+        "deduplication across literature sources"
+      ],
+      "citation": {
+        "style": "doi",
+        "required_fields": ["doi", "accessed_utc"]
+      },
+      "quality": {
+        "reliability_score_0_100": 90,
+        "freshness_expectation": "medium",
+        "known_gaps": ["not a clinical evidence source; metadata only"]
+      }
+    },
+    {
+      "id": "global_who_gho",
+      "name": "WHO Global Health Observatory (GHO)",
+      "category": "public_health",
+      "authority_tier": "primary",
+      "regions": ["Global"],
+      "owner": "World Health Organization",
+      "access": {
+        "mode": "public_api",
+        "requires_api_key": false
+      },
+      "base_urls": ["https://ghoapi.azureedge.net"],
+      "capabilities": {
+        "indicator_data": true,
+        "country_profiles": true
+      },
+      "use_cases": [
+        "epidemiology baselining",
+        "burden-of-disease framing for strategy sections",
+        "country-level indicators for LATAM/EU comparisons"
+      ],
+      "citation": {
+        "style": "canonical_url",
+        "required_fields": ["canonical_url", "accessed_utc", "indicator_code"]
+      },
+      "quality": {
+        "reliability_score_0_100": 93,
+        "freshness_expectation": "medium",
+        "known_gaps": ["indicator update cadence varies by dataset"]
+      }
+    },
+    {
+      "id": "guidelines_esmo",
+      "name": "ESMO Clinical Practice Guidelines",
+      "category": "professional_society",
+      "authority_tier": "primary",
+      "regions": ["EU", "Global"],
+      "owner": "European Society for Medical Oncology",
+      "access": {
+        "mode": "public_web",
+        "requires_api_key": false
+      },
+      "base_urls": ["https://www.esmo.org"],
+      "capabilities": {
+        "guidelines": true,
+        "position_papers": true
+      },
+      "use_cases": [
+        "standard-of-care anchoring (oncology)",
+        "treatment algorithm framing",
+        "congress-to-guideline narrative alignment"
+      ],
+      "citation": {
+        "style": "canonical_url",
+        "required_fields": ["canonical_url", "accessed_utc"]
+      },
+      "quality": {
+        "reliability_score_0_100": 92,
+        "freshness_expectation": "medium_high",
+        "known_gaps": ["some materials may be member-gated; ensure accessibility"]
+      }
+    },
+    {
+      "id": "congress_asco",
+      "name": "ASCO Meeting Library",
+      "category": "congress",
+      "authority_tier": "supporting",
+      "regions": ["US", "Global"],
+      "owner": "American Society of Clinical Oncology",
+      "access": {
+        "mode": "public_web",
+        "requires_api_key": false
+      },
+      "base_urls": ["https://meetings.asco.org", "https://ascopubs.org"],
+      "capabilities": {
+        "abstracts": true,
+        "posters": "variable",
+        "presentations": "variable"
+      },
+      "use_cases": [
+        "latest congress abstracts (oncology)",
+        "rapid competitive intel (non-regulatory)",
+        "message platform timing against data readouts"
+      ],
+      "citation": {
+        "style": "canonical_url",
+        "required_fields": ["canonical_url", "accessed_utc"]
+      },
+      "quality": {
+        "reliability_score_0_100": 88,
+        "freshness_expectation": "high",
+        "known_gaps": ["abstracts are preliminary; do not treat as final evidence"]
+      },
+      "guardrails": {
+        "no_label_or_access_claims_from_abstracts": true
+      }
+    },
+    {
+      "id": "secondary_drugscom",
+      "name": "Drugs.com",
+      "category": "secondary_aggregator",
+      "authority_tier": "secondary",
+      "regions": ["US", "Global"],
+      "owner": "Drugs.com",
+      "access": {
+        "mode": "public_web",
+        "requires_api_key": false
+      },
+      "base_urls": ["https://www.drugs.com"],
+      "capabilities": {
+        "drug_summaries": true,
+        "interactions": true,
+        "label_links": "variable"
+      },
+      "use_cases": [
+        "rapid orientation (dosing, common AEs, interactions)",
+        "patient-friendly summaries",
+        "convenience cross-linking"
+      ],
+      "citation": {
+        "style": "canonical_url",
+        "required_fields": ["canonical_url", "accessed_utc"]
+      },
+      "quality": {
+        "reliability_score_0_100": 78,
+        "freshness_expectation": "medium",
+        "known_gaps": [
+          "not authoritative for regulatory status",
+          "may lag discontinuations or regional availability changes"
+        ]
+      },
+      "guardrails": {
+        "cannot_be_sole_source_for": [
+          "approval_status",
+          "indication_authority",
+          "boxed_warnings",
+          "label_change_dates",
+          "marketed_vs_discontinued"
+        ],
+        "must_pair_with_primary_when_used_for_status": true
+      }
+    }
+  ]
+}

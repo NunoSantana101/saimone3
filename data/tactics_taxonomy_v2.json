@@ -1,0 +1,4542 @@
+{
+  "metadata": {
+    "schema_version": "3.5-hybrid",
+    "generated_on": "2025-12-30",
+    "description": "Hybrid tactics taxonomy combining MAPS-aligned execution framework with stakeholder persona intelligence and probabilistic success modeling for Medical Affairs Intelligence Platform",
+    "design_philosophy": "Merge deterministic execution controls (v3.0) with stakeholder-centric tactical intelligence (v2.0) and probabilistic success modeling for both planning and simulation",
+    "alignment_frameworks": [
+      "MAPS_iMC_Strategy_and_Plan",
+      "MAPS_Launch_Excellence",
+      "MAPS_Field_Medical_KPIs"
+    ],
+    "model_runtime_target": "gpt-4.1 / claude-sonnet-4",
+    "regions_in_scope": [
+      "UK",
+      "EU",
+      "US",
+      "Eastern_Europe",
+      "LATAM",
+      "SE_Asia_Emerging",
+      "Middle_East"
+    ],
+    "design_principles": [
+      "Execution completeness over narrative",
+      "Fail-fast feasibility via explicit constraints",
+      "Region archetypes with bounded viability flags and cost modifiers",
+      "Stakeholder persona alignment with channel preferences",
+      "Probabilistic success modeling for resource optimization",
+      "Content modularity for reuse and efficiency"
+    ],
+    "simulation_capabilities": {
+      "monte_carlo_ready": true,
+      "roi_modeling_ready": true,
+      "resource_optimization_ready": true,
+      "success_probability_ready": true
+    }
+  },
+  "enums": {
+    "priority_level": [
+      "low",
+      "medium",
+      "high",
+      "very_high",
+      "critical"
+    ],
+    "lifecycle_phase": [
+      "prelaunch_T-48_to_T-24",
+      "perilaunch_T-24_to_T-12",
+      "launch_T-12_to_T0",
+      "postlaunch_T0_to_T12",
+      "beyond_T12"
+    ],
+    "tactic_family": [
+      "scientific_exchange",
+      "insight_generation",
+      "evidence_generation",
+      "evidence_dissemination",
+      "medical_education",
+      "digital_omnichannel",
+      "publication_strategy",
+      "advisory_boards",
+      "market_access_value",
+      "patient_advocacy",
+      "internal_enablement",
+      "data_partnership"
+    ],
+    "execution_mode": [
+      "always_on",
+      "campaign",
+      "event_based",
+      "reactive"
+    ],
+    "cadence": [
+      "ad_hoc",
+      "daily",
+      "weekly",
+      "biweekly",
+      "monthly",
+      "quarterly",
+      "biannual",
+      "annual"
+    ],
+    "complexity": [
+      "low",
+      "moderate",
+      "high",
+      "very_high"
+    ],
+    "compliance_risk": [
+      "low",
+      "medium",
+      "high",
+      "very_high"
+    ],
+    "evidence_dependency": [
+      "none",
+      "supportive",
+      "required"
+    ],
+    "deliverable_type": [
+      "slide_deck",
+      "module",
+      "infographic",
+      "visual_abstract",
+      "manuscript",
+      "poster",
+      "abstract",
+      "webinar",
+      "toolkit",
+      "portal_content",
+      "email_series",
+      "advisory_board_pack",
+      "training_pack",
+      "field_science_material",
+      "insight_report",
+      "rwe_protocol",
+      "registry_proposal",
+      "value_dossier",
+      "field_playbook",
+      "speaker_deck",
+      "video_content",
+      "podcast",
+      "white_paper"
+    ],
+    "channel_family": [
+      "field_scientific_exchange",
+      "scientific_publications",
+      "congress",
+      "medical_education",
+      "digital_scientific_platform",
+      "internal_enablement",
+      "payer_value_communication",
+      "patient_advocacy_engagement"
+    ],
+    "governance_gate": [
+      "draft",
+      "mlr_review",
+      "approved",
+      "active",
+      "sunset",
+      "retired"
+    ],
+    "viability_status": [
+      "highly_viable",
+      "viable",
+      "constrained",
+      "not_viable"
+    ],
+    "success_likelihood": [
+      "very_low",
+      "low",
+      "moderate",
+      "high",
+      "very_high"
+    ]
+  },
+  "weighting_system": {
+    "base_formula": "final_effectiveness = base_effectiveness × stakeholder_alignment × regional_viability × resource_availability × evidence_quality × lifecycle_timing",
+    "success_probability_model": "beta_distribution",
+    "simulation_parameters": {
+      "monte_carlo_iterations_default": 10000,
+      "correlation_modeling": true,
+      "cost_variance_factor": 0.2
+    }
+  },
+  "cascade_contract": {
+    "description": "Defines how tactics receive constraints from pillars/stakeholders and propagate requirements to metrics/resources",
+    "canonical_link_fields": {
+      "pillar_tags_or_ids": {
+        "target": "pillars.json",
+        "mechanism": "cascade.linked_pillar_ids filters tactics by strategic intent; tactics inherit pillar priorities"
+      },
+      "stakeholder_category_keys": {
+        "target": "stakeholders.json",
+        "mechanism": "cascade.eligible_stakeholder_category_keys determines audience feasibility; stakeholder attributes drive persona_mapping"
+      },
+      "metric_ids_or_levels": {
+        "target": "metrics.json",
+        "mechanism": "cascade.required_metric_levels bounds measurement; success_metrics define KPI tracking"
+      },
+      "channel_families": {
+        "target": "channels.json",
+        "mechanism": "maps_execution.channels determines delivery mechanisms; channel_viability impacts tactic effectiveness"
+      }
+    },
+    "required_tactic_fields": [
+      "id",
+      "name",
+      "tactic_family",
+      "maps_execution.lifecycle.relevant_phases",
+      "maps_execution.channels",
+      "constraints.compliance_risk",
+      "constraints.evidence_dependency",
+      "stakeholder_persona_mapping",
+      "effectiveness_modeling.base_success_probability",
+      "resource_estimation.cost_range_usd",
+      "regional_profiles.<region_key>.viability"
+    ]
+  },
+  "tactic_index": {
+    "msl_field_engagement": {
+      "name": "MSL Field Engagement",
+      "family": "scientific_exchange",
+      "priority_level": "high"
+    },
+    "kol_advisory_board": {
+      "name": "KOL Advisory Board",
+      "family": "advisory_boards",
+      "priority_level": "very_high"
+    },
+    "peer_reviewed_publication": {
+      "name": "Peer-Reviewed Publication",
+      "family": "publication_strategy",
+      "priority_level": "very_high"
+    },
+    "congress_symposium": {
+      "name": "Congress Symposium",
+      "family": "evidence_dissemination",
+      "priority_level": "high"
+    },
+    "hcp_education_program": {
+      "name": "HCP Education Program",
+      "family": "medical_education",
+      "priority_level": "high"
+    },
+    "omnichannel_campaign": {
+      "name": "Omnichannel Digital Campaign",
+      "family": "digital_omnichannel",
+      "priority_level": "medium"
+    },
+    "rwe_registry": {
+      "name": "Real-World Evidence Registry",
+      "family": "evidence_generation",
+      "priority_level": "high"
+    },
+    "payer_value_dossier": {
+      "name": "Payer Value Dossier",
+      "family": "market_access_value",
+      "priority_level": "very_high"
+    }
+  },
+  "tactics": [
+    {
+      "id": "congress_symposium",
+      "name": "Congress Symposium",
+      "description": "Company-sponsored or society-aligned scientific symposium activity at key congresses, including satellite symposia planning, compliant scientific content development, and post-congress amplification.",
+      "tactic_family": "evidence_dissemination",
+      "priority_level": "high",
+      "tags": [
+        "congress_presence",
+        "evidence_dissemination",
+        "evidence_interpretation",
+        "scientific_exchange"
+      ],
+      "maps_execution": {
+        "lifecycle": {
+          "relevant_phases": [
+            "prelaunch_T-48_to_T-24",
+            "perilaunch_T-24_to_T-12",
+            "launch_T-12_to_T0",
+            "postlaunch_T0_to_T12"
+          ],
+          "phase_priorities": {
+            "perilaunch_T-24_to_T-12": "medium",
+            "launch_T-12_to_T0": "very_high",
+            "postlaunch_T0_to_T12": "high",
+            "beyond_T12": "medium"
+          }
+        },
+        "execution_mode": "always_on",
+        "cadence": "monthly",
+        "complexity": "moderate",
+        "channels": [
+          "congress",
+          "scientific_symposium"
+        ],
+        "deliverables": [
+          "field_science_material",
+          "insight_report",
+          "medical_information_response"
+        ],
+        "targeting": {
+          "regions": [
+            "UK",
+            "EU",
+            "US",
+            "Eastern_Europe",
+            "LATAM",
+            "SE_Asia_Emerging",
+            "Middle_East"
+          ],
+          "sub_segments": [
+            "tier_1_hcps",
+            "tier_2_hcps",
+            "academic_centers"
+          ],
+          "account_based": true
+        },
+        "handoffs": {
+          "upstream_inputs": [
+            "Clinical data summaries from evidence_generation",
+            "Key messages from medical_communications",
+            "Publication reprints from publication_strategy"
+          ],
+          "dependencies": [
+            "MLR-approved core materials",
+            "CRM system for activity tracking",
+            "Field insights collection platform"
+          ],
+          "downstream_consumers": [
+            "Medical information for FAQs",
+            "Market research for insights analysis",
+            "KOL mapping for relationship tracking"
+          ]
+        }
+      },
+      "constraints": {
+        "required_access_level": "managed",
+        "relationship_mediation_tolerance": "limited",
+        "stakeholder_categories_required": [
+          "healthcare_professionals",
+          "external_experts"
+        ],
+        "stakeholder_categories_excluded": [
+          "regulators",
+          "media_communication"
+        ],
+        "channels": [
+          "congress",
+          "scientific_symposium"
+        ],
+        "deliverables": [
+          "field_science_material",
+          "insight_report"
+        ],
+        "compliance_risk": "high",
+        "evidence_dependency": "required",
+        "data_privacy_sensitivity": "high",
+        "requires_mlr_review": true,
+        "requires_contracting": false,
+        "requires_fmv_check": false,
+        "requires_consent": false,
+        "ae_reporting_route_required": true,
+        "digital_maturity_minimum": "digital_reluctant",
+        "min_evidence_maturity": "phase_3_data"
+      },
+      "stakeholder_persona_mapping": [
+        {
+          "stakeholder_id": "hcp_physician_specialist",
+          "stakeholder_category": "healthcare_professionals",
+          "engagement_priority": "primary",
+          "preferred_channels": [
+            "virtual_meeting",
+            "email",
+            "conference"
+          ],
+          "preferred_content_types": [
+            "clinical_data_summaries",
+            "practice_guidance"
+          ],
+          "unmet_need_alignment": "Practical interpretation of evidence and application to patient care",
+          "typical_engagement_frequency": "quarterly",
+          "avg_engagement_duration_minutes": 45,
+          "response_rate_expected": 0.55,
+          "content_preference_weights": {
+            "efficacy_data": 0.35,
+            "safety_data": 0.3,
+            "practical_use": 0.2,
+            "patient_selection": 0.15
+          }
+        },
+        {
+          "stakeholder_id": "kol",
+          "stakeholder_category": "external_experts",
+          "engagement_priority": "primary",
+          "preferred_channels": [
+            "conference",
+            "virtual_meeting",
+            "email"
+          ],
+          "preferred_content_types": [
+            "full_clinical_trial_data",
+            "mechanistic_insights"
+          ],
+          "unmet_need_alignment": "Scientific collaboration and visibility of the evidence base",
+          "typical_engagement_frequency": "biannual",
+          "avg_engagement_duration_minutes": 60,
+          "response_rate_expected": 0.75,
+          "content_preference_weights": {
+            "mechanism_of_action": 0.25,
+            "trial_design_rationale": 0.25,
+            "comparative_effectiveness": 0.25,
+            "future_research_directions": 0.25
+          }
+        }
+      ],
+      "effectiveness_modeling": {
+        "base_success_probability": 0.62,
+        "success_probability_distribution": {
+          "distribution_type": "beta",
+          "alpha": 9.52,
+          "beta": 5.84,
+          "mean": 0.62,
+          "stddev": 0.12,
+          "confidence_level": "medium",
+          "notes": "Default prior for simulation; calibrate with client data and regional maturity."
+        },
+        "effectiveness_factors": {
+          "msl_experience_level": {
+            "weight": 0.25,
+            "impact_range": [
+              0.85,
+              1.15
+            ]
+          },
+          "stakeholder_relationship_strength": {
+            "weight": 0.2,
+            "impact_range": [
+              0.8,
+              1.25
+            ]
+          },
+          "evidence_quality": {
+            "weight": 0.2,
+            "impact_range": [
+              0.75,
+              1.2
+            ]
+          },
+          "competitive_environment": {
+            "weight": 0.15,
+            "impact_range": [
+              0.85,
+              1.1
+            ]
+          },
+          "material_quality": {
+            "weight": 0.1,
+            "impact_range": [
+              0.9,
+              1.1
+            ]
+          },
+          "timing_appropriateness": {
+            "weight": 0.1,
+            "impact_range": [
+              0.9,
+              1.15
+            ]
+          }
+        },
+        "success_metrics": [
+          {
+            "metric": "engagement_completion_rate",
+            "target": 0.85,
+            "measurement_level": "activity"
+          },
+          {
+            "metric": "stakeholder_satisfaction_score",
+            "target": 4.2,
+            "scale": "1-5",
+            "measurement_level": "output"
+          },
+          {
+            "metric": "insight_quality_score",
+            "target": 0.75,
+            "measurement_level": "output"
+          },
+          {
+            "metric": "prescriber_behavior_influence",
+            "target": 0.15,
+            "measurement_level": "outcome"
+          }
+        ],
+        "failure_modes": [
+          {
+            "failure_type": "stakeholder_unavailable",
+            "probability": 0.15,
+            "mitigation": "Multiple contact attempts, flexible scheduling"
+          },
+          {
+            "failure_type": "insufficient_evidence_to_address_questions",
+            "probability": 0.08,
+            "mitigation": "Pre-engagement research, medical information backup"
+          },
+          {
+            "failure_type": "competitive_displacement",
+            "probability": 0.05,
+            "mitigation": "Early relationship building, differentiated value messaging"
+          }
+        ]
+      },
+      "resource_estimation": {
+        "cost_range_usd": {
+          "min": 150000,
+          "max": 750000,
+          "confidence_level": "medium"
+        },
+        "resource_requirements": {
+          "ftes": {
+            "msl": {
+              "typical": 5.0,
+              "range": [
+                3.0,
+                10.0
+              ]
+            },
+            "msl_manager": {
+              "typical": 0.5,
+              "range": [
+                0.25,
+                1.0
+              ]
+            },
+            "medical_information_support": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            },
+            "operations_support": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            }
+          },
+          "external_vendors": [
+            "CRM system subscription",
+            "Travel and logistics management",
+            "Insights analytics platform"
+          ],
+          "infrastructure": [
+            "CRM/SFA system",
+            "Content management system",
+            "Activity tracking platform",
+            "Insights repository"
+          ]
+        },
+        "timeline_estimate": {
+          "setup_weeks": 8,
+          "ramp_up_months": 3,
+          "steady_state_months": "ongoing"
+        },
+        "capacity_planning": {
+          "engagements_per_msl_per_month": {
+            "min": 15,
+            "typical": 25,
+            "max": 40
+          },
+          "territories_per_msl": {
+            "min": 1,
+            "typical": 2,
+            "max": 3
+          }
+        },
+        "roi_metrics": {
+          "primary": "incremental_prescriptions_influenced",
+          "secondary": [
+            "stakeholder_advocacy_increase",
+            "insight_value_score",
+            "relationship_depth_improvement"
+          ],
+          "expected_roi_range": [
+            2.5,
+            6.0
+          ],
+          "payback_period_months": [
+            6,
+            18
+          ]
+        }
+      },
+      "cascade": {
+        "supported_pillar_tags": [
+          "congress_presence",
+          "evidence_dissemination",
+          "evidence_interpretation",
+          "publications",
+          "scientific_exchange"
+        ],
+        "incompatible_pillar_tags": [
+          "regulatory_submissions",
+          "internal_only"
+        ],
+        "linked_pillar_ids": [
+          "congress_presence",
+          "publications",
+          "scientific_exchange"
+        ],
+        "linked_metric_ids": [
+          "clinical_practice_influence_score"
+        ],
+        "required_metric_levels": [
+          "activity",
+          "output",
+          "outcome"
+        ],
+        "eligible_stakeholder_category_keys": [
+          "external_experts",
+          "healthcare_professionals"
+        ],
+        "ineligible_stakeholder_category_keys": [
+          "media_communication"
+        ],
+        "cascade_probability_weights": {
+          "to_insights": 0.6,
+          "to_publications": 0.55,
+          "to_kol_advocacy": 0.5
+        },
+        "supported_pillar_ids": [
+          "congress_presence",
+          "evidence_interpretation",
+          "publications",
+          "scientific_exchange"
+        ],
+        "linked_metric_ids_unresolved": [
+          "insight_generation_volume",
+          "stakeholder_reach"
+        ]
+      },
+      "content_intelligence": {
+        "reusable_content_modules": [
+          "Core clinical data slides",
+          "Safety profile summaries",
+          "MOA animations",
+          "Patient selection criteria",
+          "Dosing and administration guides",
+          "FAQ databases"
+        ],
+        "content_governance_priority": "high",
+        "mlr_approval_requirements": {
+          "core_materials": "full_review",
+          "reactive_responses": "pre_approved_templates",
+          "update_frequency": "quarterly_or_on_data_update"
+        },
+        "modular_content_dependencies": [
+          "Clinical trial results (from evidence_generation)",
+          "Publication reprints (from publication_strategy)",
+          "Competitive intelligence (from market_research)",
+          "Real-world evidence (from rwe_generation)"
+        ],
+        "content_lifecycle": {
+          "creation_lead_time_weeks": 6,
+          "mlr_review_weeks": 2,
+          "update_trigger_events": [
+            "new_clinical_data",
+            "label_update",
+            "competitive_launch",
+            "safety_signal"
+          ],
+          "retirement_trigger_events": [
+            "data_superseded",
+            "product_discontinuation",
+            "competitive_obsolescence"
+          ]
+        }
+      },
+      "regional_profiles": {
+        "UK": {
+          "viability": "highly_viable",
+          "viability_score": 0.9,
+          "cost_multiplier": 1.15,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 1.05,
+          "regulatory_notes": "EFPIA/ABPI-aligned transparency; member state / local code variability",
+          "market_dynamics": "NHS-centric; strong emphasis on NICE guidance alignment",
+          "tactical_adaptations": [
+            "Emphasize health economics and NHS value",
+            "Align messaging with NICE technology appraisals",
+            "Strong focus on real-world evidence"
+          ],
+          "typical_engagements_per_month_per_msl": 22
+        },
+        "EU": {
+          "viability": "highly_viable",
+          "viability_score": 0.88,
+          "cost_multiplier": 1.12,
+          "complexity_multiplier": 1.15,
+          "success_probability_modifier": 1.02,
+          "regulatory_notes": "EFPIA/ABPI-aligned transparency; member state / local code variability",
+          "market_dynamics": "Heterogeneous access landscape; HTA-driven",
+          "tactical_adaptations": [
+            "Country-specific value propositions",
+            "Local language materials required",
+            "Regional KOL networks critical"
+          ],
+          "typical_engagements_per_month_per_msl": 20
+        },
+        "US": {
+          "viability": "highly_viable",
+          "viability_score": 0.92,
+          "cost_multiplier": 1.3,
+          "complexity_multiplier": 1.2,
+          "success_probability_modifier": 1.08,
+          "regulatory_notes": "PhRMA code; Sunshine Act reporting",
+          "market_dynamics": "Highly competitive; payer access critical",
+          "tactical_adaptations": [
+            "Differentiated clinical value messaging",
+            "Payer evidence requirements front-loaded",
+            "High MSL credentialing standards"
+          ],
+          "typical_engagements_per_month_per_msl": 28
+        },
+        "Eastern_Europe": {
+          "viability": "viable",
+          "viability_score": 0.75,
+          "cost_multiplier": 0.7,
+          "complexity_multiplier": 0.95,
+          "success_probability_modifier": 0.92,
+          "regulatory_notes": "Variable regulatory frameworks; EU harmonization ongoing",
+          "market_dynamics": "Price-sensitive; relationship-driven access",
+          "tactical_adaptations": [
+            "Cost-effectiveness emphasis",
+            "Local clinical data valued",
+            "Relationship building prioritized"
+          ],
+          "typical_engagements_per_month_per_msl": 25
+        },
+        "LATAM": {
+          "viability": "viable",
+          "viability_score": 0.72,
+          "cost_multiplier": 0.65,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 0.88,
+          "regulatory_notes": "Country-specific regulations; high variability",
+          "market_dynamics": "Relationship-centric; government procurement dominant",
+          "tactical_adaptations": [
+            "Local language materials essential",
+            "Government stakeholder engagement",
+            "Budget impact emphasis"
+          ],
+          "typical_engagements_per_month_per_msl": 20
+        },
+        "SE_Asia_Emerging": {
+          "viability": "constrained",
+          "viability_score": 0.68,
+          "cost_multiplier": 0.6,
+          "complexity_multiplier": 1.25,
+          "success_probability_modifier": 0.82,
+          "regulatory_notes": "Rapidly evolving frameworks; digital opportunities",
+          "market_dynamics": "Emerging MSL infrastructure; growing sophistication",
+          "tactical_adaptations": [
+            "Hybrid digital-field approaches",
+            "Regional KOL hubs",
+            "Capacity building focus"
+          ],
+          "typical_engagements_per_month_per_msl": 18
+        },
+        "Middle_East": {
+          "viability": "viable",
+          "viability_score": 0.7,
+          "cost_multiplier": 0.75,
+          "complexity_multiplier": 1.2,
+          "success_probability_modifier": 0.85,
+          "regulatory_notes": "Government-centric approval; cultural considerations",
+          "market_dynamics": "Relationship-mediated; high government influence",
+          "tactical_adaptations": [
+            "Government stakeholder prioritization",
+            "Cultural sensitivity in engagement",
+            "Regional medical centers focus"
+          ],
+          "typical_engagements_per_month_per_msl": 18
+        }
+      },
+      "governance": {
+        "status": "draft",
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2025-12-30",
+        "next_review_date": "2026-03-31",
+        "owner_roles": [
+          "head_of_field_medical",
+          "msl_manager"
+        ],
+        "approval_requirements": {
+          "mlr_required": true,
+          "legal_review_required": false,
+          "compliance_review_required": true,
+          "budget_approval_threshold_usd": 50000
+        },
+        "change_log": [
+          {
+            "date": "2025-12-30",
+            "change": "Added hybrid v3.5 enhancements",
+            "approver": "head_of_medical_affairs"
+          }
+        ],
+        "notes": "Generated to complete tactic implementations; requires review and calibration."
+      },
+      "validation_flags": {
+        "unresolved_stakeholder_ids": [
+          "academic_researcher"
+        ]
+      }
+    },
+    {
+      "id": "hcp_education_program",
+      "name": "HCP Education Program",
+      "description": "Structured HCP education initiative (non-promotional), including accredited/non-accredited scientific education, speaker training, and learning journey measurement.",
+      "tactic_family": "medical_education",
+      "priority_level": "high",
+      "tags": [
+        "hcp_education",
+        "medical_education",
+        "scientific_exchange"
+      ],
+      "maps_execution": {
+        "lifecycle": {
+          "relevant_phases": [
+            "launch_T-12_to_T0",
+            "postlaunch_T0_to_T12",
+            "beyond_T12"
+          ],
+          "phase_priorities": {
+            "perilaunch_T-24_to_T-12": "medium",
+            "launch_T-12_to_T0": "very_high",
+            "postlaunch_T0_to_T12": "high",
+            "beyond_T12": "medium"
+          }
+        },
+        "execution_mode": "always_on",
+        "cadence": "monthly",
+        "complexity": "moderate",
+        "channels": [
+          "webinar",
+          "in_person_training",
+          "virtual_meeting"
+        ],
+        "deliverables": [
+          "field_science_material",
+          "insight_report",
+          "medical_information_response"
+        ],
+        "targeting": {
+          "regions": [
+            "UK",
+            "EU",
+            "US",
+            "Eastern_Europe",
+            "LATAM",
+            "SE_Asia_Emerging",
+            "Middle_East"
+          ],
+          "sub_segments": [
+            "tier_1_hcps",
+            "tier_2_hcps",
+            "academic_centers"
+          ],
+          "account_based": true
+        },
+        "handoffs": {
+          "upstream_inputs": [
+            "Clinical data summaries from evidence_generation",
+            "Key messages from medical_communications",
+            "Publication reprints from publication_strategy"
+          ],
+          "dependencies": [
+            "MLR-approved core materials",
+            "CRM system for activity tracking",
+            "Field insights collection platform"
+          ],
+          "downstream_consumers": [
+            "Medical information for FAQs",
+            "Market research for insights analysis",
+            "KOL mapping for relationship tracking"
+          ]
+        }
+      },
+      "constraints": {
+        "required_access_level": "managed",
+        "relationship_mediation_tolerance": "limited",
+        "stakeholder_categories_required": [
+          "healthcare_professionals",
+          "external_experts"
+        ],
+        "stakeholder_categories_excluded": [
+          "regulators",
+          "media_communication"
+        ],
+        "channels": [
+          "webinar",
+          "in_person_training",
+          "virtual_meeting"
+        ],
+        "deliverables": [
+          "field_science_material",
+          "insight_report"
+        ],
+        "compliance_risk": "high",
+        "evidence_dependency": "required",
+        "data_privacy_sensitivity": "high",
+        "requires_mlr_review": true,
+        "requires_contracting": false,
+        "requires_fmv_check": false,
+        "requires_consent": false,
+        "ae_reporting_route_required": true,
+        "digital_maturity_minimum": "digital_reluctant",
+        "min_evidence_maturity": "phase_3_data"
+      },
+      "stakeholder_persona_mapping": [
+        {
+          "stakeholder_id": "hcp_physician_specialist",
+          "stakeholder_category": "healthcare_professionals",
+          "engagement_priority": "primary",
+          "preferred_channels": [
+            "virtual_meeting",
+            "email",
+            "conference"
+          ],
+          "preferred_content_types": [
+            "clinical_data_summaries",
+            "practice_guidance"
+          ],
+          "unmet_need_alignment": "Practical interpretation of evidence and application to patient care",
+          "typical_engagement_frequency": "quarterly",
+          "avg_engagement_duration_minutes": 45,
+          "response_rate_expected": 0.55,
+          "content_preference_weights": {
+            "efficacy_data": 0.35,
+            "safety_data": 0.3,
+            "practical_use": 0.2,
+            "patient_selection": 0.15
+          }
+        },
+        {
+          "stakeholder_id": "kol",
+          "stakeholder_category": "external_experts",
+          "engagement_priority": "primary",
+          "preferred_channels": [
+            "conference",
+            "virtual_meeting",
+            "email"
+          ],
+          "preferred_content_types": [
+            "full_clinical_trial_data",
+            "mechanistic_insights"
+          ],
+          "unmet_need_alignment": "Scientific collaboration and visibility of the evidence base",
+          "typical_engagement_frequency": "biannual",
+          "avg_engagement_duration_minutes": 60,
+          "response_rate_expected": 0.75,
+          "content_preference_weights": {
+            "mechanism_of_action": 0.25,
+            "trial_design_rationale": 0.25,
+            "comparative_effectiveness": 0.25,
+            "future_research_directions": 0.25
+          }
+        }
+      ],
+      "effectiveness_modeling": {
+        "base_success_probability": 0.66,
+        "success_probability_distribution": {
+          "distribution_type": "beta",
+          "alpha": 11.58,
+          "beta": 5.97,
+          "mean": 0.66,
+          "stddev": 0.11,
+          "confidence_level": "medium",
+          "notes": "Default prior for simulation; calibrate with client data and regional maturity."
+        },
+        "effectiveness_factors": {
+          "msl_experience_level": {
+            "weight": 0.25,
+            "impact_range": [
+              0.85,
+              1.15
+            ]
+          },
+          "stakeholder_relationship_strength": {
+            "weight": 0.2,
+            "impact_range": [
+              0.8,
+              1.25
+            ]
+          },
+          "evidence_quality": {
+            "weight": 0.2,
+            "impact_range": [
+              0.75,
+              1.2
+            ]
+          },
+          "competitive_environment": {
+            "weight": 0.15,
+            "impact_range": [
+              0.85,
+              1.1
+            ]
+          },
+          "material_quality": {
+            "weight": 0.1,
+            "impact_range": [
+              0.9,
+              1.1
+            ]
+          },
+          "timing_appropriateness": {
+            "weight": 0.1,
+            "impact_range": [
+              0.9,
+              1.15
+            ]
+          }
+        },
+        "success_metrics": [
+          {
+            "metric": "engagement_completion_rate",
+            "target": 0.85,
+            "measurement_level": "activity"
+          },
+          {
+            "metric": "stakeholder_satisfaction_score",
+            "target": 4.2,
+            "scale": "1-5",
+            "measurement_level": "output"
+          },
+          {
+            "metric": "insight_quality_score",
+            "target": 0.75,
+            "measurement_level": "output"
+          },
+          {
+            "metric": "prescriber_behavior_influence",
+            "target": 0.15,
+            "measurement_level": "outcome"
+          }
+        ],
+        "failure_modes": [
+          {
+            "failure_type": "stakeholder_unavailable",
+            "probability": 0.15,
+            "mitigation": "Multiple contact attempts, flexible scheduling"
+          },
+          {
+            "failure_type": "insufficient_evidence_to_address_questions",
+            "probability": 0.08,
+            "mitigation": "Pre-engagement research, medical information backup"
+          },
+          {
+            "failure_type": "competitive_displacement",
+            "probability": 0.05,
+            "mitigation": "Early relationship building, differentiated value messaging"
+          }
+        ]
+      },
+      "resource_estimation": {
+        "cost_range_usd": {
+          "min": 75000,
+          "max": 350000,
+          "confidence_level": "medium"
+        },
+        "resource_requirements": {
+          "ftes": {
+            "msl": {
+              "typical": 5.0,
+              "range": [
+                3.0,
+                10.0
+              ]
+            },
+            "msl_manager": {
+              "typical": 0.5,
+              "range": [
+                0.25,
+                1.0
+              ]
+            },
+            "medical_information_support": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            },
+            "operations_support": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            }
+          },
+          "external_vendors": [
+            "CRM system subscription",
+            "Travel and logistics management",
+            "Insights analytics platform"
+          ],
+          "infrastructure": [
+            "CRM/SFA system",
+            "Content management system",
+            "Activity tracking platform",
+            "Insights repository"
+          ]
+        },
+        "timeline_estimate": {
+          "setup_weeks": 8,
+          "ramp_up_months": 3,
+          "steady_state_months": "ongoing"
+        },
+        "capacity_planning": {
+          "engagements_per_msl_per_month": {
+            "min": 15,
+            "typical": 25,
+            "max": 40
+          },
+          "territories_per_msl": {
+            "min": 1,
+            "typical": 2,
+            "max": 3
+          }
+        },
+        "roi_metrics": {
+          "primary": "incremental_prescriptions_influenced",
+          "secondary": [
+            "stakeholder_advocacy_increase",
+            "insight_value_score",
+            "relationship_depth_improvement"
+          ],
+          "expected_roi_range": [
+            2.5,
+            6.0
+          ],
+          "payback_period_months": [
+            6,
+            18
+          ]
+        }
+      },
+      "cascade": {
+        "supported_pillar_tags": [
+          "hcp_education",
+          "medical_education",
+          "scientific_exchange"
+        ],
+        "incompatible_pillar_tags": [
+          "regulatory_submissions",
+          "internal_only"
+        ],
+        "linked_pillar_ids": [
+          "hcp_education",
+          "scientific_exchange"
+        ],
+        "linked_metric_ids": [
+          "clinical_practice_influence_score",
+          "msl_engagement_rate"
+        ],
+        "required_metric_levels": [
+          "activity",
+          "output",
+          "outcome"
+        ],
+        "eligible_stakeholder_category_keys": [
+          "external_experts",
+          "healthcare_professionals"
+        ],
+        "ineligible_stakeholder_category_keys": [
+          "media_communication"
+        ],
+        "cascade_probability_weights": {
+          "to_insights": 0.6,
+          "to_publications": 0.55,
+          "to_kol_advocacy": 0.5
+        },
+        "supported_pillar_ids": [
+          "hcp_education",
+          "scientific_exchange"
+        ],
+        "linked_metric_ids_unresolved": [
+          "insight_generation_volume",
+          "stakeholder_reach"
+        ]
+      },
+      "content_intelligence": {
+        "reusable_content_modules": [
+          "Core clinical data slides",
+          "Safety profile summaries",
+          "MOA animations",
+          "Patient selection criteria",
+          "Dosing and administration guides",
+          "FAQ databases"
+        ],
+        "content_governance_priority": "high",
+        "mlr_approval_requirements": {
+          "core_materials": "full_review",
+          "reactive_responses": "pre_approved_templates",
+          "update_frequency": "quarterly_or_on_data_update"
+        },
+        "modular_content_dependencies": [
+          "Clinical trial results (from evidence_generation)",
+          "Publication reprints (from publication_strategy)",
+          "Competitive intelligence (from market_research)",
+          "Real-world evidence (from rwe_generation)"
+        ],
+        "content_lifecycle": {
+          "creation_lead_time_weeks": 6,
+          "mlr_review_weeks": 2,
+          "update_trigger_events": [
+            "new_clinical_data",
+            "label_update",
+            "competitive_launch",
+            "safety_signal"
+          ],
+          "retirement_trigger_events": [
+            "data_superseded",
+            "product_discontinuation",
+            "competitive_obsolescence"
+          ]
+        }
+      },
+      "regional_profiles": {
+        "UK": {
+          "viability": "highly_viable",
+          "viability_score": 0.9,
+          "cost_multiplier": 1.15,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 1.05,
+          "regulatory_notes": "EFPIA/ABPI-aligned transparency; member state / local code variability",
+          "market_dynamics": "NHS-centric; strong emphasis on NICE guidance alignment",
+          "tactical_adaptations": [
+            "Emphasize health economics and NHS value",
+            "Align messaging with NICE technology appraisals",
+            "Strong focus on real-world evidence"
+          ],
+          "typical_engagements_per_month_per_msl": 22
+        },
+        "EU": {
+          "viability": "highly_viable",
+          "viability_score": 0.88,
+          "cost_multiplier": 1.12,
+          "complexity_multiplier": 1.15,
+          "success_probability_modifier": 1.02,
+          "regulatory_notes": "EFPIA/ABPI-aligned transparency; member state / local code variability",
+          "market_dynamics": "Heterogeneous access landscape; HTA-driven",
+          "tactical_adaptations": [
+            "Country-specific value propositions",
+            "Local language materials required",
+            "Regional KOL networks critical"
+          ],
+          "typical_engagements_per_month_per_msl": 20
+        },
+        "US": {
+          "viability": "highly_viable",
+          "viability_score": 0.92,
+          "cost_multiplier": 1.3,
+          "complexity_multiplier": 1.2,
+          "success_probability_modifier": 1.08,
+          "regulatory_notes": "PhRMA code; Sunshine Act reporting",
+          "market_dynamics": "Highly competitive; payer access critical",
+          "tactical_adaptations": [
+            "Differentiated clinical value messaging",
+            "Payer evidence requirements front-loaded",
+            "High MSL credentialing standards"
+          ],
+          "typical_engagements_per_month_per_msl": 28
+        },
+        "Eastern_Europe": {
+          "viability": "viable",
+          "viability_score": 0.75,
+          "cost_multiplier": 0.7,
+          "complexity_multiplier": 0.95,
+          "success_probability_modifier": 0.92,
+          "regulatory_notes": "Variable regulatory frameworks; EU harmonization ongoing",
+          "market_dynamics": "Price-sensitive; relationship-driven access",
+          "tactical_adaptations": [
+            "Cost-effectiveness emphasis",
+            "Local clinical data valued",
+            "Relationship building prioritized"
+          ],
+          "typical_engagements_per_month_per_msl": 25
+        },
+        "LATAM": {
+          "viability": "viable",
+          "viability_score": 0.72,
+          "cost_multiplier": 0.65,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 0.88,
+          "regulatory_notes": "Country-specific regulations; high variability",
+          "market_dynamics": "Relationship-centric; government procurement dominant",
+          "tactical_adaptations": [
+            "Local language materials essential",
+            "Government stakeholder engagement",
+            "Budget impact emphasis"
+          ],
+          "typical_engagements_per_month_per_msl": 20
+        },
+        "SE_Asia_Emerging": {
+          "viability": "constrained",
+          "viability_score": 0.68,
+          "cost_multiplier": 0.6,
+          "complexity_multiplier": 1.25,
+          "success_probability_modifier": 0.82,
+          "regulatory_notes": "Rapidly evolving frameworks; digital opportunities",
+          "market_dynamics": "Emerging MSL infrastructure; growing sophistication",
+          "tactical_adaptations": [
+            "Hybrid digital-field approaches",
+            "Regional KOL hubs",
+            "Capacity building focus"
+          ],
+          "typical_engagements_per_month_per_msl": 18
+        },
+        "Middle_East": {
+          "viability": "viable",
+          "viability_score": 0.7,
+          "cost_multiplier": 0.75,
+          "complexity_multiplier": 1.2,
+          "success_probability_modifier": 0.85,
+          "regulatory_notes": "Government-centric approval; cultural considerations",
+          "market_dynamics": "Relationship-mediated; high government influence",
+          "tactical_adaptations": [
+            "Government stakeholder prioritization",
+            "Cultural sensitivity in engagement",
+            "Regional medical centers focus"
+          ],
+          "typical_engagements_per_month_per_msl": 18
+        }
+      },
+      "governance": {
+        "status": "draft",
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2025-12-30",
+        "next_review_date": "2026-03-31",
+        "owner_roles": [
+          "head_of_field_medical",
+          "msl_manager"
+        ],
+        "approval_requirements": {
+          "mlr_required": true,
+          "legal_review_required": false,
+          "compliance_review_required": true,
+          "budget_approval_threshold_usd": 50000
+        },
+        "change_log": [
+          {
+            "date": "2025-12-30",
+            "change": "Added hybrid v3.5 enhancements",
+            "approver": "head_of_medical_affairs"
+          }
+        ],
+        "notes": "Generated to complete tactic implementations; requires review and calibration."
+      },
+      "validation_flags": {
+        "unresolved_stakeholder_ids": [
+          "academic_researcher"
+        ]
+      }
+    },
+    {
+      "id": "kol_advisory_board",
+      "name": "KOL Advisory Board",
+      "description": "Structured gathering of key opinion leaders to provide strategic input on clinical development, market access strategy, publication planning, or medical affairs priorities",
+      "tactic_family": "advisory_boards",
+      "priority_level": "very_high",
+      "tags": [
+        "kol",
+        "advisory",
+        "strategic_input",
+        "expert_panel"
+      ],
+      "maps_execution": {
+        "lifecycle": {
+          "relevant_phases": [
+            "prelaunch_T-48_to_T-24",
+            "perilaunch_T-24_to_T-12",
+            "launch_T-12_to_T0",
+            "postlaunch_T0_to_T12"
+          ],
+          "phase_priorities": {
+            "prelaunch_T-48_to_T-24": "high",
+            "perilaunch_T-24_to_T-12": "very_high",
+            "launch_T-12_to_T0": "very_high",
+            "postlaunch_T0_to_T12": "high"
+          }
+        },
+        "execution_mode": "event_based",
+        "cadence": "biannual",
+        "complexity": "very_high",
+        "channels": [
+          "field_scientific_exchange",
+          "congress"
+        ],
+        "deliverables": [
+          "advisory_board_pack",
+          "insight_report",
+          "strategic_recommendations_document"
+        ],
+        "targeting": {
+          "regions": [
+            "UK",
+            "EU",
+            "US"
+          ],
+          "sub_segments": [
+            "tier_1_kols",
+            "guideline_committee_members"
+          ],
+          "account_based": true
+        },
+        "handoffs": {
+          "upstream_inputs": [
+            "Strategic questions from medical affairs leadership",
+            "Clinical data for review",
+            "Competitive landscape analysis"
+          ],
+          "dependencies": [
+            "MLR-approved presentation materials",
+            "Venue and logistics",
+            "Independent facilitator (if required)",
+            "FMV-validated honoraria"
+          ],
+          "downstream_consumers": [
+            "Medical strategy team",
+            "Clinical development",
+            "Market access",
+            "Publication planning"
+          ]
+        }
+      },
+      "constraints": {
+        "required_access_level": "restricted",
+        "relationship_mediation_tolerance": "moderate",
+        "stakeholder_categories_required": [
+          "external_experts"
+        ],
+        "stakeholder_categories_excluded": [
+          "regulators",
+          "competitors"
+        ],
+        "channels": [
+          "field_scientific_exchange"
+        ],
+        "deliverables": [
+          "advisory_board_pack",
+          "insight_report"
+        ],
+        "compliance_risk": "very_high",
+        "evidence_dependency": "required",
+        "data_privacy_sensitivity": "very_high",
+        "requires_mlr_review": true,
+        "requires_contracting": true,
+        "requires_fmv_check": true,
+        "requires_consent": true,
+        "ae_reporting_route_required": true,
+        "digital_maturity_minimum": "digital_reluctant",
+        "min_evidence_maturity": "phase_2_data"
+      },
+      "stakeholder_persona_mapping": [
+        {
+          "stakeholder_id": "kol",
+          "stakeholder_category": "external_experts",
+          "engagement_priority": "primary",
+          "preferred_channels": [
+            "face_to_face",
+            "hybrid_meeting"
+          ],
+          "preferred_content_types": [
+            "clinical_trial_data",
+            "strategic_questions",
+            "competitive_analysis"
+          ],
+          "unmet_need_alignment": "Opportunity to shape strategic direction and influence practice standards",
+          "typical_engagement_frequency": "biannual",
+          "avg_engagement_duration_minutes": 240,
+          "response_rate_expected": 0.75,
+          "content_preference_weights": {
+            "strategic_questions": 0.35,
+            "data_review": 0.3,
+            "peer_discussion": 0.25,
+            "future_directions": 0.1
+          }
+        }
+      ],
+      "effectiveness_modeling": {
+        "base_success_probability": 0.82,
+        "success_probability_distribution": {
+          "distribution_type": "beta",
+          "alpha": 25.0,
+          "beta": 5.5,
+          "mean": 0.82,
+          "stddev": 0.07,
+          "confidence_level": "high"
+        },
+        "effectiveness_factors": {
+          "kol_selection_quality": {
+            "weight": 0.3,
+            "impact_range": [
+              0.75,
+              1.3
+            ]
+          },
+          "strategic_question_relevance": {
+            "weight": 0.25,
+            "impact_range": [
+              0.8,
+              1.25
+            ]
+          },
+          "facilitation_quality": {
+            "weight": 0.2,
+            "impact_range": [
+              0.85,
+              1.15
+            ]
+          },
+          "data_readiness": {
+            "weight": 0.15,
+            "impact_range": [
+              0.8,
+              1.2
+            ]
+          },
+          "logistics_execution": {
+            "weight": 0.1,
+            "impact_range": [
+              0.9,
+              1.1
+            ]
+          }
+        },
+        "success_metrics": [
+          {
+            "metric": "strategic_recommendations_generated",
+            "target": 8,
+            "measurement_level": "output"
+          },
+          {
+            "metric": "kol_satisfaction_score",
+            "target": 4.5,
+            "scale": "1-5",
+            "measurement_level": "output"
+          },
+          {
+            "metric": "recommendation_implementation_rate",
+            "target": 0.7,
+            "measurement_level": "outcome"
+          },
+          {
+            "metric": "strategic_impact_score",
+            "target": 0.8,
+            "measurement_level": "impact"
+          }
+        ],
+        "failure_modes": [
+          {
+            "failure_type": "poor_kol_attendance",
+            "probability": 0.12,
+            "mitigation": "Early invitations, calendar holds, make-up sessions"
+          },
+          {
+            "failure_type": "unfocused_discussion",
+            "probability": 0.08,
+            "mitigation": "Pre-reads, skilled facilitator, structured agenda"
+          },
+          {
+            "failure_type": "compliance_issues",
+            "probability": 0.05,
+            "mitigation": "Thorough pre-meeting compliance review, documentation protocols"
+          }
+        ]
+      },
+      "resource_estimation": {
+        "cost_range_usd": {
+          "per_meeting": {
+            "min": 25000,
+            "typical": 50000,
+            "max": 100000
+          },
+          "annual_program": {
+            "min": 50000,
+            "typical": 150000,
+            "max": 400000
+          }
+        },
+        "resource_requirements": {
+          "ftes": {
+            "advisory_board_manager": {
+              "typical": 0.5,
+              "range": [
+                0.25,
+                1.0
+              ]
+            },
+            "medical_affairs_lead": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            },
+            "compliance_support": {
+              "typical": 0.1,
+              "range": [
+                0.05,
+                0.25
+              ]
+            },
+            "logistics_coordinator": {
+              "typical": 0.15,
+              "range": [
+                0.1,
+                0.3
+              ]
+            }
+          },
+          "external_vendors": [
+            "Event management company",
+            "Independent facilitator (if required)",
+            "Transcription service",
+            "FMV validation service"
+          ],
+          "infrastructure": [
+            "Meeting venue",
+            "AV equipment",
+            "Materials printing",
+            "Travel and accommodation"
+          ]
+        },
+        "timeline_estimate": {
+          "planning_weeks": 12,
+          "execution_hours": 8,
+          "follow_up_weeks": 2
+        },
+        "capacity_planning": {
+          "kols_per_board": {
+            "min": 6,
+            "typical": 10,
+            "max": 15
+          },
+          "boards_per_year": {
+            "min": 1,
+            "typical": 2,
+            "max": 4
+          }
+        },
+        "roi_metrics": {
+          "primary": "strategic_decision_improvement",
+          "secondary": [
+            "kol_advocacy_increase",
+            "publication_planning_optimization",
+            "clinical_development_risk_reduction"
+          ],
+          "expected_roi_range": [
+            4.0,
+            10.0
+          ],
+          "payback_period_months": [
+            6,
+            12
+          ]
+        }
+      },
+      "cascade": {
+        "supported_pillar_tags": [
+          "evidence_interpretation",
+          "kol_engagement",
+          "scientific_exchange",
+          "strategic_planning"
+        ],
+        "incompatible_pillar_tags": [],
+        "linked_pillar_ids": [
+          "evidence_interpretation",
+          "kol_engagement",
+          "scientific_exchange"
+        ],
+        "linked_metric_ids": [
+          "kol_advocacy_index"
+        ],
+        "required_metric_levels": [
+          "activity",
+          "output",
+          "outcome",
+          "impact"
+        ],
+        "eligible_stakeholder_category_keys": [
+          "external_experts"
+        ],
+        "ineligible_stakeholder_category_keys": [
+          "regulators",
+          "media_communication",
+          "patients_carers"
+        ],
+        "cascade_probability_weights": {
+          "to_strategy": 0.9,
+          "to_publications": 0.75,
+          "to_clinical_development": 0.7
+        },
+        "supported_pillar_ids": [
+          "evidence_interpretation",
+          "kol_engagement",
+          "scientific_exchange"
+        ],
+        "linked_metric_ids_unresolved": [
+          "advisory_board_impact_score",
+          "strategic_alignment_score"
+        ]
+      },
+      "content_intelligence": {
+        "reusable_content_modules": [
+          "Strategic question templates",
+          "Discussion guide frameworks",
+          "Data presentation decks",
+          "Pre-read materials",
+          "Output synthesis templates"
+        ],
+        "content_governance_priority": "very_high",
+        "mlr_approval_requirements": {
+          "all_materials": "full_review",
+          "honoraria_documentation": "compliance_review",
+          "update_frequency": "per_meeting"
+        },
+        "modular_content_dependencies": [
+          "Clinical trial data (from evidence_generation)",
+          "Competitive intelligence (from market_research)",
+          "Strategic priorities (from medical affairs leadership)",
+          "Publication plans (from publication_strategy)"
+        ],
+        "content_lifecycle": {
+          "creation_lead_time_weeks": 8,
+          "mlr_review_weeks": 3,
+          "update_trigger_events": [
+            "new_data_availability",
+            "strategic_priority_shift",
+            "competitive_event"
+          ],
+          "retirement_trigger_events": [
+            "strategic_question_resolved",
+            "product_discontinuation"
+          ]
+        }
+      },
+      "regional_profiles": {
+        "UK": {
+          "viability": "highly_viable",
+          "viability_score": 0.88,
+          "cost_multiplier": 1.2,
+          "complexity_multiplier": 1.25,
+          "success_probability_modifier": 1.05,
+          "regulatory_notes": "ABPI code compliance critical; full transparency required",
+          "market_dynamics": "Strong KOL networks; NHS guidance influence",
+          "tactical_adaptations": [
+            "NICE evidence standards alignment",
+            "NHS value demonstration",
+            "Full disclosure protocols"
+          ],
+          "typical_boards_per_year": 2
+        },
+        "EU": {
+          "viability": "highly_viable",
+          "viability_score": 0.85,
+          "cost_multiplier": 1.15,
+          "complexity_multiplier": 1.3,
+          "success_probability_modifier": 1.02,
+          "regulatory_notes": "EFPIA code; country-specific nuances",
+          "market_dynamics": "Fragmented landscape; regional KOL importance",
+          "tactical_adaptations": [
+            "Multi-country boards or country-specific",
+            "Local language considerations",
+            "HTA evidence focus"
+          ],
+          "typical_boards_per_year": 2
+        },
+        "US": {
+          "viability": "highly_viable",
+          "viability_score": 0.92,
+          "cost_multiplier": 1.4,
+          "complexity_multiplier": 1.35,
+          "success_probability_modifier": 1.08,
+          "regulatory_notes": "PhRMA code; Sunshine Act reporting mandatory",
+          "market_dynamics": "Highly sophisticated KOL ecosystem",
+          "tactical_adaptations": [
+            "FMV validation critical",
+            "Independent facilitators common",
+            "Payer evidence requirements"
+          ],
+          "typical_boards_per_year": 3
+        },
+        "Eastern_Europe": {
+          "viability": "constrained",
+          "viability_score": 0.65,
+          "cost_multiplier": 0.6,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 0.88,
+          "regulatory_notes": "Variable frameworks; emerging standards",
+          "market_dynamics": "Developing KOL networks; relationship-driven",
+          "tactical_adaptations": [
+            "Regional hubs approach",
+            "Relationship building emphasis",
+            "Cost-effectiveness focus"
+          ],
+          "typical_boards_per_year": 1
+        },
+        "LATAM": {
+          "viability": "constrained",
+          "viability_score": 0.62,
+          "cost_multiplier": 0.55,
+          "complexity_multiplier": 1.2,
+          "success_probability_modifier": 0.82,
+          "regulatory_notes": "Country-specific regulations; high variability",
+          "market_dynamics": "Emerging advisory board culture",
+          "tactical_adaptations": [
+            "Local language essential",
+            "Government stakeholder inclusion considerations",
+            "Regional approach preferred"
+          ],
+          "typical_boards_per_year": 1
+        },
+        "SE_Asia_Emerging": {
+          "viability": "constrained",
+          "viability_score": 0.6,
+          "cost_multiplier": 0.5,
+          "complexity_multiplier": 1.25,
+          "success_probability_modifier": 0.78,
+          "regulatory_notes": "Rapidly evolving; limited precedent",
+          "market_dynamics": "Building advisory board infrastructure",
+          "tactical_adaptations": [
+            "Virtual boards more common",
+            "Regional approach",
+            "Capacity building focus"
+          ],
+          "typical_boards_per_year": 1
+        },
+        "Middle_East": {
+          "viability": "constrained",
+          "viability_score": 0.68,
+          "cost_multiplier": 0.7,
+          "complexity_multiplier": 1.3,
+          "success_probability_modifier": 0.85,
+          "regulatory_notes": "Government oversight; cultural considerations",
+          "market_dynamics": "Relationship-mediated; government influence",
+          "tactical_adaptations": [
+            "Government stakeholder coordination",
+            "Cultural sensitivity protocols",
+            "Regional center focus"
+          ],
+          "typical_boards_per_year": 1
+        }
+      },
+      "governance": {
+        "status": "approved",
+        "review_cadence": "annually",
+        "last_reviewed_on": "2025-12-30",
+        "next_review_date": "2026-12-31",
+        "owner_roles": [
+          "head_of_medical_affairs",
+          "kol_management_lead"
+        ],
+        "approval_requirements": {
+          "mlr_required": true,
+          "legal_review_required": true,
+          "compliance_review_required": true,
+          "budget_approval_threshold_usd": 25000
+        },
+        "change_log": [
+          {
+            "date": "2025-12-30",
+            "change": "Added hybrid v3.5 enhancements",
+            "approver": "head_of_medical_affairs"
+          }
+        ],
+        "notes": "High-value, high-risk tactic requiring rigorous compliance oversight"
+      },
+      "validation_flags": {
+        "unresolved_stakeholder_ids": [
+          "guideline_committee_member"
+        ]
+      }
+    },
+    {
+      "id": "msl_field_engagement",
+      "name": "MSL Field Engagement",
+      "description": "One-on-one or small group scientific exchanges between Medical Science Liaisons (MSLs) and healthcare professionals to discuss clinical evidence, address medical information requests, and gather insights",
+      "tactic_family": "scientific_exchange",
+      "priority_level": "high",
+      "tags": [
+        "field_medical",
+        "msl",
+        "hcp_engagement",
+        "scientific_dialogue"
+      ],
+      "maps_execution": {
+        "lifecycle": {
+          "relevant_phases": [
+            "perilaunch_T-24_to_T-12",
+            "launch_T-12_to_T0",
+            "postlaunch_T0_to_T12",
+            "beyond_T12"
+          ],
+          "phase_priorities": {
+            "perilaunch_T-24_to_T-12": "medium",
+            "launch_T-12_to_T0": "very_high",
+            "postlaunch_T0_to_T12": "high",
+            "beyond_T12": "medium"
+          }
+        },
+        "execution_mode": "always_on",
+        "cadence": "monthly",
+        "complexity": "moderate",
+        "channels": [
+          "field_scientific_exchange"
+        ],
+        "deliverables": [
+          "field_science_material",
+          "insight_report",
+          "medical_information_response"
+        ],
+        "targeting": {
+          "regions": [
+            "UK",
+            "EU",
+            "US",
+            "Eastern_Europe",
+            "LATAM",
+            "SE_Asia_Emerging",
+            "Middle_East"
+          ],
+          "sub_segments": [
+            "tier_1_hcps",
+            "tier_2_hcps",
+            "academic_centers"
+          ],
+          "account_based": true
+        },
+        "handoffs": {
+          "upstream_inputs": [
+            "Clinical data summaries from evidence_generation",
+            "Key messages from medical_communications",
+            "Publication reprints from publication_strategy"
+          ],
+          "dependencies": [
+            "MLR-approved core materials",
+            "CRM system for activity tracking",
+            "Field insights collection platform"
+          ],
+          "downstream_consumers": [
+            "Medical information for FAQs",
+            "Market research for insights analysis",
+            "KOL mapping for relationship tracking"
+          ]
+        }
+      },
+      "constraints": {
+        "required_access_level": "managed",
+        "relationship_mediation_tolerance": "limited",
+        "stakeholder_categories_required": [
+          "healthcare_professionals",
+          "external_experts"
+        ],
+        "stakeholder_categories_excluded": [
+          "regulators",
+          "media_communication"
+        ],
+        "channels": [
+          "field_scientific_exchange"
+        ],
+        "deliverables": [
+          "field_science_material",
+          "insight_report"
+        ],
+        "compliance_risk": "high",
+        "evidence_dependency": "required",
+        "data_privacy_sensitivity": "high",
+        "requires_mlr_review": true,
+        "requires_contracting": false,
+        "requires_fmv_check": false,
+        "requires_consent": false,
+        "ae_reporting_route_required": true,
+        "digital_maturity_minimum": "digital_reluctant",
+        "min_evidence_maturity": "phase_3_data"
+      },
+      "stakeholder_persona_mapping": [
+        {
+          "stakeholder_id": "hcp_physician_specialist",
+          "stakeholder_category": "healthcare_professionals",
+          "engagement_priority": "primary",
+          "preferred_channels": [
+            "face_to_face",
+            "virtual_meeting",
+            "email"
+          ],
+          "preferred_content_types": [
+            "clinical_data_summaries",
+            "practice_guidance",
+            "case_studies"
+          ],
+          "unmet_need_alignment": "Access to latest clinical evidence and practical application guidance",
+          "typical_engagement_frequency": "quarterly",
+          "avg_engagement_duration_minutes": 45,
+          "response_rate_expected": 0.65,
+          "content_preference_weights": {
+            "efficacy_data": 0.35,
+            "safety_data": 0.3,
+            "practical_use": 0.2,
+            "patient_selection": 0.15
+          }
+        },
+        {
+          "stakeholder_id": "kol",
+          "stakeholder_category": "external_experts",
+          "engagement_priority": "primary",
+          "preferred_channels": [
+            "face_to_face",
+            "email",
+            "phone"
+          ],
+          "preferred_content_types": [
+            "full_clinical_trial_data",
+            "mechanistic_insights",
+            "competitive_landscape"
+          ],
+          "unmet_need_alignment": "Deep scientific discourse and collaboration opportunities",
+          "typical_engagement_frequency": "quarterly",
+          "avg_engagement_duration_minutes": 60,
+          "response_rate_expected": 0.8,
+          "content_preference_weights": {
+            "mechanism_of_action": 0.25,
+            "trial_design_rationale": 0.25,
+            "comparative_effectiveness": 0.25,
+            "future_research_directions": 0.25
+          }
+        }
+      ],
+      "effectiveness_modeling": {
+        "base_success_probability": 0.72,
+        "success_probability_distribution": {
+          "distribution_type": "beta",
+          "alpha": 18.0,
+          "beta": 7.0,
+          "mean": 0.72,
+          "stddev": 0.09,
+          "confidence_level": "high"
+        },
+        "effectiveness_factors": {
+          "msl_experience_level": {
+            "weight": 0.25,
+            "impact_range": [
+              0.85,
+              1.15
+            ]
+          },
+          "stakeholder_relationship_strength": {
+            "weight": 0.2,
+            "impact_range": [
+              0.8,
+              1.25
+            ]
+          },
+          "evidence_quality": {
+            "weight": 0.2,
+            "impact_range": [
+              0.75,
+              1.2
+            ]
+          },
+          "competitive_environment": {
+            "weight": 0.15,
+            "impact_range": [
+              0.85,
+              1.1
+            ]
+          },
+          "material_quality": {
+            "weight": 0.1,
+            "impact_range": [
+              0.9,
+              1.1
+            ]
+          },
+          "timing_appropriateness": {
+            "weight": 0.1,
+            "impact_range": [
+              0.9,
+              1.15
+            ]
+          }
+        },
+        "success_metrics": [
+          {
+            "metric": "engagement_completion_rate",
+            "target": 0.85,
+            "measurement_level": "activity"
+          },
+          {
+            "metric": "stakeholder_satisfaction_score",
+            "target": 4.2,
+            "scale": "1-5",
+            "measurement_level": "output"
+          },
+          {
+            "metric": "insight_quality_score",
+            "target": 0.75,
+            "measurement_level": "output"
+          },
+          {
+            "metric": "prescriber_behavior_influence",
+            "target": 0.15,
+            "measurement_level": "outcome"
+          }
+        ],
+        "failure_modes": [
+          {
+            "failure_type": "stakeholder_unavailable",
+            "probability": 0.15,
+            "mitigation": "Multiple contact attempts, flexible scheduling"
+          },
+          {
+            "failure_type": "insufficient_evidence_to_address_questions",
+            "probability": 0.08,
+            "mitigation": "Pre-engagement research, medical information backup"
+          },
+          {
+            "failure_type": "competitive_displacement",
+            "probability": 0.05,
+            "mitigation": "Early relationship building, differentiated value messaging"
+          }
+        ]
+      },
+      "resource_estimation": {
+        "cost_range_usd": {
+          "per_engagement": {
+            "min": 150,
+            "typical": 300,
+            "max": 600
+          },
+          "annual_program": {
+            "min": 150000,
+            "typical": 500000,
+            "max": 2000000
+          }
+        },
+        "resource_requirements": {
+          "ftes": {
+            "msl": {
+              "typical": 5.0,
+              "range": [
+                3.0,
+                10.0
+              ]
+            },
+            "msl_manager": {
+              "typical": 0.5,
+              "range": [
+                0.25,
+                1.0
+              ]
+            },
+            "medical_information_support": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            },
+            "operations_support": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            }
+          },
+          "external_vendors": [
+            "CRM system subscription",
+            "Travel and logistics management",
+            "Insights analytics platform"
+          ],
+          "infrastructure": [
+            "CRM/SFA system",
+            "Content management system",
+            "Activity tracking platform",
+            "Insights repository"
+          ]
+        },
+        "timeline_estimate": {
+          "setup_weeks": 8,
+          "ramp_up_months": 3,
+          "steady_state_months": "ongoing"
+        },
+        "capacity_planning": {
+          "engagements_per_msl_per_month": {
+            "min": 15,
+            "typical": 25,
+            "max": 40
+          },
+          "territories_per_msl": {
+            "min": 1,
+            "typical": 2,
+            "max": 3
+          }
+        },
+        "roi_metrics": {
+          "primary": "incremental_prescriptions_influenced",
+          "secondary": [
+            "stakeholder_advocacy_increase",
+            "insight_value_score",
+            "relationship_depth_improvement"
+          ],
+          "expected_roi_range": [
+            2.5,
+            6.0
+          ],
+          "payback_period_months": [
+            6,
+            18
+          ]
+        }
+      },
+      "cascade": {
+        "supported_pillar_tags": [
+          "evidence_dissemination",
+          "evidence_interpretation",
+          "field_medical",
+          "scientific_exchange"
+        ],
+        "incompatible_pillar_tags": [
+          "regulatory_submissions",
+          "internal_only"
+        ],
+        "linked_pillar_ids": [
+          "evidence_interpretation",
+          "field_medical",
+          "scientific_exchange"
+        ],
+        "linked_metric_ids": [
+          "msl_engagement_rate"
+        ],
+        "required_metric_levels": [
+          "activity",
+          "output",
+          "outcome"
+        ],
+        "eligible_stakeholder_category_keys": [
+          "healthcare_professionals",
+          "external_experts",
+          "academia_research"
+        ],
+        "ineligible_stakeholder_category_keys": [
+          "regulators",
+          "media_communication"
+        ],
+        "cascade_probability_weights": {
+          "to_insights": 0.85,
+          "to_publications": 0.6,
+          "to_kol_advocacy": 0.7
+        },
+        "supported_pillar_ids": [
+          "evidence_interpretation",
+          "field_medical",
+          "scientific_exchange"
+        ],
+        "linked_metric_ids_unresolved": [
+          "insight_generation_volume",
+          "stakeholder_reach"
+        ]
+      },
+      "content_intelligence": {
+        "reusable_content_modules": [
+          "Core clinical data slides",
+          "Safety profile summaries",
+          "MOA animations",
+          "Patient selection criteria",
+          "Dosing and administration guides",
+          "FAQ databases"
+        ],
+        "content_governance_priority": "high",
+        "mlr_approval_requirements": {
+          "core_materials": "full_review",
+          "reactive_responses": "pre_approved_templates",
+          "update_frequency": "quarterly_or_on_data_update"
+        },
+        "modular_content_dependencies": [
+          "Clinical trial results (from evidence_generation)",
+          "Publication reprints (from publication_strategy)",
+          "Competitive intelligence (from market_research)",
+          "Real-world evidence (from rwe_generation)"
+        ],
+        "content_lifecycle": {
+          "creation_lead_time_weeks": 6,
+          "mlr_review_weeks": 2,
+          "update_trigger_events": [
+            "new_clinical_data",
+            "label_update",
+            "competitive_launch",
+            "safety_signal"
+          ],
+          "retirement_trigger_events": [
+            "data_superseded",
+            "product_discontinuation",
+            "competitive_obsolescence"
+          ]
+        }
+      },
+      "regional_profiles": {
+        "UK": {
+          "viability": "highly_viable",
+          "viability_score": 0.9,
+          "cost_multiplier": 1.15,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 1.05,
+          "regulatory_notes": "ABPI code compliance; high transparency requirements",
+          "market_dynamics": "NHS-centric; strong emphasis on NICE guidance alignment",
+          "tactical_adaptations": [
+            "Emphasize health economics and NHS value",
+            "Align messaging with NICE technology appraisals",
+            "Strong focus on real-world evidence"
+          ],
+          "typical_engagements_per_month_per_msl": 22
+        },
+        "EU": {
+          "viability": "highly_viable",
+          "viability_score": 0.88,
+          "cost_multiplier": 1.12,
+          "complexity_multiplier": 1.15,
+          "success_probability_modifier": 1.02,
+          "regulatory_notes": "EFPIA code; member state variability",
+          "market_dynamics": "Heterogeneous access landscape; HTA-driven",
+          "tactical_adaptations": [
+            "Country-specific value propositions",
+            "Local language materials required",
+            "Regional KOL networks critical"
+          ],
+          "typical_engagements_per_month_per_msl": 20
+        },
+        "US": {
+          "viability": "highly_viable",
+          "viability_score": 0.92,
+          "cost_multiplier": 1.3,
+          "complexity_multiplier": 1.2,
+          "success_probability_modifier": 1.08,
+          "regulatory_notes": "PhRMA code; Sunshine Act reporting",
+          "market_dynamics": "Highly competitive; payer access critical",
+          "tactical_adaptations": [
+            "Differentiated clinical value messaging",
+            "Payer evidence requirements front-loaded",
+            "High MSL credentialing standards"
+          ],
+          "typical_engagements_per_month_per_msl": 28
+        },
+        "Eastern_Europe": {
+          "viability": "viable",
+          "viability_score": 0.75,
+          "cost_multiplier": 0.7,
+          "complexity_multiplier": 0.95,
+          "success_probability_modifier": 0.92,
+          "regulatory_notes": "Variable regulatory frameworks; EU harmonization ongoing",
+          "market_dynamics": "Price-sensitive; relationship-driven access",
+          "tactical_adaptations": [
+            "Cost-effectiveness emphasis",
+            "Local clinical data valued",
+            "Relationship building prioritized"
+          ],
+          "typical_engagements_per_month_per_msl": 25
+        },
+        "LATAM": {
+          "viability": "viable",
+          "viability_score": 0.72,
+          "cost_multiplier": 0.65,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 0.88,
+          "regulatory_notes": "Country-specific regulations; high variability",
+          "market_dynamics": "Relationship-centric; government procurement dominant",
+          "tactical_adaptations": [
+            "Local language materials essential",
+            "Government stakeholder engagement",
+            "Budget impact emphasis"
+          ],
+          "typical_engagements_per_month_per_msl": 20
+        },
+        "SE_Asia_Emerging": {
+          "viability": "constrained",
+          "viability_score": 0.68,
+          "cost_multiplier": 0.6,
+          "complexity_multiplier": 1.25,
+          "success_probability_modifier": 0.82,
+          "regulatory_notes": "Rapidly evolving frameworks; digital opportunities",
+          "market_dynamics": "Emerging MSL infrastructure; growing sophistication",
+          "tactical_adaptations": [
+            "Hybrid digital-field approaches",
+            "Regional KOL hubs",
+            "Capacity building focus"
+          ],
+          "typical_engagements_per_month_per_msl": 18
+        },
+        "Middle_East": {
+          "viability": "viable",
+          "viability_score": 0.7,
+          "cost_multiplier": 0.75,
+          "complexity_multiplier": 1.2,
+          "success_probability_modifier": 0.85,
+          "regulatory_notes": "Government-centric approval; cultural considerations",
+          "market_dynamics": "Relationship-mediated; high government influence",
+          "tactical_adaptations": [
+            "Government stakeholder prioritization",
+            "Cultural sensitivity in engagement",
+            "Regional medical centers focus"
+          ],
+          "typical_engagements_per_month_per_msl": 18
+        }
+      },
+      "governance": {
+        "status": "approved",
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2025-12-30",
+        "next_review_date": "2026-03-31",
+        "owner_roles": [
+          "head_of_field_medical",
+          "msl_manager"
+        ],
+        "approval_requirements": {
+          "mlr_required": true,
+          "legal_review_required": false,
+          "compliance_review_required": true,
+          "budget_approval_threshold_usd": 50000
+        },
+        "change_log": [
+          {
+            "date": "2025-12-30",
+            "change": "Added hybrid v3.5 enhancements",
+            "approver": "head_of_medical_affairs"
+          }
+        ],
+        "notes": "Core field medical tactic; requires continuous refinement based on market feedback"
+      },
+      "validation_flags": {
+        "unresolved_stakeholder_ids": [
+          "academic_researcher"
+        ]
+      }
+    },
+    {
+      "id": "omnichannel_campaign",
+      "name": "Omnichannel Digital Campaign",
+      "description": "Coordinated digital omnichannel scientific engagement program (webinars, email, portal content, virtual scientific exchange), tailored by digital maturity and consent/privacy constraints.",
+      "tactic_family": "digital_omnichannel",
+      "priority_level": "medium",
+      "tags": [
+        "data_analytics",
+        "digital_omnichannel",
+        "scientific_exchange"
+      ],
+      "maps_execution": {
+        "lifecycle": {
+          "relevant_phases": [
+            "launch_T-12_to_T0",
+            "postlaunch_T0_to_T12",
+            "beyond_T12"
+          ],
+          "phase_priorities": {
+            "perilaunch_T-24_to_T-12": "medium",
+            "launch_T-12_to_T0": "very_high",
+            "postlaunch_T0_to_T12": "high",
+            "beyond_T12": "medium"
+          }
+        },
+        "execution_mode": "always_on",
+        "cadence": "monthly",
+        "complexity": "moderate",
+        "channels": [
+          "email",
+          "webinar",
+          "portal",
+          "virtual_meeting"
+        ],
+        "deliverables": [
+          "field_science_material",
+          "insight_report",
+          "medical_information_response"
+        ],
+        "targeting": {
+          "regions": [
+            "UK",
+            "EU",
+            "US",
+            "Eastern_Europe",
+            "LATAM",
+            "SE_Asia_Emerging",
+            "Middle_East"
+          ],
+          "sub_segments": [
+            "tier_1_hcps",
+            "tier_2_hcps",
+            "academic_centers"
+          ],
+          "account_based": true
+        },
+        "handoffs": {
+          "upstream_inputs": [
+            "Clinical data summaries from evidence_generation",
+            "Key messages from medical_communications",
+            "Publication reprints from publication_strategy"
+          ],
+          "dependencies": [
+            "MLR-approved core materials",
+            "CRM system for activity tracking",
+            "Field insights collection platform"
+          ],
+          "downstream_consumers": [
+            "Medical information for FAQs",
+            "Market research for insights analysis",
+            "KOL mapping for relationship tracking"
+          ]
+        }
+      },
+      "constraints": {
+        "required_access_level": "managed",
+        "relationship_mediation_tolerance": "limited",
+        "stakeholder_categories_required": [
+          "healthcare_professionals",
+          "external_experts"
+        ],
+        "stakeholder_categories_excluded": [
+          "regulators",
+          "media_communication"
+        ],
+        "channels": [
+          "email",
+          "webinar",
+          "portal",
+          "virtual_meeting"
+        ],
+        "deliverables": [
+          "field_science_material",
+          "insight_report"
+        ],
+        "compliance_risk": "medium",
+        "evidence_dependency": "required",
+        "data_privacy_sensitivity": "high",
+        "requires_mlr_review": true,
+        "requires_contracting": false,
+        "requires_fmv_check": false,
+        "requires_consent": false,
+        "ae_reporting_route_required": true,
+        "digital_maturity_minimum": "digital_reluctant",
+        "min_evidence_maturity": "phase_2_data"
+      },
+      "stakeholder_persona_mapping": [
+        {
+          "stakeholder_id": "hcp_physician_specialist",
+          "stakeholder_category": "healthcare_professionals",
+          "engagement_priority": "primary",
+          "preferred_channels": [
+            "virtual_meeting",
+            "email",
+            "conference"
+          ],
+          "preferred_content_types": [
+            "clinical_data_summaries",
+            "practice_guidance"
+          ],
+          "unmet_need_alignment": "Practical interpretation of evidence and application to patient care",
+          "typical_engagement_frequency": "quarterly",
+          "avg_engagement_duration_minutes": 45,
+          "response_rate_expected": 0.55,
+          "content_preference_weights": {
+            "efficacy_data": 0.35,
+            "safety_data": 0.3,
+            "practical_use": 0.2,
+            "patient_selection": 0.15
+          }
+        }
+      ],
+      "effectiveness_modeling": {
+        "base_success_probability": 0.58,
+        "success_probability_distribution": {
+          "distribution_type": "beta",
+          "alpha": 7.78,
+          "beta": 5.63,
+          "mean": 0.58,
+          "stddev": 0.13,
+          "confidence_level": "medium",
+          "notes": "Default prior for simulation; calibrate with client data and regional maturity."
+        },
+        "effectiveness_factors": {
+          "msl_experience_level": {
+            "weight": 0.25,
+            "impact_range": [
+              0.85,
+              1.15
+            ]
+          },
+          "stakeholder_relationship_strength": {
+            "weight": 0.2,
+            "impact_range": [
+              0.8,
+              1.25
+            ]
+          },
+          "evidence_quality": {
+            "weight": 0.2,
+            "impact_range": [
+              0.75,
+              1.2
+            ]
+          },
+          "competitive_environment": {
+            "weight": 0.15,
+            "impact_range": [
+              0.85,
+              1.1
+            ]
+          },
+          "material_quality": {
+            "weight": 0.1,
+            "impact_range": [
+              0.9,
+              1.1
+            ]
+          },
+          "timing_appropriateness": {
+            "weight": 0.1,
+            "impact_range": [
+              0.9,
+              1.15
+            ]
+          }
+        },
+        "success_metrics": [
+          {
+            "metric": "engagement_completion_rate",
+            "target": 0.85,
+            "measurement_level": "activity"
+          },
+          {
+            "metric": "stakeholder_satisfaction_score",
+            "target": 4.2,
+            "scale": "1-5",
+            "measurement_level": "output"
+          },
+          {
+            "metric": "insight_quality_score",
+            "target": 0.75,
+            "measurement_level": "output"
+          },
+          {
+            "metric": "prescriber_behavior_influence",
+            "target": 0.15,
+            "measurement_level": "outcome"
+          }
+        ],
+        "failure_modes": [
+          {
+            "failure_type": "stakeholder_unavailable",
+            "probability": 0.15,
+            "mitigation": "Multiple contact attempts, flexible scheduling"
+          },
+          {
+            "failure_type": "insufficient_evidence_to_address_questions",
+            "probability": 0.08,
+            "mitigation": "Pre-engagement research, medical information backup"
+          },
+          {
+            "failure_type": "competitive_displacement",
+            "probability": 0.05,
+            "mitigation": "Early relationship building, differentiated value messaging"
+          }
+        ]
+      },
+      "resource_estimation": {
+        "cost_range_usd": {
+          "min": 60000,
+          "max": 250000,
+          "confidence_level": "medium"
+        },
+        "resource_requirements": {
+          "ftes": {
+            "msl": {
+              "typical": 5.0,
+              "range": [
+                3.0,
+                10.0
+              ]
+            },
+            "msl_manager": {
+              "typical": 0.5,
+              "range": [
+                0.25,
+                1.0
+              ]
+            },
+            "medical_information_support": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            },
+            "operations_support": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            }
+          },
+          "external_vendors": [
+            "CRM system subscription",
+            "Travel and logistics management",
+            "Insights analytics platform"
+          ],
+          "infrastructure": [
+            "CRM/SFA system",
+            "Content management system",
+            "Activity tracking platform",
+            "Insights repository"
+          ]
+        },
+        "timeline_estimate": {
+          "setup_weeks": 8,
+          "ramp_up_months": 3,
+          "steady_state_months": "ongoing"
+        },
+        "capacity_planning": {
+          "engagements_per_msl_per_month": {
+            "min": 15,
+            "typical": 25,
+            "max": 40
+          },
+          "territories_per_msl": {
+            "min": 1,
+            "typical": 2,
+            "max": 3
+          }
+        },
+        "roi_metrics": {
+          "primary": "incremental_prescriptions_influenced",
+          "secondary": [
+            "stakeholder_advocacy_increase",
+            "insight_value_score",
+            "relationship_depth_improvement"
+          ],
+          "expected_roi_range": [
+            2.5,
+            6.0
+          ],
+          "payback_period_months": [
+            6,
+            18
+          ]
+        }
+      },
+      "cascade": {
+        "supported_pillar_tags": [
+          "data_analytics",
+          "digital_omnichannel",
+          "hcp_education",
+          "scientific_exchange"
+        ],
+        "incompatible_pillar_tags": [
+          "regulatory_submissions",
+          "internal_only"
+        ],
+        "linked_pillar_ids": [
+          "digital_omnichannel",
+          "hcp_education",
+          "scientific_exchange"
+        ],
+        "linked_metric_ids": [
+          "msl_engagement_rate"
+        ],
+        "required_metric_levels": [
+          "activity",
+          "output",
+          "outcome"
+        ],
+        "eligible_stakeholder_category_keys": [
+          "healthcare_professionals"
+        ],
+        "ineligible_stakeholder_category_keys": [
+          "media_communication"
+        ],
+        "cascade_probability_weights": {
+          "to_insights": 0.6,
+          "to_publications": 0.55,
+          "to_kol_advocacy": 0.5
+        },
+        "supported_pillar_ids": [
+          "data_analytics",
+          "digital_omnichannel",
+          "hcp_education",
+          "scientific_exchange"
+        ],
+        "linked_metric_ids_unresolved": [
+          "insight_generation_volume",
+          "stakeholder_reach"
+        ]
+      },
+      "content_intelligence": {
+        "reusable_content_modules": [
+          "Core clinical data slides",
+          "Safety profile summaries",
+          "MOA animations",
+          "Patient selection criteria",
+          "Dosing and administration guides",
+          "FAQ databases"
+        ],
+        "content_governance_priority": "high",
+        "mlr_approval_requirements": {
+          "core_materials": "full_review",
+          "reactive_responses": "pre_approved_templates",
+          "update_frequency": "quarterly_or_on_data_update"
+        },
+        "modular_content_dependencies": [
+          "Clinical trial results (from evidence_generation)",
+          "Publication reprints (from publication_strategy)",
+          "Competitive intelligence (from market_research)",
+          "Real-world evidence (from rwe_generation)"
+        ],
+        "content_lifecycle": {
+          "creation_lead_time_weeks": 6,
+          "mlr_review_weeks": 2,
+          "update_trigger_events": [
+            "new_clinical_data",
+            "label_update",
+            "competitive_launch",
+            "safety_signal"
+          ],
+          "retirement_trigger_events": [
+            "data_superseded",
+            "product_discontinuation",
+            "competitive_obsolescence"
+          ]
+        }
+      },
+      "regional_profiles": {
+        "UK": {
+          "viability": "highly_viable",
+          "viability_score": 0.9,
+          "cost_multiplier": 1.15,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 1.05,
+          "regulatory_notes": "EFPIA/ABPI-aligned transparency; member state / local code variability",
+          "market_dynamics": "NHS-centric; strong emphasis on NICE guidance alignment",
+          "tactical_adaptations": [
+            "Emphasize health economics and NHS value",
+            "Align messaging with NICE technology appraisals",
+            "Strong focus on real-world evidence"
+          ],
+          "typical_engagements_per_month_per_msl": 22
+        },
+        "EU": {
+          "viability": "highly_viable",
+          "viability_score": 0.88,
+          "cost_multiplier": 1.12,
+          "complexity_multiplier": 1.15,
+          "success_probability_modifier": 1.02,
+          "regulatory_notes": "EFPIA/ABPI-aligned transparency; member state / local code variability",
+          "market_dynamics": "Heterogeneous access landscape; HTA-driven",
+          "tactical_adaptations": [
+            "Country-specific value propositions",
+            "Local language materials required",
+            "Regional KOL networks critical"
+          ],
+          "typical_engagements_per_month_per_msl": 20
+        },
+        "US": {
+          "viability": "highly_viable",
+          "viability_score": 0.92,
+          "cost_multiplier": 1.3,
+          "complexity_multiplier": 1.2,
+          "success_probability_modifier": 1.08,
+          "regulatory_notes": "PhRMA code; Sunshine Act reporting",
+          "market_dynamics": "Highly competitive; payer access critical",
+          "tactical_adaptations": [
+            "Differentiated clinical value messaging",
+            "Payer evidence requirements front-loaded",
+            "High MSL credentialing standards"
+          ],
+          "typical_engagements_per_month_per_msl": 28
+        },
+        "Eastern_Europe": {
+          "viability": "viable",
+          "viability_score": 0.75,
+          "cost_multiplier": 0.7,
+          "complexity_multiplier": 0.95,
+          "success_probability_modifier": 0.92,
+          "regulatory_notes": "Variable regulatory frameworks; EU harmonization ongoing",
+          "market_dynamics": "Price-sensitive; relationship-driven access",
+          "tactical_adaptations": [
+            "Cost-effectiveness emphasis",
+            "Local clinical data valued",
+            "Relationship building prioritized"
+          ],
+          "typical_engagements_per_month_per_msl": 25
+        },
+        "LATAM": {
+          "viability": "viable",
+          "viability_score": 0.72,
+          "cost_multiplier": 0.65,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 0.88,
+          "regulatory_notes": "Country-specific regulations; high variability",
+          "market_dynamics": "Relationship-centric; government procurement dominant",
+          "tactical_adaptations": [
+            "Local language materials essential",
+            "Government stakeholder engagement",
+            "Budget impact emphasis"
+          ],
+          "typical_engagements_per_month_per_msl": 20
+        },
+        "SE_Asia_Emerging": {
+          "viability": "constrained",
+          "viability_score": 0.68,
+          "cost_multiplier": 0.6,
+          "complexity_multiplier": 1.25,
+          "success_probability_modifier": 0.82,
+          "regulatory_notes": "Rapidly evolving frameworks; digital opportunities",
+          "market_dynamics": "Emerging MSL infrastructure; growing sophistication",
+          "tactical_adaptations": [
+            "Hybrid digital-field approaches",
+            "Regional KOL hubs",
+            "Capacity building focus"
+          ],
+          "typical_engagements_per_month_per_msl": 18
+        },
+        "Middle_East": {
+          "viability": "viable",
+          "viability_score": 0.7,
+          "cost_multiplier": 0.75,
+          "complexity_multiplier": 1.2,
+          "success_probability_modifier": 0.85,
+          "regulatory_notes": "Government-centric approval; cultural considerations",
+          "market_dynamics": "Relationship-mediated; high government influence",
+          "tactical_adaptations": [
+            "Government stakeholder prioritization",
+            "Cultural sensitivity in engagement",
+            "Regional medical centers focus"
+          ],
+          "typical_engagements_per_month_per_msl": 18
+        }
+      },
+      "governance": {
+        "status": "draft",
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2025-12-30",
+        "next_review_date": "2026-03-31",
+        "owner_roles": [
+          "head_of_field_medical",
+          "msl_manager"
+        ],
+        "approval_requirements": {
+          "mlr_required": true,
+          "legal_review_required": false,
+          "compliance_review_required": true,
+          "budget_approval_threshold_usd": 50000
+        },
+        "change_log": [
+          {
+            "date": "2025-12-30",
+            "change": "Added hybrid v3.5 enhancements",
+            "approver": "head_of_medical_affairs"
+          }
+        ],
+        "notes": "Generated to complete tactic implementations; requires review and calibration."
+      },
+      "validation_flags": {
+        "unresolved_stakeholder_ids": [
+          "academic_researcher"
+        ]
+      }
+    },
+    {
+      "id": "payer_value_dossier",
+      "name": "Payer Value Dossier",
+      "description": "Scientific value dossier and evidence package for payer/HTA audiences, aligned to access questions and adapted by country requirements and evidentiary maturity.",
+      "tactic_family": "market_access_value",
+      "priority_level": "very_high",
+      "tags": [
+        "evidence_generation",
+        "evidence_interpretation",
+        "market_access_support"
+      ],
+      "maps_execution": {
+        "lifecycle": {
+          "relevant_phases": [
+            "prelaunch_T-48_to_T-24",
+            "perilaunch_T-24_to_T-12",
+            "launch_T-12_to_T0",
+            "postlaunch_T0_to_T12"
+          ],
+          "phase_priorities": {
+            "perilaunch_T-24_to_T-12": "medium",
+            "launch_T-12_to_T0": "very_high",
+            "postlaunch_T0_to_T12": "high",
+            "beyond_T12": "medium"
+          }
+        },
+        "execution_mode": "always_on",
+        "cadence": "monthly",
+        "complexity": "moderate",
+        "channels": [
+          "payer_meeting",
+          "dossier_distribution",
+          "email"
+        ],
+        "deliverables": [
+          "field_science_material",
+          "insight_report",
+          "medical_information_response"
+        ],
+        "targeting": {
+          "regions": [
+            "UK",
+            "EU",
+            "US",
+            "Eastern_Europe",
+            "LATAM",
+            "SE_Asia_Emerging",
+            "Middle_East"
+          ],
+          "sub_segments": [
+            "tier_1_hcps",
+            "tier_2_hcps",
+            "academic_centers"
+          ],
+          "account_based": true
+        },
+        "handoffs": {
+          "upstream_inputs": [
+            "Clinical data summaries from evidence_generation",
+            "Key messages from medical_communications",
+            "Publication reprints from publication_strategy"
+          ],
+          "dependencies": [
+            "MLR-approved core materials",
+            "CRM system for activity tracking",
+            "Field insights collection platform"
+          ],
+          "downstream_consumers": [
+            "Medical information for FAQs",
+            "Market research for insights analysis",
+            "KOL mapping for relationship tracking"
+          ]
+        }
+      },
+      "constraints": {
+        "required_access_level": "managed",
+        "relationship_mediation_tolerance": "limited",
+        "stakeholder_categories_required": [
+          "healthcare_professionals",
+          "external_experts"
+        ],
+        "stakeholder_categories_excluded": [
+          "regulators",
+          "media_communication"
+        ],
+        "channels": [
+          "payer_meeting",
+          "dossier_distribution",
+          "email"
+        ],
+        "deliverables": [
+          "field_science_material",
+          "insight_report"
+        ],
+        "compliance_risk": "high",
+        "evidence_dependency": "required",
+        "data_privacy_sensitivity": "high",
+        "requires_mlr_review": true,
+        "requires_contracting": false,
+        "requires_fmv_check": false,
+        "requires_consent": false,
+        "ae_reporting_route_required": true,
+        "digital_maturity_minimum": "digital_reluctant",
+        "min_evidence_maturity": "phase_3_data"
+      },
+      "stakeholder_persona_mapping": [
+        {
+          "stakeholder_id": "payer_private",
+          "stakeholder_category": "market_access_payers",
+          "engagement_priority": "primary",
+          "preferred_channels": [
+            "virtual_meeting",
+            "email"
+          ],
+          "preferred_content_types": [
+            "value_dossier",
+            "budget_impact",
+            "comparative_effectiveness"
+          ],
+          "unmet_need_alignment": "Decision-grade evidence for access and utilization management",
+          "typical_engagement_frequency": "biannual",
+          "avg_engagement_duration_minutes": 60,
+          "response_rate_expected": 0.5,
+          "content_preference_weights": {
+            "comparative_effectiveness": 0.35,
+            "budget_impact": 0.35,
+            "safety_data": 0.2,
+            "patient_selection": 0.1
+          }
+        }
+      ],
+      "effectiveness_modeling": {
+        "base_success_probability": 0.6,
+        "success_probability_distribution": {
+          "distribution_type": "beta",
+          "alpha": 9.4,
+          "beta": 6.27,
+          "mean": 0.6,
+          "stddev": 0.12,
+          "confidence_level": "medium",
+          "notes": "Default prior for simulation; calibrate with client data and regional maturity."
+        },
+        "effectiveness_factors": {
+          "msl_experience_level": {
+            "weight": 0.25,
+            "impact_range": [
+              0.85,
+              1.15
+            ]
+          },
+          "stakeholder_relationship_strength": {
+            "weight": 0.2,
+            "impact_range": [
+              0.8,
+              1.25
+            ]
+          },
+          "evidence_quality": {
+            "weight": 0.2,
+            "impact_range": [
+              0.75,
+              1.2
+            ]
+          },
+          "competitive_environment": {
+            "weight": 0.15,
+            "impact_range": [
+              0.85,
+              1.1
+            ]
+          },
+          "material_quality": {
+            "weight": 0.1,
+            "impact_range": [
+              0.9,
+              1.1
+            ]
+          },
+          "timing_appropriateness": {
+            "weight": 0.1,
+            "impact_range": [
+              0.9,
+              1.15
+            ]
+          }
+        },
+        "success_metrics": [
+          {
+            "metric": "engagement_completion_rate",
+            "target": 0.85,
+            "measurement_level": "activity"
+          },
+          {
+            "metric": "stakeholder_satisfaction_score",
+            "target": 4.2,
+            "scale": "1-5",
+            "measurement_level": "output"
+          },
+          {
+            "metric": "insight_quality_score",
+            "target": 0.75,
+            "measurement_level": "output"
+          },
+          {
+            "metric": "prescriber_behavior_influence",
+            "target": 0.15,
+            "measurement_level": "outcome"
+          }
+        ],
+        "failure_modes": [
+          {
+            "failure_type": "stakeholder_unavailable",
+            "probability": 0.15,
+            "mitigation": "Multiple contact attempts, flexible scheduling"
+          },
+          {
+            "failure_type": "insufficient_evidence_to_address_questions",
+            "probability": 0.08,
+            "mitigation": "Pre-engagement research, medical information backup"
+          },
+          {
+            "failure_type": "competitive_displacement",
+            "probability": 0.05,
+            "mitigation": "Early relationship building, differentiated value messaging"
+          }
+        ]
+      },
+      "resource_estimation": {
+        "cost_range_usd": {
+          "min": 40000,
+          "max": 180000,
+          "confidence_level": "medium"
+        },
+        "resource_requirements": {
+          "ftes": {
+            "msl": {
+              "typical": 5.0,
+              "range": [
+                3.0,
+                10.0
+              ]
+            },
+            "msl_manager": {
+              "typical": 0.5,
+              "range": [
+                0.25,
+                1.0
+              ]
+            },
+            "medical_information_support": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            },
+            "operations_support": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            }
+          },
+          "external_vendors": [
+            "CRM system subscription",
+            "Travel and logistics management",
+            "Insights analytics platform"
+          ],
+          "infrastructure": [
+            "CRM/SFA system",
+            "Content management system",
+            "Activity tracking platform",
+            "Insights repository"
+          ]
+        },
+        "timeline_estimate": {
+          "setup_weeks": 8,
+          "ramp_up_months": 3,
+          "steady_state_months": "ongoing"
+        },
+        "capacity_planning": {
+          "engagements_per_msl_per_month": {
+            "min": 15,
+            "typical": 25,
+            "max": 40
+          },
+          "territories_per_msl": {
+            "min": 1,
+            "typical": 2,
+            "max": 3
+          }
+        },
+        "roi_metrics": {
+          "primary": "incremental_prescriptions_influenced",
+          "secondary": [
+            "stakeholder_advocacy_increase",
+            "insight_value_score",
+            "relationship_depth_improvement"
+          ],
+          "expected_roi_range": [
+            2.5,
+            6.0
+          ],
+          "payback_period_months": [
+            6,
+            18
+          ]
+        }
+      },
+      "cascade": {
+        "supported_pillar_tags": [
+          "evidence_generation",
+          "evidence_interpretation",
+          "market_access_support"
+        ],
+        "incompatible_pillar_tags": [
+          "regulatory_submissions",
+          "internal_only"
+        ],
+        "linked_pillar_ids": [
+          "evidence_generation",
+          "evidence_interpretation",
+          "market_access_support"
+        ],
+        "linked_metric_ids": [
+          "clinical_practice_influence_score"
+        ],
+        "required_metric_levels": [
+          "activity",
+          "output",
+          "outcome"
+        ],
+        "eligible_stakeholder_category_keys": [
+          "market_access_payers"
+        ],
+        "ineligible_stakeholder_category_keys": [
+          "media_communication"
+        ],
+        "cascade_probability_weights": {
+          "to_insights": 0.6,
+          "to_publications": 0.55,
+          "to_kol_advocacy": 0.5
+        },
+        "supported_pillar_ids": [
+          "evidence_generation",
+          "evidence_interpretation",
+          "market_access_support"
+        ],
+        "linked_metric_ids_unresolved": [
+          "insight_generation_volume",
+          "stakeholder_reach"
+        ]
+      },
+      "content_intelligence": {
+        "reusable_content_modules": [
+          "Core clinical data slides",
+          "Safety profile summaries",
+          "MOA animations",
+          "Patient selection criteria",
+          "Dosing and administration guides",
+          "FAQ databases"
+        ],
+        "content_governance_priority": "high",
+        "mlr_approval_requirements": {
+          "core_materials": "full_review",
+          "reactive_responses": "pre_approved_templates",
+          "update_frequency": "quarterly_or_on_data_update"
+        },
+        "modular_content_dependencies": [
+          "Clinical trial results (from evidence_generation)",
+          "Publication reprints (from publication_strategy)",
+          "Competitive intelligence (from market_research)",
+          "Real-world evidence (from rwe_generation)"
+        ],
+        "content_lifecycle": {
+          "creation_lead_time_weeks": 6,
+          "mlr_review_weeks": 2,
+          "update_trigger_events": [
+            "new_clinical_data",
+            "label_update",
+            "competitive_launch",
+            "safety_signal"
+          ],
+          "retirement_trigger_events": [
+            "data_superseded",
+            "product_discontinuation",
+            "competitive_obsolescence"
+          ]
+        }
+      },
+      "regional_profiles": {
+        "UK": {
+          "viability": "highly_viable",
+          "viability_score": 0.9,
+          "cost_multiplier": 1.15,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 1.05,
+          "regulatory_notes": "EFPIA/ABPI-aligned transparency; member state / local code variability",
+          "market_dynamics": "NHS-centric; strong emphasis on NICE guidance alignment",
+          "tactical_adaptations": [
+            "Emphasize health economics and NHS value",
+            "Align messaging with NICE technology appraisals",
+            "Strong focus on real-world evidence"
+          ],
+          "typical_engagements_per_month_per_msl": 22
+        },
+        "EU": {
+          "viability": "highly_viable",
+          "viability_score": 0.88,
+          "cost_multiplier": 1.12,
+          "complexity_multiplier": 1.15,
+          "success_probability_modifier": 1.02,
+          "regulatory_notes": "EFPIA/ABPI-aligned transparency; member state / local code variability",
+          "market_dynamics": "Heterogeneous access landscape; HTA-driven",
+          "tactical_adaptations": [
+            "Country-specific value propositions",
+            "Local language materials required",
+            "Regional KOL networks critical"
+          ],
+          "typical_engagements_per_month_per_msl": 20
+        },
+        "US": {
+          "viability": "highly_viable",
+          "viability_score": 0.92,
+          "cost_multiplier": 1.3,
+          "complexity_multiplier": 1.2,
+          "success_probability_modifier": 1.08,
+          "regulatory_notes": "PhRMA code; Sunshine Act reporting",
+          "market_dynamics": "Highly competitive; payer access critical",
+          "tactical_adaptations": [
+            "Differentiated clinical value messaging",
+            "Payer evidence requirements front-loaded",
+            "High MSL credentialing standards"
+          ],
+          "typical_engagements_per_month_per_msl": 28
+        },
+        "Eastern_Europe": {
+          "viability": "viable",
+          "viability_score": 0.75,
+          "cost_multiplier": 0.7,
+          "complexity_multiplier": 0.95,
+          "success_probability_modifier": 0.92,
+          "regulatory_notes": "Variable regulatory frameworks; EU harmonization ongoing",
+          "market_dynamics": "Price-sensitive; relationship-driven access",
+          "tactical_adaptations": [
+            "Cost-effectiveness emphasis",
+            "Local clinical data valued",
+            "Relationship building prioritized"
+          ],
+          "typical_engagements_per_month_per_msl": 25
+        },
+        "LATAM": {
+          "viability": "viable",
+          "viability_score": 0.72,
+          "cost_multiplier": 0.65,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 0.88,
+          "regulatory_notes": "Country-specific regulations; high variability",
+          "market_dynamics": "Relationship-centric; government procurement dominant",
+          "tactical_adaptations": [
+            "Local language materials essential",
+            "Government stakeholder engagement",
+            "Budget impact emphasis"
+          ],
+          "typical_engagements_per_month_per_msl": 20
+        },
+        "SE_Asia_Emerging": {
+          "viability": "constrained",
+          "viability_score": 0.68,
+          "cost_multiplier": 0.6,
+          "complexity_multiplier": 1.25,
+          "success_probability_modifier": 0.82,
+          "regulatory_notes": "Rapidly evolving frameworks; digital opportunities",
+          "market_dynamics": "Emerging MSL infrastructure; growing sophistication",
+          "tactical_adaptations": [
+            "Hybrid digital-field approaches",
+            "Regional KOL hubs",
+            "Capacity building focus"
+          ],
+          "typical_engagements_per_month_per_msl": 18
+        },
+        "Middle_East": {
+          "viability": "viable",
+          "viability_score": 0.7,
+          "cost_multiplier": 0.75,
+          "complexity_multiplier": 1.2,
+          "success_probability_modifier": 0.85,
+          "regulatory_notes": "Government-centric approval; cultural considerations",
+          "market_dynamics": "Relationship-mediated; high government influence",
+          "tactical_adaptations": [
+            "Government stakeholder prioritization",
+            "Cultural sensitivity in engagement",
+            "Regional medical centers focus"
+          ],
+          "typical_engagements_per_month_per_msl": 18
+        }
+      },
+      "governance": {
+        "status": "draft",
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2025-12-30",
+        "next_review_date": "2026-03-31",
+        "owner_roles": [
+          "head_of_field_medical",
+          "msl_manager"
+        ],
+        "approval_requirements": {
+          "mlr_required": true,
+          "legal_review_required": false,
+          "compliance_review_required": true,
+          "budget_approval_threshold_usd": 50000
+        },
+        "change_log": [
+          {
+            "date": "2025-12-30",
+            "change": "Added hybrid v3.5 enhancements",
+            "approver": "head_of_medical_affairs"
+          }
+        ],
+        "notes": "Generated to complete tactic implementations; requires review and calibration."
+      },
+      "validation_flags": {
+        "unresolved_stakeholder_ids": [
+          "academic_researcher"
+        ]
+      }
+    },
+    {
+      "id": "peer_reviewed_publication",
+      "name": "Peer-Reviewed Publication",
+      "description": "Original research articles, reviews, meta-analyses, or editorials published in peer-reviewed medical journals to disseminate clinical evidence and establish scientific credibility",
+      "tactic_family": "publication_strategy",
+      "priority_level": "very_high",
+      "tags": [
+        "publication",
+        "manuscript",
+        "peer_review",
+        "scientific_literature"
+      ],
+      "maps_execution": {
+        "lifecycle": {
+          "relevant_phases": [
+            "prelaunch_T-48_to_T-24",
+            "perilaunch_T-24_to_T-12",
+            "launch_T-12_to_T0",
+            "postlaunch_T0_to_T12",
+            "beyond_T12"
+          ],
+          "phase_priorities": {
+            "prelaunch_T-48_to_T-24": "high",
+            "perilaunch_T-24_to_T-12": "very_high",
+            "launch_T-12_to_T0": "very_high",
+            "postlaunch_T0_to_T12": "high",
+            "beyond_T12": "medium"
+          }
+        },
+        "execution_mode": "campaign",
+        "cadence": "annual",
+        "complexity": "very_high",
+        "channels": [
+          "scientific_publications"
+        ],
+        "deliverables": [
+          "manuscript",
+          "visual_abstract",
+          "supplementary_materials"
+        ],
+        "targeting": {
+          "regions": [
+            "global"
+          ],
+          "sub_segments": [
+            "high_impact_journals",
+            "specialty_journals"
+          ],
+          "account_based": false
+        },
+        "handoffs": {
+          "upstream_inputs": [
+            "Clinical trial results",
+            "Post-hoc analyses",
+            "Real-world evidence datasets",
+            "Systematic review data"
+          ],
+          "dependencies": [
+            "Author team availability",
+            "Data lock and finalization",
+            "Medical writing support",
+            "Journal selection strategy"
+          ],
+          "downstream_consumers": [
+            "MSL teams for reprints",
+            "Congress presentation teams",
+            "Medical information",
+            "Marketing (for approved use)"
+          ]
+        }
+      },
+      "constraints": {
+        "required_access_level": "open",
+        "relationship_mediation_tolerance": "none",
+        "stakeholder_categories_required": [
+          "academia_research",
+          "external_experts"
+        ],
+        "stakeholder_categories_excluded": [],
+        "channels": [
+          "scientific_publications"
+        ],
+        "deliverables": [
+          "manuscript"
+        ],
+        "compliance_risk": "medium",
+        "evidence_dependency": "required",
+        "data_privacy_sensitivity": "very_high",
+        "requires_mlr_review": true,
+        "requires_contracting": false,
+        "requires_fmv_check": false,
+        "requires_consent": true,
+        "ae_reporting_route_required": false,
+        "digital_maturity_minimum": "digital_reluctant",
+        "min_evidence_maturity": "phase_2_results"
+      },
+      "stakeholder_persona_mapping": [
+        {
+          "stakeholder_id": "kol",
+          "stakeholder_category": "external_experts",
+          "engagement_priority": "primary",
+          "preferred_channels": [
+            "peer_reviewed_journals"
+          ],
+          "preferred_content_types": [
+            "original_research",
+            "clinical_trial_results",
+            "mechanistic_insights"
+          ],
+          "unmet_need_alignment": "Establish scientific credibility and contribute to medical knowledge",
+          "typical_engagement_frequency": "annual",
+          "avg_engagement_duration_minutes": null,
+          "response_rate_expected": 0.85,
+          "content_preference_weights": {
+            "novel_findings": 0.4,
+            "methodological_rigor": 0.3,
+            "clinical_relevance": 0.2,
+            "authorship_opportunity": 0.1
+          }
+        },
+        {
+          "stakeholder_id": "hcp_physician_specialist",
+          "stakeholder_category": "healthcare_professionals",
+          "engagement_priority": "secondary",
+          "preferred_channels": [
+            "peer_reviewed_journals"
+          ],
+          "preferred_content_types": [
+            "clinical_practice_guidance",
+            "comparative_effectiveness",
+            "real_world_evidence"
+          ],
+          "unmet_need_alignment": "Evidence-based practice guidelines and clinical decision support",
+          "typical_engagement_frequency": null,
+          "avg_engagement_duration_minutes": null,
+          "response_rate_expected": null,
+          "content_preference_weights": {
+            "practice_applicability": 0.4,
+            "patient_outcomes": 0.3,
+            "safety_profile": 0.2,
+            "ease_of_use": 0.1
+          }
+        }
+      ],
+      "effectiveness_modeling": {
+        "base_success_probability": 0.65,
+        "success_probability_distribution": {
+          "distribution_type": "beta",
+          "alpha": 13.0,
+          "beta": 7.0,
+          "mean": 0.65,
+          "stddev": 0.11,
+          "confidence_level": "medium"
+        },
+        "effectiveness_factors": {
+          "data_quality_novelty": {
+            "weight": 0.35,
+            "impact_range": [
+              0.6,
+              1.4
+            ]
+          },
+          "author_team_credibility": {
+            "weight": 0.25,
+            "impact_range": [
+              0.75,
+              1.25
+            ]
+          },
+          "journal_targeting_strategy": {
+            "weight": 0.2,
+            "impact_range": [
+              0.7,
+              1.3
+            ]
+          },
+          "manuscript_quality": {
+            "weight": 0.15,
+            "impact_range": [
+              0.8,
+              1.2
+            ]
+          },
+          "timing_strategic_fit": {
+            "weight": 0.05,
+            "impact_range": [
+              0.9,
+              1.1
+            ]
+          }
+        },
+        "success_metrics": [
+          {
+            "metric": "publication_acceptance_rate",
+            "target": 0.7,
+            "measurement_level": "output"
+          },
+          {
+            "metric": "target_journal_tier_achievement",
+            "target": 0.6,
+            "note": "Proportion published in top-tier target journals",
+            "measurement_level": "output"
+          },
+          {
+            "metric": "citation_count_12_months",
+            "target": 25,
+            "measurement_level": "outcome"
+          },
+          {
+            "metric": "clinical_practice_influence_score",
+            "target": 0.55,
+            "measurement_level": "impact"
+          }
+        ],
+        "failure_modes": [
+          {
+            "failure_type": "journal_rejection",
+            "probability": 0.3,
+            "mitigation": "Tiered journal strategy, rapid resubmission plan"
+          },
+          {
+            "failure_type": "author_team_delays",
+            "probability": 0.15,
+            "mitigation": "Clear timelines, project management, backup authors"
+          },
+          {
+            "failure_type": "peer_review_major_revisions",
+            "probability": 0.25,
+            "mitigation": "High-quality initial submission, pre-submission review"
+          }
+        ]
+      },
+      "resource_estimation": {
+        "cost_range_usd": {
+          "per_publication": {
+            "min": 15000,
+            "typical": 35000,
+            "max": 75000
+          },
+          "annual_program": {
+            "min": 100000,
+            "typical": 350000,
+            "max": 1000000
+          }
+        },
+        "resource_requirements": {
+          "ftes": {
+            "publication_manager": {
+              "typical": 0.5,
+              "range": [
+                0.25,
+                1.0
+              ]
+            },
+            "medical_writer": {
+              "typical": 0.75,
+              "range": [
+                0.5,
+                1.5
+              ]
+            },
+            "medical_affairs_scientific_lead": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            }
+          },
+          "external_vendors": [
+            "Medical writing agency",
+            "Statistical support",
+            "Graphic design",
+            "Journal submission services"
+          ],
+          "infrastructure": [
+            "Reference management software",
+            "Collaboration platforms",
+            "Publication tracking system"
+          ]
+        },
+        "timeline_estimate": {
+          "manuscript_development_weeks": 12,
+          "internal_review_weeks": 4,
+          "journal_submission_to_decision_weeks": 16,
+          "total_typical_timeline_months": 9
+        },
+        "capacity_planning": {
+          "publications_per_year": {
+            "min": 2,
+            "typical": 6,
+            "max": 15
+          },
+          "manuscripts_per_writer_per_year": {
+            "min": 3,
+            "typical": 6,
+            "max": 10
+          }
+        },
+        "roi_metrics": {
+          "primary": "scientific_credibility_index",
+          "secondary": [
+            "citation_impact",
+            "kol_authorship_engagement",
+            "clinical_practice_influence",
+            "competitive_scientific_voice"
+          ],
+          "expected_roi_range": [
+            3.0,
+            8.0
+          ],
+          "payback_period_months": [
+            12,
+            24
+          ]
+        }
+      },
+      "cascade": {
+        "supported_pillar_tags": [
+          "evidence_dissemination",
+          "evidence_interpretation",
+          "kol_engagement",
+          "publications",
+          "scientific_leadership"
+        ],
+        "incompatible_pillar_tags": [],
+        "linked_pillar_ids": [
+          "evidence_interpretation",
+          "kol_engagement",
+          "publications"
+        ],
+        "linked_metric_ids": [],
+        "required_metric_levels": [
+          "activity",
+          "output",
+          "outcome",
+          "impact"
+        ],
+        "eligible_stakeholder_category_keys": [
+          "external_experts",
+          "academia_research",
+          "healthcare_professionals"
+        ],
+        "ineligible_stakeholder_category_keys": [],
+        "cascade_probability_weights": {
+          "to_congress_presentations": 0.8,
+          "to_msl_materials": 0.9,
+          "to_guideline_citations": 0.45
+        },
+        "supported_pillar_ids": [
+          "evidence_interpretation",
+          "kol_engagement",
+          "publications"
+        ],
+        "linked_metric_ids_unresolved": [
+          "citation_impact_factor",
+          "publication_count",
+          "share_of_scientific_voice"
+        ]
+      },
+      "content_intelligence": {
+        "reusable_content_modules": [
+          "Core efficacy/safety tables",
+          "Methods section templates",
+          "Statistical analysis plans",
+          "Figure/table shells",
+          "Supplementary material templates"
+        ],
+        "content_governance_priority": "very_high",
+        "mlr_approval_requirements": {
+          "manuscript_draft": "full_review",
+          "response_to_reviewers": "medical_review",
+          "final_publication": "archival"
+        },
+        "modular_content_dependencies": [
+          "Clinical study reports (from clinical development)",
+          "Statistical analysis (from biostatistics)",
+          "Post-hoc analyses (from data science)",
+          "Competitive benchmarking (from market research)"
+        ],
+        "content_lifecycle": {
+          "creation_lead_time_weeks": 12,
+          "mlr_review_weeks": 3,
+          "update_trigger_events": [
+            "journal_reviewer_feedback",
+            "major_revisions_required",
+            "rejection_and_resubmission"
+          ],
+          "retirement_trigger_events": [
+            "publication_achieved",
+            "data_superseded"
+          ]
+        }
+      },
+      "regional_profiles": {
+        "UK": {
+          "viability": "highly_viable",
+          "viability_score": 0.95,
+          "cost_multiplier": 1.1,
+          "complexity_multiplier": 1.05,
+          "success_probability_modifier": 1.05,
+          "regulatory_notes": "Strong peer-review culture; high standards",
+          "market_dynamics": "High-impact journals accessible; KOL authorship valued",
+          "tactical_adaptations": [
+            "Target BMJ, Lancet, NEJM where appropriate",
+            "NHS-relevant outcomes emphasized",
+            "NICE evidence standards alignment"
+          ],
+          "typical_publications_per_year": 6
+        },
+        "EU": {
+          "viability": "highly_viable",
+          "viability_score": 0.92,
+          "cost_multiplier": 1.08,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 1.03,
+          "regulatory_notes": "Strong publication tradition; multilingual considerations",
+          "market_dynamics": "Access to major European journals; language options",
+          "tactical_adaptations": [
+            "European journal strategy",
+            "Potential for translated versions",
+            "European author representation"
+          ],
+          "typical_publications_per_year": 5
+        },
+        "US": {
+          "viability": "highly_viable",
+          "viability_score": 0.95,
+          "cost_multiplier": 1.15,
+          "complexity_multiplier": 1.15,
+          "success_probability_modifier": 1.08,
+          "regulatory_notes": "Highly competitive publication landscape",
+          "market_dynamics": "Top-tier journal access; high impact potential",
+          "tactical_adaptations": [
+            "JAMA, NEJM targeting",
+            "Specialty journal hierarchy",
+            "US payer-relevant outcomes"
+          ],
+          "typical_publications_per_year": 8
+        },
+        "Eastern_Europe": {
+          "viability": "viable",
+          "viability_score": 0.75,
+          "cost_multiplier": 0.7,
+          "complexity_multiplier": 0.95,
+          "success_probability_modifier": 0.88,
+          "regulatory_notes": "Growing publication infrastructure",
+          "market_dynamics": "Regional journals; global journal access increasing",
+          "tactical_adaptations": [
+            "Regional journal strategy",
+            "Local language options",
+            "Eastern European author inclusion"
+          ],
+          "typical_publications_per_year": 3
+        },
+        "LATAM": {
+          "viability": "viable",
+          "viability_score": 0.72,
+          "cost_multiplier": 0.65,
+          "complexity_multiplier": 1.0,
+          "success_probability_modifier": 0.85,
+          "regulatory_notes": "Emerging publication capabilities",
+          "market_dynamics": "Regional journals; Spanish/Portuguese options",
+          "tactical_adaptations": [
+            "LATAM journal strategy",
+            "Spanish/Portuguese translations",
+            "Regional author partnerships"
+          ],
+          "typical_publications_per_year": 2
+        },
+        "SE_Asia_Emerging": {
+          "viability": "viable",
+          "viability_score": 0.7,
+          "cost_multiplier": 0.6,
+          "complexity_multiplier": 1.05,
+          "success_probability_modifier": 0.82,
+          "regulatory_notes": "Rapidly developing publication ecosystem",
+          "market_dynamics": "Growing journal landscape; English language",
+          "tactical_adaptations": [
+            "Regional journal targeting",
+            "Asian author inclusion",
+            "Regional outcomes emphasis"
+          ],
+          "typical_publications_per_year": 2
+        },
+        "Middle_East": {
+          "viability": "viable",
+          "viability_score": 0.68,
+          "cost_multiplier": 0.75,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 0.8,
+          "regulatory_notes": "Developing publication infrastructure",
+          "market_dynamics": "Regional journals emerging; international access",
+          "tactical_adaptations": [
+            "Regional journal consideration",
+            "Middle Eastern author partnerships",
+            "Regional outcomes where relevant"
+          ],
+          "typical_publications_per_year": 2
+        }
+      },
+      "governance": {
+        "status": "approved",
+        "review_cadence": "biannual",
+        "last_reviewed_on": "2025-12-30",
+        "next_review_date": "2026-06-30",
+        "owner_roles": [
+          "head_of_medical_affairs",
+          "publication_planning_lead"
+        ],
+        "approval_requirements": {
+          "mlr_required": true,
+          "legal_review_required": false,
+          "compliance_review_required": true,
+          "budget_approval_threshold_usd": 20000
+        },
+        "change_log": [
+          {
+            "date": "2025-12-30",
+            "change": "Added hybrid v3.5 enhancements",
+            "approver": "head_of_medical_affairs"
+          }
+        ],
+        "notes": "Core evidence dissemination tactic; requires long-term planning and author relationship management"
+      },
+      "validation_flags": {
+        "unresolved_stakeholder_ids": [
+          "academic_researcher"
+        ]
+      }
+    },
+    {
+      "id": "rwe_registry",
+      "name": "Real-World Evidence Registry",
+      "description": "Prospective or retrospective RWE registry program design and execution to generate evidence post-launch and support clinical practice understanding within compliant boundaries.",
+      "tactic_family": "evidence_generation",
+      "priority_level": "high",
+      "tags": [
+        "data_analytics",
+        "evidence_generation",
+        "rwe_generation"
+      ],
+      "maps_execution": {
+        "lifecycle": {
+          "relevant_phases": [
+            "postlaunch_T0_to_T12",
+            "beyond_T12"
+          ],
+          "phase_priorities": {
+            "perilaunch_T-24_to_T-12": "medium",
+            "launch_T-12_to_T0": "very_high",
+            "postlaunch_T0_to_T12": "high",
+            "beyond_T12": "medium"
+          }
+        },
+        "execution_mode": "always_on",
+        "cadence": "monthly",
+        "complexity": "moderate",
+        "channels": [
+          "registry",
+          "data_partnership"
+        ],
+        "deliverables": [
+          "field_science_material",
+          "insight_report",
+          "medical_information_response"
+        ],
+        "targeting": {
+          "regions": [
+            "UK",
+            "EU",
+            "US",
+            "Eastern_Europe",
+            "LATAM",
+            "SE_Asia_Emerging",
+            "Middle_East"
+          ],
+          "sub_segments": [
+            "tier_1_hcps",
+            "tier_2_hcps",
+            "academic_centers"
+          ],
+          "account_based": true
+        },
+        "handoffs": {
+          "upstream_inputs": [
+            "Clinical data summaries from evidence_generation",
+            "Key messages from medical_communications",
+            "Publication reprints from publication_strategy"
+          ],
+          "dependencies": [
+            "MLR-approved core materials",
+            "CRM system for activity tracking",
+            "Field insights collection platform"
+          ],
+          "downstream_consumers": [
+            "Medical information for FAQs",
+            "Market research for insights analysis",
+            "KOL mapping for relationship tracking"
+          ]
+        }
+      },
+      "constraints": {
+        "required_access_level": "managed",
+        "relationship_mediation_tolerance": "limited",
+        "stakeholder_categories_required": [
+          "healthcare_professionals",
+          "external_experts"
+        ],
+        "stakeholder_categories_excluded": [
+          "regulators",
+          "media_communication"
+        ],
+        "channels": [
+          "registry",
+          "data_partnership"
+        ],
+        "deliverables": [
+          "field_science_material",
+          "insight_report"
+        ],
+        "compliance_risk": "high",
+        "evidence_dependency": "required",
+        "data_privacy_sensitivity": "high",
+        "requires_mlr_review": true,
+        "requires_contracting": false,
+        "requires_fmv_check": false,
+        "requires_consent": false,
+        "ae_reporting_route_required": true,
+        "digital_maturity_minimum": "digital_reluctant",
+        "min_evidence_maturity": "phase_4_rwe"
+      },
+      "stakeholder_persona_mapping": [
+        {
+          "stakeholder_id": "digital_therapeutics_company",
+          "stakeholder_category": "digital_health",
+          "engagement_priority": "secondary",
+          "preferred_channels": [
+            "virtual_meeting",
+            "email"
+          ],
+          "preferred_content_types": [
+            "data_partnership",
+            "protocol_design"
+          ],
+          "unmet_need_alignment": "Feasible data capture and partnership models for evidence generation",
+          "typical_engagement_frequency": "biannual",
+          "avg_engagement_duration_minutes": 60,
+          "response_rate_expected": 0.45,
+          "content_preference_weights": {
+            "research_methodology": 0.45,
+            "data_access": 0.35,
+            "collaboration_models": 0.2
+          }
+        }
+      ],
+      "effectiveness_modeling": {
+        "base_success_probability": 0.54,
+        "success_probability_distribution": {
+          "distribution_type": "beta",
+          "alpha": 6.3,
+          "beta": 5.37,
+          "mean": 0.54,
+          "stddev": 0.14,
+          "confidence_level": "medium",
+          "notes": "Default prior for simulation; calibrate with client data and regional maturity."
+        },
+        "effectiveness_factors": {
+          "msl_experience_level": {
+            "weight": 0.25,
+            "impact_range": [
+              0.85,
+              1.15
+            ]
+          },
+          "stakeholder_relationship_strength": {
+            "weight": 0.2,
+            "impact_range": [
+              0.8,
+              1.25
+            ]
+          },
+          "evidence_quality": {
+            "weight": 0.2,
+            "impact_range": [
+              0.75,
+              1.2
+            ]
+          },
+          "competitive_environment": {
+            "weight": 0.15,
+            "impact_range": [
+              0.85,
+              1.1
+            ]
+          },
+          "material_quality": {
+            "weight": 0.1,
+            "impact_range": [
+              0.9,
+              1.1
+            ]
+          },
+          "timing_appropriateness": {
+            "weight": 0.1,
+            "impact_range": [
+              0.9,
+              1.15
+            ]
+          }
+        },
+        "success_metrics": [
+          {
+            "metric": "engagement_completion_rate",
+            "target": 0.85,
+            "measurement_level": "activity"
+          },
+          {
+            "metric": "stakeholder_satisfaction_score",
+            "target": 4.2,
+            "scale": "1-5",
+            "measurement_level": "output"
+          },
+          {
+            "metric": "insight_quality_score",
+            "target": 0.75,
+            "measurement_level": "output"
+          },
+          {
+            "metric": "prescriber_behavior_influence",
+            "target": 0.15,
+            "measurement_level": "outcome"
+          }
+        ],
+        "failure_modes": [
+          {
+            "failure_type": "stakeholder_unavailable",
+            "probability": 0.15,
+            "mitigation": "Multiple contact attempts, flexible scheduling"
+          },
+          {
+            "failure_type": "insufficient_evidence_to_address_questions",
+            "probability": 0.08,
+            "mitigation": "Pre-engagement research, medical information backup"
+          },
+          {
+            "failure_type": "competitive_displacement",
+            "probability": 0.05,
+            "mitigation": "Early relationship building, differentiated value messaging"
+          }
+        ]
+      },
+      "resource_estimation": {
+        "cost_range_usd": {
+          "min": 500000,
+          "max": 5000000,
+          "confidence_level": "medium"
+        },
+        "resource_requirements": {
+          "ftes": {
+            "msl": {
+              "typical": 5.0,
+              "range": [
+                3.0,
+                10.0
+              ]
+            },
+            "msl_manager": {
+              "typical": 0.5,
+              "range": [
+                0.25,
+                1.0
+              ]
+            },
+            "medical_information_support": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            },
+            "operations_support": {
+              "typical": 0.25,
+              "range": [
+                0.1,
+                0.5
+              ]
+            }
+          },
+          "external_vendors": [
+            "CRM system subscription",
+            "Travel and logistics management",
+            "Insights analytics platform"
+          ],
+          "infrastructure": [
+            "CRM/SFA system",
+            "Content management system",
+            "Activity tracking platform",
+            "Insights repository"
+          ]
+        },
+        "timeline_estimate": {
+          "setup_weeks": 8,
+          "ramp_up_months": 3,
+          "steady_state_months": "ongoing"
+        },
+        "capacity_planning": {
+          "engagements_per_msl_per_month": {
+            "min": 15,
+            "typical": 25,
+            "max": 40
+          },
+          "territories_per_msl": {
+            "min": 1,
+            "typical": 2,
+            "max": 3
+          }
+        },
+        "roi_metrics": {
+          "primary": "incremental_prescriptions_influenced",
+          "secondary": [
+            "stakeholder_advocacy_increase",
+            "insight_value_score",
+            "relationship_depth_improvement"
+          ],
+          "expected_roi_range": [
+            2.5,
+            6.0
+          ],
+          "payback_period_months": [
+            6,
+            18
+          ]
+        }
+      },
+      "cascade": {
+        "supported_pillar_tags": [
+          "data_analytics",
+          "evidence_generation",
+          "rwe_generation"
+        ],
+        "incompatible_pillar_tags": [
+          "regulatory_submissions",
+          "internal_only"
+        ],
+        "linked_pillar_ids": [
+          "data_analytics",
+          "evidence_generation",
+          "rwe_generation"
+        ],
+        "linked_metric_ids": [
+          "clinical_practice_influence_score"
+        ],
+        "required_metric_levels": [
+          "activity",
+          "output",
+          "outcome"
+        ],
+        "eligible_stakeholder_category_keys": [
+          "digital_health"
+        ],
+        "ineligible_stakeholder_category_keys": [
+          "media_communication"
+        ],
+        "cascade_probability_weights": {
+          "to_insights": 0.6,
+          "to_publications": 0.55,
+          "to_kol_advocacy": 0.5
+        },
+        "supported_pillar_ids": [
+          "data_analytics",
+          "evidence_generation",
+          "rwe_generation"
+        ],
+        "linked_metric_ids_unresolved": [
+          "insight_generation_volume",
+          "stakeholder_reach"
+        ]
+      },
+      "content_intelligence": {
+        "reusable_content_modules": [
+          "Core clinical data slides",
+          "Safety profile summaries",
+          "MOA animations",
+          "Patient selection criteria",
+          "Dosing and administration guides",
+          "FAQ databases"
+        ],
+        "content_governance_priority": "high",
+        "mlr_approval_requirements": {
+          "core_materials": "full_review",
+          "reactive_responses": "pre_approved_templates",
+          "update_frequency": "quarterly_or_on_data_update"
+        },
+        "modular_content_dependencies": [
+          "Clinical trial results (from evidence_generation)",
+          "Publication reprints (from publication_strategy)",
+          "Competitive intelligence (from market_research)",
+          "Real-world evidence (from rwe_generation)"
+        ],
+        "content_lifecycle": {
+          "creation_lead_time_weeks": 6,
+          "mlr_review_weeks": 2,
+          "update_trigger_events": [
+            "new_clinical_data",
+            "label_update",
+            "competitive_launch",
+            "safety_signal"
+          ],
+          "retirement_trigger_events": [
+            "data_superseded",
+            "product_discontinuation",
+            "competitive_obsolescence"
+          ]
+        }
+      },
+      "regional_profiles": {
+        "UK": {
+          "viability": "highly_viable",
+          "viability_score": 0.9,
+          "cost_multiplier": 1.15,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 1.05,
+          "regulatory_notes": "EFPIA/ABPI-aligned transparency; member state / local code variability",
+          "market_dynamics": "NHS-centric; strong emphasis on NICE guidance alignment",
+          "tactical_adaptations": [
+            "Emphasize health economics and NHS value",
+            "Align messaging with NICE technology appraisals",
+            "Strong focus on real-world evidence"
+          ],
+          "typical_engagements_per_month_per_msl": 22
+        },
+        "EU": {
+          "viability": "highly_viable",
+          "viability_score": 0.88,
+          "cost_multiplier": 1.12,
+          "complexity_multiplier": 1.15,
+          "success_probability_modifier": 1.02,
+          "regulatory_notes": "EFPIA/ABPI-aligned transparency; member state / local code variability",
+          "market_dynamics": "Heterogeneous access landscape; HTA-driven",
+          "tactical_adaptations": [
+            "Country-specific value propositions",
+            "Local language materials required",
+            "Regional KOL networks critical"
+          ],
+          "typical_engagements_per_month_per_msl": 20
+        },
+        "US": {
+          "viability": "highly_viable",
+          "viability_score": 0.92,
+          "cost_multiplier": 1.3,
+          "complexity_multiplier": 1.2,
+          "success_probability_modifier": 1.08,
+          "regulatory_notes": "PhRMA code; Sunshine Act reporting",
+          "market_dynamics": "Highly competitive; payer access critical",
+          "tactical_adaptations": [
+            "Differentiated clinical value messaging",
+            "Payer evidence requirements front-loaded",
+            "High MSL credentialing standards"
+          ],
+          "typical_engagements_per_month_per_msl": 28
+        },
+        "Eastern_Europe": {
+          "viability": "viable",
+          "viability_score": 0.75,
+          "cost_multiplier": 0.7,
+          "complexity_multiplier": 0.95,
+          "success_probability_modifier": 0.92,
+          "regulatory_notes": "Variable regulatory frameworks; EU harmonization ongoing",
+          "market_dynamics": "Price-sensitive; relationship-driven access",
+          "tactical_adaptations": [
+            "Cost-effectiveness emphasis",
+            "Local clinical data valued",
+            "Relationship building prioritized"
+          ],
+          "typical_engagements_per_month_per_msl": 25
+        },
+        "LATAM": {
+          "viability": "viable",
+          "viability_score": 0.72,
+          "cost_multiplier": 0.65,
+          "complexity_multiplier": 1.1,
+          "success_probability_modifier": 0.88,
+          "regulatory_notes": "Country-specific regulations; high variability",
+          "market_dynamics": "Relationship-centric; government procurement dominant",
+          "tactical_adaptations": [
+            "Local language materials essential",
+            "Government stakeholder engagement",
+            "Budget impact emphasis"
+          ],
+          "typical_engagements_per_month_per_msl": 20
+        },
+        "SE_Asia_Emerging": {
+          "viability": "constrained",
+          "viability_score": 0.68,
+          "cost_multiplier": 0.6,
+          "complexity_multiplier": 1.25,
+          "success_probability_modifier": 0.82,
+          "regulatory_notes": "Rapidly evolving frameworks; digital opportunities",
+          "market_dynamics": "Emerging MSL infrastructure; growing sophistication",
+          "tactical_adaptations": [
+            "Hybrid digital-field approaches",
+            "Regional KOL hubs",
+            "Capacity building focus"
+          ],
+          "typical_engagements_per_month_per_msl": 18
+        },
+        "Middle_East": {
+          "viability": "viable",
+          "viability_score": 0.7,
+          "cost_multiplier": 0.75,
+          "complexity_multiplier": 1.2,
+          "success_probability_modifier": 0.85,
+          "regulatory_notes": "Government-centric approval; cultural considerations",
+          "market_dynamics": "Relationship-mediated; high government influence",
+          "tactical_adaptations": [
+            "Government stakeholder prioritization",
+            "Cultural sensitivity in engagement",
+            "Regional medical centers focus"
+          ],
+          "typical_engagements_per_month_per_msl": 18
+        }
+      },
+      "governance": {
+        "status": "draft",
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2025-12-30",
+        "next_review_date": "2026-03-31",
+        "owner_roles": [
+          "head_of_field_medical",
+          "msl_manager"
+        ],
+        "approval_requirements": {
+          "mlr_required": true,
+          "legal_review_required": false,
+          "compliance_review_required": true,
+          "budget_approval_threshold_usd": 50000
+        },
+        "change_log": [
+          {
+            "date": "2025-12-30",
+            "change": "Added hybrid v3.5 enhancements",
+            "approver": "head_of_medical_affairs"
+          }
+        ],
+        "notes": "Generated to complete tactic implementations; requires review and calibration."
+      },
+      "validation_flags": {
+        "unresolved_stakeholder_ids": [
+          "academic_researcher"
+        ]
+      }
+    }
+  ]
+}

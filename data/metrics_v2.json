@@ -1,0 +1,1658 @@
+{
+  "metadata": {
+    "schema_version": "3.5-hybrid",
+    "generated_on": "2025-12-30",
+    "description": "Hybrid metrics taxonomy combining MAPS-aligned measurement discipline with probabilistic modeling and contextual intelligence for Medical Affairs Intelligence Platform",
+    "design_philosophy": "Merge claim-bounded measurement (v3.0) with simulation-ready distributions (v2.1) for both compliance and optimization",
+    "alignment_frameworks": [
+      "MAPS_Field_Medical_KPIs",
+      "MAPS_iMC_Strategy_and_Plan",
+      "MAPS_Strategic_Medical_Planning"
+    ],
+    "model_runtime_target": "gpt-4.1 / claude-sonnet-4",
+    "regions_in_scope": [
+      "UK",
+      "EU",
+      "US",
+      "Eastern_Europe",
+      "LATAM",
+      "SE_Asia_Emerging",
+      "Middle_East"
+    ],
+    "design_principles": [
+      "Claim discipline via max_claim_level_supported (prevents over-claiming)",
+      "Confidence-by-region to avoid inferred data maturity",
+      "Explicit calculation definitions and provenance",
+      "Probabilistic distributions for simulation and forecasting",
+      "Context-aware targets (therapy area, lifecycle, region)",
+      "ROI attribution and strategic criticality modeling"
+    ],
+    "simulation_capabilities": {
+      "monte_carlo_ready": true,
+      "contextual_targeting_ready": true,
+      "roi_attribution_ready": true,
+      "forecasting_ready": true
+    },
+    "last_updated": "2026-01-19",
+    "refactor_notes": [
+      "Added full implementation for stakeholder_reach_percentage",
+      "Fixed linked_pillar_ids: replaced evidence_dissemination with scientific_exchange in publication_citation_impact",
+      "Added cascade.linked_tactic_ids to improve semantic interconnection"
+    ]
+  },
+  "enums": {
+    "priority_level": [
+      "low",
+      "medium",
+      "high",
+      "very_high",
+      "critical"
+    ],
+    "metric_level": [
+      "activity",
+      "output",
+      "outcome",
+      "impact"
+    ],
+    "indicator_type": [
+      "leading",
+      "lagging",
+      "concurrent"
+    ],
+    "metric_kind": [
+      "count",
+      "rate",
+      "ratio",
+      "percentage",
+      "score",
+      "time",
+      "cost",
+      "index",
+      "boolean",
+      "currency"
+    ],
+    "confidence_level": [
+      "very_low",
+      "low",
+      "medium",
+      "high",
+      "very_high"
+    ],
+    "cadence": [
+      "real_time",
+      "daily",
+      "weekly",
+      "biweekly",
+      "monthly",
+      "quarterly",
+      "biannual",
+      "annual",
+      "ad_hoc"
+    ],
+    "data_source_type": [
+      "crm",
+      "medical_information",
+      "publication_tracker",
+      "congress_system",
+      "digital_analytics",
+      "survey",
+      "secondary_dataset",
+      "registry",
+      "ehr_claims",
+      "payer_data",
+      "internal_finance",
+      "manual_entry",
+      "api_integration",
+      "third_party_vendor"
+    ],
+    "claim_ceiling": [
+      "activity",
+      "output",
+      "outcome",
+      "impact"
+    ],
+    "privacy_sensitivity": [
+      "none",
+      "low",
+      "medium",
+      "high",
+      "very_high"
+    ],
+    "governance_gate": [
+      "draft",
+      "review",
+      "approved",
+      "active",
+      "sunset",
+      "retired"
+    ],
+    "tactic_family": [
+      "scientific_exchange",
+      "insight_generation",
+      "evidence_generation",
+      "evidence_dissemination",
+      "medical_education",
+      "digital_omnichannel",
+      "publication_strategy",
+      "advisory_boards",
+      "market_access_value",
+      "patient_advocacy",
+      "internal_enablement",
+      "data_partnership"
+    ],
+    "aggregation_method": [
+      "sum",
+      "mean",
+      "median",
+      "min",
+      "max",
+      "count_distinct",
+      "weighted_average",
+      "none"
+    ],
+    "distribution_type": [
+      "normal",
+      "beta",
+      "gamma",
+      "poisson",
+      "binomial",
+      "uniform",
+      "empirical"
+    ]
+  },
+  "cascade_contract": {
+    "description": "Defines how metrics receive constraints from pillars/tactics/stakeholders and enable measurement reporting",
+    "canonical_link_fields": {
+      "tactic_families": {
+        "target": "tactics.json",
+        "mechanism": "Metrics bound to specific tactic families; tactics declare required_metric_levels"
+      },
+      "pillar_ids_or_tags": {
+        "target": "pillars.json",
+        "mechanism": "Metrics support pillar measurement; pillars declare minimum_metric_level_required"
+      },
+      "stakeholder_category_keys": {
+        "target": "stakeholders.json",
+        "mechanism": "Metrics bound by stakeholder measurement ceilings; prevents over-claiming"
+      }
+    },
+    "required_metric_fields": [
+      "id",
+      "name",
+      "metric_definition.definition",
+      "metric_definition.calculation_method",
+      "maps_measurement.metric_level",
+      "maps_measurement.indicator_type",
+      "maps_measurement.max_claim_level_supported",
+      "data_provenance.primary_source",
+      "data_provenance.cadence",
+      "data_provenance.confidence_by_region"
+    ]
+  },
+  "metric_categories": [
+    "engagement",
+    "insight_generation",
+    "publication_dissemination",
+    "education_awareness",
+    "market_access",
+    "clinical_outcomes",
+    "safety",
+    "operational_efficiency",
+    "financial_roi"
+  ],
+  "metric_index": {
+    "msl_engagement_rate": {
+      "name": "MSL Engagement Rate",
+      "category": "engagement",
+      "metric_level": "activity",
+      "priority": "high"
+    },
+    "stakeholder_reach_percentage": {
+      "name": "Stakeholder Reach Percentage",
+      "category": "engagement",
+      "metric_level": "output",
+      "priority": "high"
+    },
+    "kol_advocacy_index": {
+      "name": "KOL Advocacy Index",
+      "category": "engagement",
+      "metric_level": "outcome",
+      "priority": "very_high"
+    },
+    "publication_citation_impact": {
+      "name": "Publication Citation Impact",
+      "category": "publication_dissemination",
+      "metric_level": "outcome",
+      "priority": "high"
+    },
+    "clinical_practice_influence_score": {
+      "name": "Clinical Practice Influence Score",
+      "category": "publication_dissemination",
+      "metric_level": "impact",
+      "priority": "very_high"
+    }
+  },
+  "metrics": [
+    {
+      "id": "clinical_practice_influence_score",
+      "name": "Clinical Practice Influence Score",
+      "category": "publication_dissemination",
+      "priority_level": "very_high",
+      "tags": [
+        "impact",
+        "practice_change",
+        "guidelines",
+        "real_world"
+      ],
+      "metric_definition": {
+        "definition": "A composite index measuring the extent to which medical affairs activities have influenced actual clinical practice patterns, treatment guidelines, and healthcare provider behavior",
+        "calculation_method": "Weighted composite of: (1) Guideline citation rate (35%), (2) Prescribing behavior change in target segments (30%), (3) Treatment protocol adoption (20%), (4) Medical education impact (10%), (5) Real-world evidence uptake (5%)",
+        "unit": "index_score",
+        "scale": "0-100",
+        "interpretation": "Measures ultimate impact on clinical practice. Scores >70 indicate substantial practice influence; 50-70 moderate influence; <50 limited influence",
+        "clinical_relevance": "The ultimate measure of medical affairs success - changing how medicine is practiced",
+        "business_relevance": "Direct predictor of market access success, prescriber adoption, and long-term product success"
+      },
+      "maps_measurement": {
+        "metric_level": "impact",
+        "indicator_type": "lagging",
+        "max_claim_level_supported": "impact",
+        "measurement_notes": "Impact-level metric representing the pinnacle of medical affairs measurement - actual practice change",
+        "linked_outcomes": [
+          "market_share",
+          "patient_access",
+          "treatment_paradigm_shift"
+        ]
+      },
+      "data_provenance": {
+        "primary_source": "secondary_dataset",
+        "secondary_sources": [
+          "ehr_claims",
+          "payer_data",
+          "survey",
+          "publication_tracker"
+        ],
+        "collection_method": "Multi-source data integration: Claims analysis for prescribing patterns, guideline database monitoring, treatment protocol surveys, medical education impact assessments",
+        "cadence": "quarterly",
+        "lag_time_days": 90,
+        "data_quality_controls": [
+          "Multi-source data triangulation",
+          "Statistical significance testing",
+          "Confounding factor adjustment",
+          "Baseline trend normalization"
+        ],
+        "confidence_by_region": {
+          "UK": {
+            "confidence_level": "high",
+            "data_maturity": "established",
+            "notes": "NHS data provides strong prescribing signal; NICE guideline tracking"
+          },
+          "EU": {
+            "confidence_level": "medium",
+            "data_maturity": "developing",
+            "notes": "Variable data access across member states"
+          },
+          "US": {
+            "confidence_level": "very_high",
+            "data_maturity": "mature",
+            "notes": "Comprehensive claims data and prescribing analytics available"
+          },
+          "Eastern_Europe": {
+            "confidence_level": "low",
+            "data_maturity": "emerging",
+            "notes": "Limited prescribing data infrastructure"
+          },
+          "LATAM": {
+            "confidence_level": "low",
+            "data_maturity": "emerging",
+            "notes": "Fragmented data sources; survey-heavy methodology"
+          },
+          "SE_Asia_Emerging": {
+            "confidence_level": "very_low",
+            "data_maturity": "nascent",
+            "notes": "Limited systematic practice tracking"
+          },
+          "Middle_East": {
+            "confidence_level": "low",
+            "data_maturity": "emerging",
+            "notes": "Growing data infrastructure; government-centric"
+          }
+        },
+        "privacy_sensitivity": "high",
+        "phi_risk": true,
+        "requires_consent": true
+      },
+      "statistical_model": {
+        "distribution_type": "beta",
+        "base_parameters": {
+          "alpha": 10.0,
+          "beta": 15.0,
+          "mean": 0.4,
+          "stddev": 0.1,
+          "min": 0.05,
+          "max": 0.9
+        },
+        "contextual_modifiers": {
+          "therapy_area": {
+            "oncology": {
+              "mean_modifier": 1.25,
+              "note": "Rapid practice evolution"
+            },
+            "rare_disease": {
+              "mean_modifier": 1.4,
+              "note": "Concentrated practice influence"
+            },
+            "cardiovascular": {
+              "mean_modifier": 1.1,
+              "note": "Guideline-driven practice"
+            },
+            "primary_care": {
+              "mean_modifier": 0.75,
+              "note": "Slower practice change"
+            }
+          },
+          "lifecycle_phase": {
+            "prelaunch": {
+              "mean_modifier": 0.3,
+              "note": "Minimal practice influence"
+            },
+            "launch": {
+              "mean_modifier": 0.6,
+              "note": "Early adopters"
+            },
+            "postlaunch_T0_to_T12": {
+              "mean_modifier": 0.85,
+              "note": "Building influence"
+            },
+            "beyond_T12": {
+              "mean_modifier": 1.15,
+              "note": "Established practice pattern"
+            }
+          },
+          "evidence_quality": {
+            "breakthrough_data": {
+              "mean_modifier": 1.5
+            },
+            "strong_data": {
+              "mean_modifier": 1.25
+            },
+            "moderate_data": {
+              "mean_modifier": 1.0
+            },
+            "limited_data": {
+              "mean_modifier": 0.7
+            }
+          },
+          "competitive_landscape": {
+            "first_in_class": {
+              "mean_modifier": 1.4
+            },
+            "best_in_class": {
+              "mean_modifier": 1.25
+            },
+            "me_too": {
+              "mean_modifier": 0.75
+            }
+          }
+        },
+        "simulation_ready": true
+      },
+      "targets": {
+        "global_baseline": {
+          "target": 45,
+          "stretch": 60,
+          "minimum_acceptable": 25
+        },
+        "by_region": {
+          "US": {
+            "target": 50,
+            "stretch": 65
+          },
+          "EU": {
+            "target": 42,
+            "stretch": 57
+          },
+          "UK": {
+            "target": 48,
+            "stretch": 63
+          },
+          "Eastern_Europe": {
+            "target": 30,
+            "stretch": 45
+          },
+          "LATAM": {
+            "target": 28,
+            "stretch": 43
+          },
+          "SE_Asia_Emerging": {
+            "target": 22,
+            "stretch": 37
+          },
+          "Middle_East": {
+            "target": 32,
+            "stretch": 47
+          }
+        },
+        "by_lifecycle": {
+          "launch_year": {
+            "target": 25,
+            "stretch": 35
+          },
+          "year_2": {
+            "target": 40,
+            "stretch": 55
+          },
+          "year_3_plus": {
+            "target": 50,
+            "stretch": 65
+          }
+        },
+        "by_product_type": {
+          "breakthrough": {
+            "target": 60,
+            "stretch": 75
+          },
+          "standard": {
+            "target": 45,
+            "stretch": 60
+          },
+          "incremental": {
+            "target": 30,
+            "stretch": 45
+          }
+        }
+      },
+      "benchmarks": {
+        "industry_percentiles": {
+          "p25": 28,
+          "p50": 42,
+          "p75": 58,
+          "p90": 72
+        },
+        "best_in_class": 82,
+        "source": "Medical affairs impact study 2024",
+        "last_updated": "2024-09-15"
+      },
+      "classification_thresholds": {
+        "minimal_influence": 20,
+        "limited_influence": 35,
+        "moderate_influence": 50,
+        "substantial_influence": 65,
+        "transformative_influence": 80
+      },
+      "cascade": {
+        "linked_tactic_families": [
+          "scientific_exchange",
+          "publication_strategy",
+          "medical_education",
+          "advisory_boards",
+          "evidence_dissemination"
+        ],
+        "linked_pillar_ids": [
+          "kol_engagement",
+          "publications",
+          "scientific_exchange",
+          "hcp_education",
+          "evidence_interpretation"
+        ],
+        "linked_stakeholder_categories": [
+          "external_experts",
+          "healthcare_professionals",
+          "societies_associations",
+          "guideline_bodies"
+        ],
+        "measurement_ceiling_by_stakeholder": {
+          "external_experts": "impact",
+          "healthcare_professionals": "impact",
+          "societies_associations": "impact",
+          "guideline_bodies": "impact"
+        },
+        "linked_tactic_ids": [
+          "hcp_education_program",
+          "congress_symposium",
+          "payer_value_dossier",
+          "rwe_registry"
+        ]
+      },
+      "roi_attribution": {
+        "roi_relevance_weight": 1.0,
+        "strategic_critical": true,
+        "contributes_to_outcomes": [
+          "market_share_growth",
+          "revenue_growth",
+          "patient_access",
+          "competitive_differentiation",
+          "brand_equity"
+        ],
+        "typical_cost_per_point_improvement": {
+          "mean": 125000,
+          "note": "USD to improve practice influence score by 1 point (high investment required)"
+        },
+        "estimated_roi_multiplier": {
+          "mean": 12.5,
+          "range": [
+            6.0,
+            25.0
+          ],
+          "note": "Ultimate ROI metric - practice influence drives long-term value"
+        }
+      },
+      "operational": {
+        "reporting_frequency": "quarterly",
+        "aggregation_method": "weighted_average",
+        "aggregation_levels": [
+          "therapy_area",
+          "region",
+          "global"
+        ],
+        "alert_thresholds": {
+          "critical_low": 15,
+          "warning_low": 30,
+          "warning_high": null
+        },
+        "dashboard_priority": "critical",
+        "kpi_board_inclusion": true
+      },
+      "governance": {
+        "status": "approved",
+        "review_cadence": "biannual",
+        "last_reviewed_on": "2025-12-30",
+        "owner_roles": [
+          "chief_medical_officer",
+          "head_of_medical_affairs"
+        ],
+        "data_steward": "medical_strategy",
+        "notes": "Ultimate impact metric for medical affairs; requires C-suite visibility"
+      }
+    },
+    {
+      "id": "kol_advocacy_index",
+      "name": "KOL Advocacy Index",
+      "category": "engagement",
+      "priority_level": "very_high",
+      "tags": [
+        "kol",
+        "advocacy",
+        "influence",
+        "outcome"
+      ],
+      "metric_definition": {
+        "definition": "A composite score measuring the degree to which key opinion leaders actively support and advocate for the product or therapeutic approach",
+        "calculation_method": "Weighted composite of: (1) Speaking/presentation frequency (30%), (2) Publication authorship (25%), (3) Social media advocacy (15%), (4) Guideline committee participation (20%), (5) Peer recommendation score from surveys (10%)",
+        "unit": "index_score",
+        "scale": "0-100",
+        "interpretation": "Higher scores indicate stronger KOL advocacy and influence. Scores >75 indicate active advocacy; 50-75 neutral; <50 indicate limited or negative sentiment",
+        "clinical_relevance": "KOL advocacy drives treatment adoption and shapes clinical practice patterns",
+        "business_relevance": "Strong predictor of market share growth and prescriber behavior change"
+      },
+      "maps_measurement": {
+        "metric_level": "outcome",
+        "indicator_type": "lagging",
+        "max_claim_level_supported": "impact",
+        "measurement_notes": "Outcome-level metric that can support impact claims when correlated with prescribing behavior or guideline adoption",
+        "linked_outcomes": [
+          "prescriber_adoption_rate",
+          "guideline_inclusion",
+          "market_share_growth"
+        ]
+      },
+      "data_provenance": {
+        "primary_source": "survey",
+        "secondary_sources": [
+          "publication_tracker",
+          "digital_analytics",
+          "congress_system"
+        ],
+        "collection_method": "Quarterly KOL surveys combined with automated tracking of publications, speaking, and digital presence",
+        "cadence": "quarterly",
+        "lag_time_days": 45,
+        "data_quality_controls": [
+          "KOL identity verification",
+          "Survey response validation",
+          "Publication attribution verification",
+          "Speaking engagement confirmation"
+        ],
+        "confidence_by_region": {
+          "UK": {
+            "confidence_level": "high",
+            "data_maturity": "established",
+            "notes": "Strong KOL tracking infrastructure"
+          },
+          "EU": {
+            "confidence_level": "high",
+            "data_maturity": "established",
+            "notes": "Good multi-country KOL mapping"
+          },
+          "US": {
+            "confidence_level": "very_high",
+            "data_maturity": "mature",
+            "notes": "Advanced KOL tracking and analytics"
+          },
+          "Eastern_Europe": {
+            "confidence_level": "medium",
+            "data_maturity": "developing",
+            "notes": "KOL networks less formalized"
+          },
+          "LATAM": {
+            "confidence_level": "medium",
+            "data_maturity": "developing",
+            "notes": "Growing KOL tracking capabilities"
+          },
+          "SE_Asia_Emerging": {
+            "confidence_level": "low",
+            "data_maturity": "emerging",
+            "notes": "KOL mapping infrastructure developing"
+          },
+          "Middle_East": {
+            "confidence_level": "medium",
+            "data_maturity": "developing",
+            "notes": "Regional KOL networks identified"
+          }
+        },
+        "privacy_sensitivity": "medium",
+        "phi_risk": false,
+        "requires_consent": true
+      },
+      "statistical_model": {
+        "distribution_type": "beta",
+        "base_parameters": {
+          "alpha": 15.0,
+          "beta": 10.0,
+          "mean": 0.6,
+          "stddev": 0.1,
+          "min": 0.2,
+          "max": 0.95
+        },
+        "contextual_modifiers": {
+          "therapy_area": {
+            "oncology": {
+              "mean_modifier": 1.15,
+              "note": "High KOL engagement and advocacy culture"
+            },
+            "rare_disease": {
+              "mean_modifier": 1.2,
+              "note": "Tight-knit specialist communities"
+            },
+            "cardiovascular": {
+              "mean_modifier": 1.05,
+              "note": "Established KOL networks"
+            },
+            "primary_care": {
+              "mean_modifier": 0.85,
+              "note": "Diffuse opinion leadership"
+            }
+          },
+          "lifecycle_phase": {
+            "prelaunch_T-48_to_T-24": {
+              "mean_modifier": 0.75,
+              "note": "Early relationship building"
+            },
+            "perilaunch_T-24_to_T-12": {
+              "mean_modifier": 0.85,
+              "note": "Growing advocacy"
+            },
+            "launch_T-12_to_T0": {
+              "mean_modifier": 1.05,
+              "note": "Peak advocacy activation"
+            },
+            "postlaunch_T0_to_T12": {
+              "mean_modifier": 1.1,
+              "note": "Sustained active advocacy"
+            },
+            "beyond_T12": {
+              "mean_modifier": 0.95,
+              "note": "Mature advocacy"
+            }
+          },
+          "region": {
+            "US": {
+              "mean_modifier": 1.12
+            },
+            "EU": {
+              "mean_modifier": 1.05
+            },
+            "UK": {
+              "mean_modifier": 1.08
+            },
+            "Eastern_Europe": {
+              "mean_modifier": 0.88
+            },
+            "LATAM": {
+              "mean_modifier": 0.85
+            },
+            "SE_Asia_Emerging": {
+              "mean_modifier": 0.8
+            },
+            "Middle_East": {
+              "mean_modifier": 0.9
+            }
+          },
+          "competitive_intensity": {
+            "high": {
+              "mean_modifier": 0.85,
+              "note": "Divided advocacy"
+            },
+            "medium": {
+              "mean_modifier": 1.0
+            },
+            "low": {
+              "mean_modifier": 1.15,
+              "note": "Concentrated advocacy"
+            }
+          }
+        },
+        "simulation_ready": true
+      },
+      "targets": {
+        "global_baseline": {
+          "target": 65,
+          "stretch": 75,
+          "minimum_acceptable": 50
+        },
+        "by_region": {
+          "US": {
+            "target": 70,
+            "stretch": 80
+          },
+          "EU": {
+            "target": 67,
+            "stretch": 77
+          },
+          "UK": {
+            "target": 68,
+            "stretch": 78
+          },
+          "Eastern_Europe": {
+            "target": 57,
+            "stretch": 67
+          },
+          "LATAM": {
+            "target": 55,
+            "stretch": 65
+          },
+          "SE_Asia_Emerging": {
+            "target": 52,
+            "stretch": 62
+          },
+          "Middle_East": {
+            "target": 58,
+            "stretch": 68
+          }
+        },
+        "by_lifecycle": {
+          "prelaunch": {
+            "target": 50,
+            "stretch": 60
+          },
+          "launch": {
+            "target": 70,
+            "stretch": 80
+          },
+          "postlaunch": {
+            "target": 75,
+            "stretch": 85
+          },
+          "mature": {
+            "target": 65,
+            "stretch": 75
+          }
+        },
+        "by_kol_tier": {
+          "tier_1_national": {
+            "target": 80,
+            "stretch": 90
+          },
+          "tier_2_regional": {
+            "target": 65,
+            "stretch": 75
+          },
+          "tier_3_emerging": {
+            "target": 50,
+            "stretch": 60
+          }
+        }
+      },
+      "benchmarks": {
+        "industry_percentiles": {
+          "p25": 48,
+          "p50": 62,
+          "p75": 74,
+          "p90": 82
+        },
+        "best_in_class": 88,
+        "source": "KOL engagement benchmarking study 2024",
+        "last_updated": "2024-11-15"
+      },
+      "classification_thresholds": {
+        "negative_advocacy": 35,
+        "neutral": 50,
+        "moderate_advocacy": 65,
+        "strong_advocacy": 75,
+        "exceptional_advocacy": 85
+      },
+      "cascade": {
+        "linked_tactic_families": [
+          "scientific_exchange",
+          "advisory_boards",
+          "publication_strategy"
+        ],
+        "linked_pillar_ids": [
+          "kol_engagement",
+          "scientific_exchange",
+          "publications"
+        ],
+        "linked_stakeholder_categories": [
+          "external_experts"
+        ],
+        "measurement_ceiling_by_stakeholder": {
+          "external_experts": "impact"
+        },
+        "linked_tactic_ids": [
+          "kol_advisory_board"
+        ]
+      },
+      "roi_attribution": {
+        "roi_relevance_weight": 1.0,
+        "strategic_critical": true,
+        "contributes_to_outcomes": [
+          "prescriber_behavior_change",
+          "guideline_influence",
+          "market_share_growth",
+          "competitive_differentiation"
+        ],
+        "typical_cost_per_point_improvement": {
+          "mean": 35000,
+          "note": "USD to improve advocacy index by 1 point"
+        },
+        "estimated_roi_multiplier": {
+          "mean": 6.5,
+          "range": [
+            3.0,
+            12.0
+          ],
+          "note": "Each dollar spent on KOL engagement returns 6.5x in value"
+        }
+      },
+      "operational": {
+        "reporting_frequency": "quarterly",
+        "aggregation_method": "weighted_average",
+        "aggregation_levels": [
+          "kol_individual",
+          "kol_tier",
+          "region",
+          "global"
+        ],
+        "alert_thresholds": {
+          "critical_low": 40,
+          "warning_low": 50,
+          "warning_high": null
+        },
+        "dashboard_priority": "critical",
+        "kpi_board_inclusion": true
+      },
+      "governance": {
+        "status": "approved",
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2025-12-30",
+        "owner_roles": [
+          "head_of_medical_affairs",
+          "kol_management_lead"
+        ],
+        "data_steward": "medical_strategy",
+        "notes": "Strategic KOL performance metric with direct business impact"
+      }
+    },
+    {
+      "id": "msl_engagement_rate",
+      "name": "MSL Engagement Rate",
+      "category": "engagement",
+      "priority_level": "high",
+      "tags": [
+        "field_medical",
+        "msl",
+        "activity_tracking"
+      ],
+      "metric_definition": {
+        "definition": "The proportion of planned MSL engagements that were successfully completed within a given time period",
+        "calculation_method": "(Number of completed engagements / Number of planned engagements) × 100",
+        "unit": "percentage",
+        "scale": "0-100%",
+        "interpretation": "Higher values indicate better execution of engagement plans and stakeholder accessibility",
+        "clinical_relevance": "Leading indicator of stakeholder relationship strength and field medical team effectiveness",
+        "business_relevance": "Measures operational efficiency of MSL resources and identifies access barriers"
+      },
+      "maps_measurement": {
+        "metric_level": "activity",
+        "indicator_type": "leading",
+        "max_claim_level_supported": "output",
+        "measurement_notes": "Activity-level metric that can support output claims about reach but cannot directly claim outcome or impact",
+        "linked_outcomes": [
+          "stakeholder_satisfaction",
+          "insight_generation_volume",
+          "prescriber_awareness"
+        ]
+      },
+      "data_provenance": {
+        "primary_source": "crm",
+        "secondary_sources": [
+          "manual_entry",
+          "calendar_systems"
+        ],
+        "collection_method": "Automated CRM tracking with manual validation",
+        "cadence": "monthly",
+        "lag_time_days": 7,
+        "data_quality_controls": [
+          "Engagement completion validation",
+          "Stakeholder identity verification",
+          "Duplicate detection"
+        ],
+        "confidence_by_region": {
+          "UK": {
+            "confidence_level": "high",
+            "data_maturity": "established",
+            "notes": "Mature CRM adoption; consistent tracking"
+          },
+          "EU": {
+            "confidence_level": "high",
+            "data_maturity": "established",
+            "notes": "Good CRM infrastructure; minor country variability"
+          },
+          "US": {
+            "confidence_level": "very_high",
+            "data_maturity": "mature",
+            "notes": "Advanced CRM systems; comprehensive tracking"
+          },
+          "Eastern_Europe": {
+            "confidence_level": "medium",
+            "data_maturity": "developing",
+            "notes": "CRM adoption improving; some manual tracking gaps"
+          },
+          "LATAM": {
+            "confidence_level": "medium",
+            "data_maturity": "developing",
+            "notes": "Variable CRM maturity across countries"
+          },
+          "SE_Asia_Emerging": {
+            "confidence_level": "low",
+            "data_maturity": "emerging",
+            "notes": "CRM infrastructure developing; high manual component"
+          },
+          "Middle_East": {
+            "confidence_level": "medium",
+            "data_maturity": "developing",
+            "notes": "Growing CRM adoption; relationship-driven tracking"
+          }
+        },
+        "privacy_sensitivity": "medium",
+        "phi_risk": false,
+        "requires_consent": false
+      },
+      "statistical_model": {
+        "distribution_type": "beta",
+        "base_parameters": {
+          "alpha": 72.0,
+          "beta": 13.0,
+          "mean": 0.847,
+          "stddev": 0.039,
+          "min": 0.65,
+          "max": 0.98
+        },
+        "contextual_modifiers": {
+          "therapy_area": {
+            "oncology": {
+              "mean_modifier": 1.02,
+              "note": "High HCP engagement willingness"
+            },
+            "rare_disease": {
+              "mean_modifier": 0.95,
+              "note": "Limited specialist availability"
+            },
+            "primary_care": {
+              "mean_modifier": 0.88,
+              "note": "Access challenges due to high volume"
+            }
+          },
+          "lifecycle_phase": {
+            "prelaunch_T-48_to_T-24": {
+              "mean_modifier": 0.92,
+              "note": "Early relationship building"
+            },
+            "launch_T-12_to_T0": {
+              "mean_modifier": 1.05,
+              "note": "Peak engagement priority"
+            },
+            "postlaunch_T0_to_T12": {
+              "mean_modifier": 0.97,
+              "note": "Sustained engagement"
+            },
+            "beyond_T12": {
+              "mean_modifier": 0.9,
+              "note": "Mature product engagement"
+            }
+          },
+          "region": {
+            "US": {
+              "mean_modifier": 1.08
+            },
+            "EU": {
+              "mean_modifier": 1.02
+            },
+            "UK": {
+              "mean_modifier": 1.0
+            },
+            "Eastern_Europe": {
+              "mean_modifier": 0.92
+            },
+            "LATAM": {
+              "mean_modifier": 0.88
+            },
+            "SE_Asia_Emerging": {
+              "mean_modifier": 0.85
+            },
+            "Middle_East": {
+              "mean_modifier": 0.9
+            }
+          }
+        },
+        "simulation_ready": true
+      },
+      "targets": {
+        "global_baseline": {
+          "target": 0.85,
+          "stretch": 0.92,
+          "minimum_acceptable": 0.75
+        },
+        "by_region": {
+          "US": {
+            "target": 0.9,
+            "stretch": 0.95
+          },
+          "EU": {
+            "target": 0.87,
+            "stretch": 0.93
+          },
+          "UK": {
+            "target": 0.85,
+            "stretch": 0.91
+          },
+          "Eastern_Europe": {
+            "target": 0.78,
+            "stretch": 0.85
+          },
+          "LATAM": {
+            "target": 0.75,
+            "stretch": 0.82
+          },
+          "SE_Asia_Emerging": {
+            "target": 0.72,
+            "stretch": 0.8
+          },
+          "Middle_East": {
+            "target": 0.77,
+            "stretch": 0.84
+          }
+        },
+        "by_lifecycle": {
+          "launch": {
+            "target": 0.9,
+            "stretch": 0.95
+          },
+          "postlaunch": {
+            "target": 0.85,
+            "stretch": 0.9
+          },
+          "mature": {
+            "target": 0.8,
+            "stretch": 0.85
+          }
+        }
+      },
+      "benchmarks": {
+        "industry_percentiles": {
+          "p25": 0.75,
+          "p50": 0.84,
+          "p75": 0.91,
+          "p90": 0.95
+        },
+        "best_in_class": 0.96,
+        "source": "Industry benchmarking study 2024",
+        "last_updated": "2024-12-01"
+      },
+      "classification_thresholds": {
+        "critical_low": 0.65,
+        "needs_improvement": 0.75,
+        "meets_expectations": 0.85,
+        "exceeds_expectations": 0.92,
+        "exceptional": 0.95
+      },
+      "cascade": {
+        "linked_tactic_families": [
+          "scientific_exchange"
+        ],
+        "linked_pillar_ids": [
+          "field_medical",
+          "scientific_exchange"
+        ],
+        "linked_stakeholder_categories": [
+          "healthcare_professionals",
+          "external_experts"
+        ],
+        "measurement_ceiling_by_stakeholder": {
+          "healthcare_professionals": "output",
+          "external_experts": "output"
+        },
+        "linked_tactic_ids": [
+          "msl_field_engagement",
+          "omnichannel_campaign",
+          "hcp_education_program"
+        ]
+      },
+      "roi_attribution": {
+        "roi_relevance_weight": 0.65,
+        "strategic_critical": false,
+        "contributes_to_outcomes": [
+          "stakeholder_awareness",
+          "relationship_strength",
+          "insight_generation"
+        ],
+        "typical_cost_per_point_improvement": {
+          "mean": 12000,
+          "note": "USD to improve engagement rate by 1 percentage point"
+        }
+      },
+      "operational": {
+        "reporting_frequency": "monthly",
+        "aggregation_method": "mean",
+        "aggregation_levels": [
+          "msl",
+          "team",
+          "region",
+          "global"
+        ],
+        "alert_thresholds": {
+          "critical_low": 0.65,
+          "warning_low": 0.75
+        },
+        "dashboard_priority": "high",
+        "kpi_board_inclusion": true
+      },
+      "governance": {
+        "status": "approved",
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2025-12-30",
+        "owner_roles": [
+          "head_of_field_medical",
+          "msl_manager"
+        ],
+        "data_steward": "medical_operations",
+        "notes": "Core MSL performance metric"
+      }
+    },
+    {
+      "id": "publication_citation_impact",
+      "name": "Publication Citation Impact",
+      "category": "publication_dissemination",
+      "priority_level": "high",
+      "tags": [
+        "publication",
+        "citations",
+        "scientific_impact",
+        "outcome"
+      ],
+      "metric_definition": {
+        "definition": "The average number of citations received by publications within 12 months of publication, weighted by journal impact factor",
+        "calculation_method": "Σ(citations_per_paper_12mo × journal_impact_factor) / number_of_publications",
+        "unit": "weighted_citation_count",
+        "scale": "0-100+",
+        "interpretation": "Higher values indicate greater scientific impact and uptake of published research. Values >50 indicate high impact; 25-50 moderate impact; <25 limited impact",
+        "clinical_relevance": "Citation rates indicate scientific community acceptance and influence on clinical thinking",
+        "business_relevance": "Strong predictor of guideline influence, HCP awareness, and competitive scientific positioning"
+      },
+      "maps_measurement": {
+        "metric_level": "outcome",
+        "indicator_type": "lagging",
+        "max_claim_level_supported": "impact",
+        "measurement_notes": "Outcome-level metric; can support impact claims when linked to guideline citations or practice change",
+        "linked_outcomes": [
+          "guideline_inclusion",
+          "clinical_practice_change",
+          "share_of_scientific_voice"
+        ]
+      },
+      "data_provenance": {
+        "primary_source": "publication_tracker",
+        "secondary_sources": [
+          "third_party_vendor",
+          "api_integration"
+        ],
+        "collection_method": "Automated tracking via Web of Science, Scopus, and PubMed Central APIs",
+        "cadence": "monthly",
+        "lag_time_days": 30,
+        "data_quality_controls": [
+          "Publication attribution verification",
+          "Citation source validation",
+          "Self-citation exclusion",
+          "Impact factor accuracy check"
+        ],
+        "confidence_by_region": {
+          "UK": {
+            "confidence_level": "very_high",
+            "data_maturity": "mature",
+            "notes": "Comprehensive citation tracking"
+          },
+          "EU": {
+            "confidence_level": "very_high",
+            "data_maturity": "mature",
+            "notes": "Strong European journal coverage"
+          },
+          "US": {
+            "confidence_level": "very_high",
+            "data_maturity": "mature",
+            "notes": "Complete citation database access"
+          },
+          "Eastern_Europe": {
+            "confidence_level": "high",
+            "data_maturity": "established",
+            "notes": "Good coverage of major journals"
+          },
+          "LATAM": {
+            "confidence_level": "high",
+            "data_maturity": "established",
+            "notes": "Regional and international journal tracking"
+          },
+          "SE_Asia_Emerging": {
+            "confidence_level": "medium",
+            "data_maturity": "developing",
+            "notes": "Growing regional journal indexing"
+          },
+          "Middle_East": {
+            "confidence_level": "high",
+            "data_maturity": "established",
+            "notes": "International journal tracking reliable"
+          }
+        },
+        "privacy_sensitivity": "none",
+        "phi_risk": false,
+        "requires_consent": false
+      },
+      "statistical_model": {
+        "distribution_type": "gamma",
+        "base_parameters": {
+          "shape": 3.5,
+          "scale": 8.2,
+          "mean": 28.7,
+          "stddev": 15.3,
+          "min": 2,
+          "max": 120
+        },
+        "contextual_modifiers": {
+          "therapy_area": {
+            "oncology": {
+              "mean_modifier": 1.35,
+              "note": "High citation rates in oncology"
+            },
+            "rare_disease": {
+              "mean_modifier": 0.95,
+              "note": "Smaller citation base"
+            },
+            "cardiovascular": {
+              "mean_modifier": 1.25,
+              "note": "Established citation culture"
+            },
+            "neurology": {
+              "mean_modifier": 1.15,
+              "note": "Strong research community"
+            }
+          },
+          "journal_tier": {
+            "top_tier": {
+              "mean_modifier": 2.5,
+              "note": "NEJM, Lancet, JAMA level"
+            },
+            "high_tier": {
+              "mean_modifier": 1.75,
+              "note": "Top specialty journals"
+            },
+            "mid_tier": {
+              "mean_modifier": 1.0,
+              "note": "Respected specialty journals"
+            },
+            "lower_tier": {
+              "mean_modifier": 0.6,
+              "note": "Regional or niche journals"
+            }
+          },
+          "publication_type": {
+            "original_research": {
+              "mean_modifier": 1.2
+            },
+            "systematic_review": {
+              "mean_modifier": 1.5
+            },
+            "meta_analysis": {
+              "mean_modifier": 1.6
+            },
+            "clinical_trial_results": {
+              "mean_modifier": 1.4
+            },
+            "case_series": {
+              "mean_modifier": 0.7
+            },
+            "editorial": {
+              "mean_modifier": 0.9
+            }
+          },
+          "lifecycle_phase": {
+            "prelaunch": {
+              "mean_modifier": 0.85,
+              "note": "Early science citations"
+            },
+            "launch": {
+              "mean_modifier": 1.2,
+              "note": "Peak interest"
+            },
+            "postlaunch": {
+              "mean_modifier": 1.1,
+              "note": "Sustained interest"
+            },
+            "mature": {
+              "mean_modifier": 0.9,
+              "note": "Declining novelty"
+            }
+          }
+        },
+        "simulation_ready": true
+      },
+      "targets": {
+        "global_baseline": {
+          "target": 30,
+          "stretch": 45,
+          "minimum_acceptable": 15
+        },
+        "by_journal_tier": {
+          "top_tier": {
+            "target": 75,
+            "stretch": 100
+          },
+          "high_tier": {
+            "target": 50,
+            "stretch": 70
+          },
+          "mid_tier": {
+            "target": 30,
+            "stretch": 45
+          },
+          "lower_tier": {
+            "target": 15,
+            "stretch": 25
+          }
+        },
+        "by_publication_type": {
+          "original_research": {
+            "target": 35,
+            "stretch": 50
+          },
+          "systematic_review": {
+            "target": 50,
+            "stretch": 75
+          },
+          "meta_analysis": {
+            "target": 55,
+            "stretch": 80
+          },
+          "clinical_trial": {
+            "target": 45,
+            "stretch": 65
+          }
+        }
+      },
+      "benchmarks": {
+        "industry_percentiles": {
+          "p25": 18,
+          "p50": 29,
+          "p75": 46,
+          "p90": 68
+        },
+        "best_in_class": 95,
+        "source": "Publication impact analysis 2024",
+        "last_updated": "2024-10-30"
+      },
+      "classification_thresholds": {
+        "limited_impact": 15,
+        "moderate_impact": 30,
+        "high_impact": 50,
+        "exceptional_impact": 75,
+        "breakthrough_impact": 100
+      },
+      "cascade": {
+        "linked_tactic_families": [
+          "publication_strategy",
+          "evidence_dissemination"
+        ],
+        "linked_pillar_ids": [
+          "publications",
+          "scientific_exchange",
+          "kol_engagement"
+        ],
+        "linked_stakeholder_categories": [
+          "external_experts",
+          "academia_research",
+          "healthcare_professionals"
+        ],
+        "measurement_ceiling_by_stakeholder": {
+          "external_experts": "impact",
+          "academia_research": "impact",
+          "healthcare_professionals": "outcome"
+        },
+        "linked_tactic_ids": [
+          "peer_reviewed_publication"
+        ]
+      },
+      "roi_attribution": {
+        "roi_relevance_weight": 0.85,
+        "strategic_critical": true,
+        "contributes_to_outcomes": [
+          "scientific_credibility",
+          "guideline_influence",
+          "competitive_positioning",
+          "kol_advocacy"
+        ],
+        "typical_cost_per_point_improvement": {
+          "mean": 4500,
+          "note": "USD to improve citation impact by 1 point"
+        },
+        "estimated_roi_multiplier": {
+          "mean": 5.2,
+          "range": [
+            2.5,
+            9.0
+          ],
+          "note": "Publication investment ROI varies by journal tier and therapy area"
+        }
+      },
+      "operational": {
+        "reporting_frequency": "quarterly",
+        "aggregation_method": "mean",
+        "aggregation_levels": [
+          "publication",
+          "therapy_area",
+          "global"
+        ],
+        "alert_thresholds": {
+          "critical_low": 10,
+          "warning_low": 20,
+          "warning_high": null
+        },
+        "dashboard_priority": "high",
+        "kpi_board_inclusion": true
+      },
+      "governance": {
+        "status": "approved",
+        "review_cadence": "biannual",
+        "last_reviewed_on": "2025-12-30",
+        "owner_roles": [
+          "head_of_medical_affairs",
+          "publication_planning_lead"
+        ],
+        "data_steward": "medical_communications",
+        "notes": "Key measure of scientific impact and competitive positioning"
+      }
+    },
+    {
+      "id": "stakeholder_reach_percentage",
+      "name": "Stakeholder Reach Percentage",
+      "category": "engagement",
+      "priority_level": "high",
+      "tags": [
+        "coverage",
+        "field_medical",
+        "omnichannel",
+        "reach"
+      ],
+      "metric_definition": {
+        "definition": "Percentage of priority stakeholders reached at least once within the measurement period, segmented by stakeholder type and channel.",
+        "calculation_method": "(Unique priority stakeholders with >=1 compliant scientific interaction in period) / (Total priority stakeholder universe) * 100",
+        "unit": "percent",
+        "segmentation": [
+          "stakeholder_type",
+          "channel",
+          "region",
+          "therapy_area",
+          "tier"
+        ],
+        "inclusions": [
+          "compliant scientific interactions (field, remote, digital) logged in CRM/engagement platform"
+        ],
+        "exclusions": [
+          "promotional touchpoints",
+          "non-consented digital impressions where consent required",
+          "duplicate identities"
+        ]
+      },
+      "maps_measurement": {
+        "metric_level": "output",
+        "indicator_type": "coverage",
+        "max_claim_level_supported": "directional",
+        "maps_alignment_notes": "Coverage/reach is a foundational output metric; should be paired with quality and outcomes metrics to avoid over-weighting volume."
+      },
+      "data_provenance": {
+        "primary_source": "CRM / Medical engagement platform",
+        "secondary_sources": [
+          "email engagement analytics (medical)",
+          "event attendance logs",
+          "website/content analytics (medical portals)"
+        ],
+        "cadence": "monthly",
+        "confidence_by_region": {
+          "EU": 0.75,
+          "UK": 0.8,
+          "US": 0.8,
+          "LATAM": 0.65,
+          "APAC": 0.65,
+          "Global": 0.7
+        },
+        "known_limitations": [
+          "identity resolution across channels",
+          "varying consent and tracking rules by region",
+          "stakeholder universe definition drift"
+        ]
+      },
+      "statistical_model": {
+        "distribution": "beta",
+        "parameters": {
+          "alpha": 6,
+          "beta": 4,
+          "mean": 0.6,
+          "stddev": 0.15,
+          "bounds": [
+            0.0,
+            1.0
+          ]
+        },
+        "notes": "Beta distribution reflects bounded percentage outcomes; parameters are default priors and should be recalibrated with client historical data."
+      },
+      "targets": {
+        "short_term_6m": {
+          "target_range_percent": [
+            35,
+            55
+          ],
+          "notes": "Initial reach build-out during early execution; adjust by therapy area and market."
+        },
+        "mid_term_12m": {
+          "target_range_percent": [
+            50,
+            75
+          ],
+          "notes": "Expected with stable omnichannel and field cadence."
+        },
+        "long_term_24m": {
+          "target_range_percent": [
+            65,
+            85
+          ],
+          "notes": "Requires mature segmentation and sustained engagement quality."
+        }
+      },
+      "benchmarks": {
+        "benchmark_notes": "Public sources discuss reach/coverage as common MA KPI but do not standardize numeric benchmarks; ranges are synthetic priors for simulation only.",
+        "public_reference_types": [
+          "MAPS/Field Medical KPI guidance",
+          "MA omnichannel whitepapers",
+          "MSL benchmarking surveys"
+        ]
+      },
+      "classification_thresholds": {
+        "low_percent": 0.35,
+        "medium_percent": 0.55,
+        "high_percent": 0.75,
+        "notes": "Thresholds are defaults and should be tuned to stakeholder universe size and channel mix."
+      },
+      "cascade": {
+        "linked_pillar_ids": [
+          "digital_omnichannel",
+          "field_medical",
+          "hcp_education",
+          "congress_presence",
+          "patient_advocacy"
+        ],
+        "linked_tactic_ids": [
+          "omnichannel_campaign",
+          "msl_field_engagement",
+          "hcp_education_program",
+          "congress_symposium"
+        ],
+        "stakeholder_measurement_ceiling": {
+          "hcp_physician_specialist": "directional",
+          "kol": "directional",
+          "payer_private": "directional",
+          "regulatory_authority": "output",
+          "digital_therapeutics_company": "output"
+        }
+      },
+      "roi_attribution": {
+        "attribution_approach": "multi-touch (medical-only) contribution analysis",
+        "notes": "Use as an efficiency/coverage KPI; avoid direct causality claims to sales or prescribing without appropriate study design."
+      },
+      "operational": {
+        "owner_role": "Medical Excellence / Operations",
+        "data_owner": "Medical Operations / CRM Admin",
+        "reporting_audience": [
+          "Medical Leadership",
+          "Field Medical Leads",
+          "Omnichannel/Engagement Ops"
+        ],
+        "systems_dependencies": [
+          "CRM",
+          "Consent management (where applicable)",
+          "Engagement analytics"
+        ]
+      },
+      "governance": {
+        "review_cycle": "quarterly",
+        "auditability": "high",
+        "compliance_notes": "Ensure interaction classification and consent requirements are met and auditable by region."
+      }
+    }
+  ]
+}

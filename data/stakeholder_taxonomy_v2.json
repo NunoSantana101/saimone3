@@ -1,0 +1,5272 @@
+{
+  "metadata": {
+    "schema_version": "3.5-hybrid",
+    "generated_on": "2025-12-30",
+    "description": "Hybrid stakeholder taxonomy combining MAPS-aligned constraints with statistical simulation capabilities for Medical Affairs Intelligence Platform",
+    "design_philosophy": "Merge deterministic compliance guardrails (v3.0) with probabilistic weighting system (v2.0) for both strategic planning and Monte Carlo simulation",
+    "alignment_frameworks": [
+      "MAPS_iMC_Strategy_and_Plan",
+      "MAPS_Field_Medical_KPIs",
+      "EFPIA_rail",
+      "ABPI_rail",
+      "PhRMA_rail"
+    ],
+    "model_runtime_target": "gpt-4.1 / claude-sonnet-4",
+    "design_principles": [
+      "Explicit cascades with probabilistic weights (enables both deterministic planning and stochastic simulation)",
+      "Enumerations with statistical distributions for consistency and flexibility",
+      "Region archetypes with bounded overrides and regional modifiers",
+      "Stakeholder relationship graphs for network analysis",
+      "Temporal and scenario-based modulation for dynamic planning",
+      "Claim discipline: stakeholder relevance does not imply impact claims"
+    ],
+    "simulation_capabilities": {
+      "monte_carlo_ready": true,
+      "network_analysis_ready": true,
+      "temporal_forecasting_ready": true,
+      "scenario_planning_ready": true
+    },
+    "regions_in_scope": [
+      "UK",
+      "EU",
+      "US",
+      "Eastern_Europe",
+      "LATAM",
+      "SE_Asia_Emerging",
+      "Middle_East"
+    ],
+    "priority_country_sets": {
+      "UK": [
+        "United Kingdom"
+      ],
+      "EU": [
+        "Germany",
+        "France",
+        "Italy",
+        "Spain",
+        "Netherlands"
+      ],
+      "US": [
+        "United States"
+      ],
+      "Eastern_Europe": [
+        "Poland",
+        "Czechia",
+        "Romania",
+        "Hungary",
+        "Bulgaria",
+        "Croatia",
+        "Serbia",
+        "Ukraine"
+      ],
+      "LATAM": [
+        "Brazil",
+        "Mexico",
+        "Argentina",
+        "Colombia",
+        "Chile"
+      ],
+      "SE_Asia_Emerging": [
+        "Indonesia",
+        "Vietnam",
+        "Philippines",
+        "Thailand",
+        "Malaysia"
+      ],
+      "Middle_East": [
+        "Saudi Arabia",
+        "United Arab Emirates",
+        "Egypt"
+      ]
+    },
+    "cascade_targets": {
+      "direct": [
+        "pillars.json - strategy pillar enablement/blocking based on stakeholder constraints",
+        "tactics.json - tactic family eligibility filtering",
+        "channels.json - channel viability scoring per stakeholder and region",
+        "metrics.json - valid metric levels for measurement claims"
+      ],
+      "indirect": [
+        "execution_plans.json - aggregated stakeholder weights influence resource allocation",
+        "risk_assessment.json - compliance risk and reputational risk aggregation",
+        "budget_models.json - engagement complexity influences cost modeling",
+        "relationship_maps.json - stakeholder network for influence analysis"
+      ],
+      "simulation": [
+        "monte_carlo_engine - weight distributions enable probabilistic scenario planning",
+        "network_propagation - relationship graphs enable influence cascade modeling",
+        "temporal_forecasting - seasonal and lifecycle factors enable time-series planning"
+      ]
+    },
+    "last_updated": "2026-01-19",
+    "version_history": [
+      {
+        "version": "2.1",
+        "date": "2026-01-19",
+        "changes": "Closed stakeholder graph; added missing stakeholder stubs referenced by relationships; introduced relationship_concepts for non-stakeholder entities; updated stakeholder_index."
+      }
+    ]
+  },
+  "enums": {
+    "priority_level": [
+      "low",
+      "medium",
+      "high",
+      "very_high",
+      "critical"
+    ],
+    "engagement_complexity": [
+      "low",
+      "moderate",
+      "high",
+      "very_high"
+    ],
+    "decision_influence": [
+      "none",
+      "advisory",
+      "secondary",
+      "primary",
+      "gatekeeper"
+    ],
+    "compliance_risk": [
+      "low",
+      "medium",
+      "high",
+      "very_high"
+    ],
+    "privacy_sensitivity": [
+      "low",
+      "medium",
+      "high",
+      "very_high"
+    ],
+    "transparency_requirement": [
+      "none",
+      "partial",
+      "full"
+    ],
+    "digital_maturity": [
+      "offline_only",
+      "digital_reluctant",
+      "digital_adopter",
+      "digital_native"
+    ],
+    "access_level": [
+      "open",
+      "managed",
+      "restricted",
+      "invitation_only"
+    ],
+    "relationship_mediation": [
+      "none",
+      "limited",
+      "moderate",
+      "high"
+    ],
+    "channel_family": [
+      "field_scientific_exchange",
+      "scientific_publications",
+      "congress",
+      "medical_education",
+      "digital_scientific_platform",
+      "internal_enablement",
+      "payer_value_communication",
+      "patient_advocacy_engagement"
+    ],
+    "tactic_family": [
+      "scientific_exchange",
+      "insight_generation",
+      "evidence_generation",
+      "evidence_dissemination",
+      "medical_education",
+      "digital_omnichannel",
+      "publication_strategy",
+      "advisory_boards",
+      "market_access_value",
+      "patient_advocacy",
+      "internal_enablement",
+      "data_partnership"
+    ],
+    "metric_level": [
+      "activity",
+      "output",
+      "outcome",
+      "impact"
+    ],
+    "interaction_frequency": [
+      "daily",
+      "weekly",
+      "monthly",
+      "quarterly",
+      "annually",
+      "ad_hoc"
+    ],
+    "data_sharing_willingness": [
+      "none",
+      "restricted",
+      "conditional",
+      "open"
+    ],
+    "confidence_level": [
+      "very_low",
+      "low",
+      "medium",
+      "high",
+      "very_high"
+    ]
+  },
+  "weighting_system": {
+    "base_formula": "final_weight = base_weight × therapy_modifier × region_modifier × regulatory_complexity_modifier × lifecycle_modifier × competitive_modifier × scenario_modifier",
+    "confidence_intervals": {
+      "high_confidence": "stddev <= 0.10",
+      "medium_confidence": "stddev <= 0.15",
+      "low_confidence": "stddev > 0.15"
+    },
+    "simulation_parameters": {
+      "monte_carlo_iterations_default": 10000,
+      "probability_distribution": "normal",
+      "min_weight_clipping": 0.01,
+      "max_weight_clipping": 3.0
+    }
+  },
+  "modifiers": {
+    "therapy_area_modifier": {
+      "description": "Multiplier based on therapeutic area complexity and stakeholder engagement intensity",
+      "default": 1.0,
+      "oncology": 1.25,
+      "rare_disease": 1.4,
+      "gene_therapy": 1.35,
+      "cell_therapy": 1.35,
+      "orphan_drugs": 1.35,
+      "biosimilars": 0.85,
+      "generics": 0.7,
+      "vaccines": 1.15,
+      "pediatrics": 1.2,
+      "mental_health": 1.05,
+      "digital_therapeutics": 1.1,
+      "combination_products": 1.15,
+      "companion_diagnostics": 1.2,
+      "cardiology": 1.05,
+      "endocrinology_diabetes": 1.0,
+      "neurology": 1.05,
+      "psychiatry": 0.95,
+      "infectious_disease": 1.05,
+      "immunology": 1.1,
+      "dermatology": 0.95,
+      "respiratory": 1.0,
+      "gastroenterology": 1.0,
+      "rheumatology": 1.05,
+      "hematology": 1.1,
+      "nephrology": 1.0,
+      "ophthalmology": 0.95,
+      "obstetrics_gynecology": 1.0,
+      "urology": 1.0,
+      "pain_management": 0.95,
+      "musculoskeletal": 1.0
+    },
+    "region_modifier": {
+      "description": "Multiplier based on regional market importance and engagement sophistication",
+      "global": 1.0,
+      "US": 1.15,
+      "EU": 1.1,
+      "EU_big5": 1.12,
+      "EU_nordics": 1.08,
+      "UK": 1.1,
+      "Germany": 1.15,
+      "France": 1.12,
+      "Italy": 1.08,
+      "Spain": 1.08,
+      "Netherlands": 1.1,
+      "EMEA": 1.05,
+      "APAC": 1.0,
+      "Japan": 1.2,
+      "China": 1.25,
+      "Australia": 1.05,
+      "South_Korea": 1.1,
+      "LATAM": 0.95,
+      "Brazil": 1.05,
+      "Mexico": 0.95,
+      "MEA": 0.9,
+      "Canada": 1.08,
+      "Switzerland": 1.18,
+      "Eastern_Europe": 0.9,
+      "SE_Asia_Emerging": 0.88,
+      "Middle_East": 0.92
+    },
+    "regulatory_complexity_modifier": {
+      "description": "Multiplier based on regulatory environment complexity",
+      "low": 0.9,
+      "medium": 1.0,
+      "high": 1.15,
+      "very_high": 1.3
+    },
+    "lifecycle_stage_modifier": {
+      "description": "Multiplier based on product lifecycle stage and associated stakeholder engagement needs",
+      "pre_clinical": 0.8,
+      "phase_1": 0.85,
+      "phase_2": 0.95,
+      "phase_3": 1.1,
+      "regulatory_review": 1.2,
+      "pre_launch": 1.25,
+      "launch": 1.15,
+      "post_launch": 1.0,
+      "growth": 1.05,
+      "mature_product": 0.9,
+      "generic_competition": 0.85,
+      "patent_cliff": 0.75,
+      "lifecycle_management": 1.05
+    },
+    "market_access_stage_modifier": {
+      "description": "Multiplier based on market access journey stage",
+      "pre_submission": 1.0,
+      "hta_review": 1.25,
+      "pricing_negotiation": 1.3,
+      "formulary_review": 1.2,
+      "market_access_achieved": 1.0,
+      "access_restrictions": 1.15,
+      "access_expansion": 1.1
+    },
+    "competitive_intensity_modifier": {
+      "description": "Multiplier based on competitive positioning and differentiation needs",
+      "first_in_class": 1.3,
+      "best_in_class": 1.15,
+      "fast_follower": 1.05,
+      "me_too": 0.9,
+      "biosimilar": 0.75,
+      "generic": 0.65,
+      "breakthrough_therapy": 1.35
+    },
+    "scenario_modifiers": {
+      "description": "Temporary multipliers applied during specific scenarios to adjust stakeholder importance dynamically",
+      "routine_operations": {
+        "default_multiplier": 1.0,
+        "duration": "ongoing"
+      },
+      "crisis_communication": {
+        "media": 1.5,
+        "regulators": 1.4,
+        "patient_advocacy": 1.3,
+        "internal_teams": 1.25,
+        "kols": 1.2,
+        "duration": "weeks_to_months"
+      },
+      "product_launch": {
+        "kols": 1.3,
+        "payers": 1.25,
+        "prescribers": 1.2,
+        "patients": 1.1,
+        "regulators": 1.15,
+        "medical_education_providers": 1.25,
+        "duration": "6-12_months"
+      },
+      "safety_signal": {
+        "regulators": 1.5,
+        "pharmacovigilance": 1.4,
+        "patient_advocacy": 1.3,
+        "media": 1.2,
+        "kols": 1.15,
+        "internal_safety_team": 1.35,
+        "duration": "weeks_to_months"
+      },
+      "competitive_response": {
+        "competitive_intelligence": 1.4,
+        "kols": 1.25,
+        "payers": 1.2,
+        "media": 1.15,
+        "prescribers": 1.15,
+        "duration": "3-6_months"
+      },
+      "guideline_update": {
+        "guideline_committee": 1.45,
+        "kols": 1.35,
+        "professional_societies": 1.3,
+        "prescribers": 1.2,
+        "payers": 1.15,
+        "duration": "6-18_months"
+      },
+      "reimbursement_challenge": {
+        "payers": 1.45,
+        "hta_agencies": 1.4,
+        "patient_advocacy": 1.3,
+        "health_economists": 1.35,
+        "kols": 1.2,
+        "duration": "3-12_months"
+      },
+      "real_world_evidence_generation": {
+        "data_providers": 1.35,
+        "academic_researchers": 1.3,
+        "registry_operators": 1.3,
+        "prescribers": 1.15,
+        "payers": 1.2,
+        "duration": "12-36_months"
+      }
+    }
+  },
+  "regions": {
+    "UK": {
+      "priority_countries": [
+        "United Kingdom"
+      ],
+      "compliance_framework": "ABPI",
+      "notes": "ABPI-driven environment; high governance and transparency expectations",
+      "data_maturity": "very_high",
+      "digital_infrastructure": "mature",
+      "engagement_preference": "evidence_based_balanced"
+    },
+    "EU": {
+      "priority_countries": [
+        "Germany",
+        "France",
+        "Italy",
+        "Spain",
+        "Netherlands"
+      ],
+      "compliance_framework": "EFPIA",
+      "notes": "EFPIA rail; member-state variability in implementation",
+      "data_maturity": "high",
+      "digital_infrastructure": "mature",
+      "engagement_preference": "evidence_based_balanced"
+    },
+    "US": {
+      "priority_countries": [
+        "United States"
+      ],
+      "compliance_framework": "PhRMA",
+      "notes": "PhRMA rail; high transparency reporting expectations (Sunshine Act) and different engagement norms",
+      "data_maturity": "very_high",
+      "digital_infrastructure": "very_mature",
+      "engagement_preference": "data_driven_clinical"
+    },
+    "Eastern_Europe": {
+      "priority_countries": [
+        "Poland",
+        "Czechia",
+        "Romania",
+        "Hungary",
+        "Bulgaria",
+        "Croatia",
+        "Serbia",
+        "Ukraine"
+      ],
+      "compliance_framework": "mixed_EU_national",
+      "notes": "Mixed EU/non-EU systems; access and data maturity vary widely; relationship-mediated engagement common",
+      "data_maturity": "medium",
+      "digital_infrastructure": "developing",
+      "engagement_preference": "relationship_evidence_hybrid"
+    },
+    "LATAM": {
+      "priority_countries": [
+        "Brazil",
+        "Mexico",
+        "Argentina",
+        "Colombia",
+        "Chile"
+      ],
+      "compliance_framework": "national_varied",
+      "notes": "Higher relationship mediation and heterogeneous system centralization; price controls common",
+      "data_maturity": "medium",
+      "digital_infrastructure": "developing",
+      "engagement_preference": "relationship_driven"
+    },
+    "SE_Asia_Emerging": {
+      "priority_countries": [
+        "Indonesia",
+        "Vietnam",
+        "Philippines",
+        "Thailand",
+        "Malaysia"
+      ],
+      "compliance_framework": "national_varied",
+      "notes": "Emerging-market heterogeneity; variable data maturity and channel dominance; rapid digital adoption",
+      "data_maturity": "low_to_medium",
+      "digital_infrastructure": "rapidly_developing",
+      "engagement_preference": "relationship_digital_hybrid"
+    },
+    "Middle_East": {
+      "priority_countries": [
+        "Saudi Arabia",
+        "United Arab Emirates",
+        "Egypt"
+      ],
+      "compliance_framework": "national_strict",
+      "notes": "High role of government institutions; relationship-mediated access is common; growing digital sophistication",
+      "data_maturity": "medium",
+      "digital_infrastructure": "developing",
+      "engagement_preference": "relationship_institutional"
+    }
+  },
+  "stakeholder_categories": {
+    "healthcare_professionals": {
+      "description": "Direct patient care providers and clinical experts",
+      "default_priority_level": "high",
+      "default_engagement_complexity": "moderate",
+      "maps_audience_group": "healthcare_professionals",
+      "typical_base_weight_range": [
+        0.9,
+        1.15
+      ]
+    },
+    "external_experts": {
+      "description": "Opinion leaders and scientific advisors",
+      "default_priority_level": "very_high",
+      "default_engagement_complexity": "high",
+      "maps_audience_group": "external_experts",
+      "typical_base_weight_range": [
+        1.05,
+        1.35
+      ]
+    },
+    "patients_carers": {
+      "description": "Patients, caregivers, and advocacy organizations",
+      "default_priority_level": "high",
+      "default_engagement_complexity": "moderate",
+      "maps_audience_group": "patients_carers",
+      "typical_base_weight_range": [
+        0.95,
+        1.2
+      ]
+    },
+    "market_access_payers": {
+      "description": "Payers, HTA agencies, and access decision makers",
+      "default_priority_level": "very_high",
+      "default_engagement_complexity": "very_high",
+      "maps_audience_group": "market_access_payers",
+      "typical_base_weight_range": [
+        1.05,
+        1.3
+      ]
+    },
+    "regulators": {
+      "description": "Regulatory authorities and compliance bodies",
+      "default_priority_level": "critical",
+      "default_engagement_complexity": "very_high",
+      "maps_audience_group": "regulators",
+      "typical_base_weight_range": [
+        1.1,
+        1.25
+      ]
+    },
+    "internal_pharma": {
+      "description": "Internal pharmaceutical company functions",
+      "default_priority_level": "high",
+      "default_engagement_complexity": "low",
+      "maps_audience_group": "internal_pharma",
+      "typical_base_weight_range": [
+        0.85,
+        1.1
+      ]
+    },
+    "digital_health": {
+      "description": "Digital health platforms and technology providers",
+      "default_priority_level": "medium",
+      "default_engagement_complexity": "moderate",
+      "maps_audience_group": "digital_health",
+      "typical_base_weight_range": [
+        0.75,
+        1.1
+      ]
+    },
+    "societies_associations": {
+      "description": "Professional medical societies and associations",
+      "default_priority_level": "medium",
+      "default_engagement_complexity": "moderate",
+      "maps_audience_group": "societies_associations",
+      "typical_base_weight_range": [
+        0.85,
+        1.15
+      ]
+    },
+    "media_communication": {
+      "description": "Media, journalists, and communication platforms",
+      "default_priority_level": "medium",
+      "default_engagement_complexity": "high",
+      "maps_audience_group": "media_communication",
+      "typical_base_weight_range": [
+        0.7,
+        1.2
+      ]
+    },
+    "data_tech_partners": {
+      "description": "Data providers and technology vendors",
+      "default_priority_level": "medium",
+      "default_engagement_complexity": "moderate",
+      "maps_audience_group": "data_tech_partners",
+      "typical_base_weight_range": [
+        0.75,
+        1.05
+      ]
+    },
+    "academia_research": {
+      "description": "Academic researchers and institutions",
+      "default_priority_level": "high",
+      "default_engagement_complexity": "moderate",
+      "maps_audience_group": "academia_research",
+      "typical_base_weight_range": [
+        0.9,
+        1.2
+      ]
+    },
+    "government_policy": {
+      "description": "Government officials and policy makers",
+      "default_priority_level": "high",
+      "default_engagement_complexity": "very_high",
+      "maps_audience_group": "government_policy",
+      "typical_base_weight_range": [
+        0.95,
+        1.25
+      ]
+    }
+  },
+  "cascade_contract": {
+    "description": "Defines how stakeholder taxonomy fields cascade to other JSON schemas in the sAÏmone ecosystem",
+    "canonical_link_fields": {
+      "pillar_tags": {
+        "target": "pillars.json",
+        "mechanism": "cascade.enables_pillar_tags and cascade.blocks_pillar_tags filter which strategic pillars can be assigned to activities involving this stakeholder"
+      },
+      "tactic_families": {
+        "target": "tactics.json",
+        "mechanism": "cascade.eligible_tactic_families and cascade.ineligible_tactic_families constrain which tactical approaches are valid for this stakeholder"
+      },
+      "channel_families": {
+        "target": "channels.json",
+        "mechanism": "constraints.channel_viability scores propagate to channel selection algorithms"
+      },
+      "metric_levels": {
+        "target": "metrics.json",
+        "mechanism": "cascade.valid_metric_levels bounds what measurement claims can be made (e.g., can only measure activity/output for regulators, not outcomes)"
+      },
+      "weight_distributions": {
+        "target": "execution_plans.json, budget_models.json",
+        "mechanism": "importance.weight_distribution feeds into Monte Carlo simulations for resource allocation"
+      },
+      "relationship_graph": {
+        "target": "relationship_maps.json, influence_analysis.json",
+        "mechanism": "stakeholder_relationships.influences/influenced_by enable network propagation models"
+      },
+      "temporal_factors": {
+        "target": "timeline_planning.json, forecasting_models.json",
+        "mechanism": "temporal_factors modulate stakeholder importance over time windows"
+      }
+    },
+    "required_stakeholder_fields": [
+      "id",
+      "display_name",
+      "category",
+      "importance.base_weight",
+      "importance.weight_distribution",
+      "constraints.access_level",
+      "constraints.relationship_mediation",
+      "constraints.compliance_risk",
+      "insight_role.insight_types",
+      "cascade.eligible_tactic_families",
+      "cascade.valid_metric_levels",
+      "regional_profiles.<region_key>",
+      "stakeholder_relationships",
+      "temporal_factors"
+    ]
+  },
+  "stakeholder_index": {
+    "academic_researcher": {
+      "category": "academia_research",
+      "display_name": "Academic Researcher",
+      "priority_level": "medium"
+    },
+    "clinical_trial_investigator": {
+      "category": "academia_research",
+      "display_name": "Clinical Trial Investigator",
+      "priority_level": "high"
+    },
+    "department_head": {
+      "category": "healthcare_professionals",
+      "display_name": "Hospital Department Head",
+      "priority_level": "high"
+    },
+    "device_regulatory_authority": {
+      "category": "regulators",
+      "display_name": "Device Regulatory Authority",
+      "priority_level": "high"
+    },
+    "digital_therapeutics_company": {
+      "category": "digital_health",
+      "display_name": "Digital Therapeutics Company",
+      "priority_level": "medium"
+    },
+    "employer_group": {
+      "category": "market_access_payers",
+      "display_name": "Employer Group / Benefits",
+      "priority_level": "medium"
+    },
+    "formulary_committee": {
+      "category": "market_access_payers",
+      "display_name": "Formulary Committee",
+      "priority_level": "high"
+    },
+    "gpo": {
+      "category": "market_access_payers",
+      "display_name": "Group Purchasing Organisation (GPO)",
+      "priority_level": "medium"
+    },
+    "guideline_committee_member": {
+      "category": "external_experts",
+      "display_name": "Guideline Committee Member",
+      "priority_level": "high"
+    },
+    "hcp_nurse_practitioner": {
+      "category": "healthcare_professionals",
+      "display_name": "Nurse Practitioner / Advanced Practice",
+      "priority_level": "medium"
+    },
+    "hcp_pharmacist": {
+      "category": "healthcare_professionals",
+      "display_name": "Pharmacist",
+      "priority_level": "medium"
+    },
+    "hcp_physician_primary_care": {
+      "category": "healthcare_professionals",
+      "display_name": "Physician – Primary Care",
+      "priority_level": "high"
+    },
+    "hcp_physician_specialist": {
+      "category": "healthcare_professionals",
+      "display_name": "Physician – Specialist",
+      "priority_level": "high"
+    },
+    "hta_agency": {
+      "category": "market_access_payers",
+      "display_name": "HTA Agency",
+      "priority_level": "very_high"
+    },
+    "institutional_review_board": {
+      "category": "external_experts",
+      "display_name": "Institutional Review Board",
+      "priority_level": "medium"
+    },
+    "international_health_organization": {
+      "category": "government_policy",
+      "display_name": "International Health Organization",
+      "priority_level": "high"
+    },
+    "kol": {
+      "category": "external_experts",
+      "display_name": "Key Opinion Leader (KOL)",
+      "priority_level": "very_high"
+    },
+    "medical_director": {
+      "category": "market_access_payers",
+      "display_name": "Medical Director (Payer/HMO)",
+      "priority_level": "high"
+    },
+    "ministry_of_health_official": {
+      "category": "government_policy",
+      "display_name": "Ministry of Health Official",
+      "priority_level": "critical"
+    },
+    "patient_advocacy_organization": {
+      "category": "patients_carers",
+      "display_name": "Patient Advocacy Organisation",
+      "priority_level": "high"
+    },
+    "patient_individual": {
+      "category": "patients_carers",
+      "display_name": "Patient (Individual)",
+      "priority_level": "high"
+    },
+    "payer_private": {
+      "category": "market_access_payers",
+      "display_name": "Private Payer / Insurance",
+      "priority_level": "very_high"
+    },
+    "payer_public": {
+      "category": "market_access_payers",
+      "display_name": "Public Payer",
+      "priority_level": "very_high"
+    },
+    "pbm": {
+      "category": "market_access_payers",
+      "display_name": "Pharmacy Benefit Manager (PBM)",
+      "priority_level": "high"
+    },
+    "peer_kols": {
+      "category": "external_experts",
+      "display_name": "Peer KOL Network",
+      "priority_level": "medium"
+    },
+    "pharmacovigilance_authority": {
+      "category": "regulators",
+      "display_name": "Pharmacovigilance Authority",
+      "priority_level": "high"
+    },
+    "professional_society": {
+      "category": "societies_associations",
+      "display_name": "Professional Society",
+      "priority_level": "medium"
+    },
+    "real_world_data_provider": {
+      "category": "data_tech_partners",
+      "display_name": "Real-World Data Provider",
+      "priority_level": "medium"
+    },
+    "regulatory_authority": {
+      "category": "regulators",
+      "display_name": "Regulatory Authority",
+      "priority_level": "critical"
+    },
+    "scientific_advisory_committee": {
+      "category": "external_experts",
+      "display_name": "Scientific Advisory Committee",
+      "priority_level": "high"
+    },
+    "tech_vendor_ehr": {
+      "category": "data_tech_partners",
+      "display_name": "EHR / Health IT Vendor",
+      "priority_level": "medium"
+    }
+  },
+  "stakeholders": [
+    {
+      "id": "academic_researcher",
+      "display_name": "Academic Researcher",
+      "category": "academia_research",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 0.95,
+        "weight_distribution": {
+          "mean": 0.95,
+          "stddev": 0.12,
+          "min": 0.6,
+          "max": 1.3
+        },
+        "priority_level": "medium"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "medium",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "clinical_trial_investigator",
+      "display_name": "Clinical Trial Investigator",
+      "category": "academia_research",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.05,
+        "weight_distribution": {
+          "mean": 1.05,
+          "stddev": 0.12,
+          "min": 0.7,
+          "max": 1.4
+        },
+        "priority_level": "high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "medium",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "department_head",
+      "display_name": "Hospital Department Head",
+      "category": "healthcare_professionals",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.05,
+        "weight_distribution": {
+          "mean": 1.05,
+          "stddev": 0.12,
+          "min": 0.7,
+          "max": 1.4
+        },
+        "priority_level": "high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "medium",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": true
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "device_regulatory_authority",
+      "display_name": "Device Regulatory Authority",
+      "category": "regulators",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.0,
+        "weight_distribution": {
+          "mean": 1.0,
+          "stddev": 0.12,
+          "min": 0.65,
+          "max": 1.35
+        },
+        "priority_level": "high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "high",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": true,
+        "transparency_requirements": "full",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "high",
+        "reputational_risk": "medium",
+        "data_breach_risk": "high",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "digital_therapeutics_company",
+      "display_name": "Digital Therapeutics Company",
+      "category": "digital_health",
+      "tags": [
+        "digital",
+        "technology",
+        "dtx",
+        "software",
+        "innovation"
+      ],
+      "identity": {
+        "job_roles": [
+          "dtx_developer",
+          "digital_health_executive",
+          "product_manager"
+        ],
+        "organization_types": [
+          "software_company",
+          "medtech_company",
+          "healthtech_startup"
+        ],
+        "sector": [
+          "private"
+        ],
+        "typical_titles": [
+          "ceo",
+          "chief_medical_officer",
+          "head_of_clinical_affairs"
+        ],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 0.85,
+        "priority_level": "medium",
+        "decision_influence": "secondary",
+        "weight_distribution": {
+          "mean": 0.85,
+          "stddev": 0.12,
+          "min": 0.6,
+          "max": 1.1,
+          "confidence_level": "medium"
+        }
+      },
+      "constraints": {
+        "access_level": "managed",
+        "relationship_mediation": "limited",
+        "typical_gatekeepers": [
+          "business_development",
+          "partnership_team"
+        ],
+        "engagement_complexity": "moderate",
+        "compliance_risk": "very_high",
+        "privacy_sensitivity": "very_high",
+        "transparency_requirement": "full",
+        "cross_border_data_restriction": true,
+        "professional_licensing": false,
+        "conflict_of_interest_risk": "medium",
+        "sunshine_act_reporting_applicable": false,
+        "gdpr_sensitivity": "very_high",
+        "channel_viability": {
+          "field_scientific_exchange": "low",
+          "scientific_publications": "medium",
+          "congress": "medium",
+          "medical_education": "medium",
+          "digital_scientific_platform": "very_high",
+          "internal_enablement": "medium",
+          "payer_value_communication": "medium",
+          "patient_advocacy_engagement": "high"
+        },
+        "digital_maturity": "digital_native",
+        "preferred_communication_channels": [
+          "email",
+          "digital",
+          "virtual",
+          "api"
+        ],
+        "interaction_frequency": "monthly",
+        "response_time_expectation": "weekly"
+      },
+      "engagement": {
+        "approval_hierarchy": "organization",
+        "content_preferences": [
+          "clinical_data",
+          "regulatory_updates",
+          "digital_health_trends",
+          "interoperability"
+        ],
+        "meeting_preferences": [
+          "virtual",
+          "conferences",
+          "hybrid"
+        ],
+        "compliance_requirements": {
+          "promotional_material_review": true,
+          "medical_information_only": false,
+          "adverse_event_reporting": true,
+          "financial_disclosure": false,
+          "institutional_approval": true
+        }
+      },
+      "insight_role": {
+        "insight_types": [
+          "technology_trends",
+          "digital_adoption",
+          "patient_engagement_patterns"
+        ],
+        "primary_questions": [
+          "What digital health integration opportunities exist?",
+          "How can digital therapeutics complement pharmacological interventions?",
+          "What patient engagement data can inform strategy?"
+        ],
+        "bias_risks": [
+          "technology_optimism",
+          "selection_bias",
+          "commercial_interest"
+        ],
+        "confidence_ceiling": "medium",
+        "data_sharing_willingness": "conditional"
+      },
+      "cascade": {
+        "enables_pillar_tags": [
+          "digital_health_integration",
+          "patient_engagement",
+          "real_world_data"
+        ],
+        "blocks_pillar_tags": [],
+        "eligible_tactic_families": [
+          "digital_omnichannel",
+          "data_partnership",
+          "patient_advocacy",
+          "insight_generation"
+        ],
+        "ineligible_tactic_families": [
+          "field_scientific_exchange",
+          "congress"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "output",
+          "outcome"
+        ],
+        "cascade_probability_weights": {
+          "digital_omnichannel": 0.95,
+          "data_partnership": 0.85
+        }
+      },
+      "stakeholder_relationships": {
+        "influences": [
+          "hcp_physician_specialist",
+          "patient_individual"
+        ],
+        "influenced_by": [
+          "device_regulatory_authority",
+          "payer_private",
+          "regulatory_authority"
+        ],
+        "collaborates_with": [
+          "patient_advocacy_organization",
+          "real_world_data_provider",
+          "tech_vendor_ehr"
+        ],
+        "reports_to": [
+          "device_regulatory_authority"
+        ],
+        "decision_dependency": [
+          "hta_agency",
+          "payer_private"
+        ],
+        "relationship_strength": {
+          "patient_advocacy_organization": 0.75,
+          "tech_vendor_ehr": 0.7,
+          "payer_private": 0.6
+        }
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "seasonal_pattern": "consistent year-round",
+        "conference_calendar_alignment": true,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "high",
+        "lifecycle_sensitivity": {
+          "pre_launch": 1.1,
+          "launch": 1.2,
+          "growth": 1.15
+        }
+      },
+      "therapy_area_overrides": {
+        "digital_therapeutics": 1.3,
+        "mental_health": 1.2,
+        "diabetes": 1.15,
+        "chronic_disease_management": 1.15
+      },
+      "region_overrides": {
+        "US": {
+          "base_weight_modifier": 1.2,
+          "compliance_risk": "very_high"
+        },
+        "EU": {
+          "base_weight_modifier": 1.15,
+          "compliance_risk": "very_high"
+        }
+      },
+      "risk_factors": {
+        "regulatory_action_risk": "very_high",
+        "reputational_risk": "high",
+        "data_breach_risk": "very_high",
+        "competitive_intelligence_risk": "high"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_native",
+        "platform_preferences": [
+          "linkedin",
+          "proprietary_portals",
+          "api_integration"
+        ],
+        "api_integration_capability": true,
+        "real_time_data_access": true
+      },
+      "regional_profiles": {
+        "US": {
+          "constraints": {
+            "access_level": "managed",
+            "relationship_mediation": "limited",
+            "typical_gatekeepers": [
+              "business_development"
+            ],
+            "engagement_complexity": "high",
+            "compliance_risk": "very_high",
+            "privacy_sensitivity": "very_high",
+            "transparency_requirement": "full",
+            "cross_border_data_restriction": true,
+            "channel_viability": {
+              "field_scientific_exchange": "low",
+              "scientific_publications": "medium",
+              "congress": "medium",
+              "medical_education": "medium",
+              "digital_scientific_platform": "very_high",
+              "internal_enablement": "medium",
+              "payer_value_communication": "medium",
+              "patient_advocacy_engagement": "high"
+            },
+            "digital_maturity": "digital_native"
+          },
+          "insight_role": {
+            "insight_types": [
+              "technology_trends",
+              "digital_adoption",
+              "patient_engagement_patterns"
+            ],
+            "primary_questions": [],
+            "bias_risks": [
+              "technology_optimism",
+              "commercial_interest"
+            ],
+            "confidence_ceiling": "medium"
+          },
+          "cascade": {
+            "enables_pillar_tags": [],
+            "blocks_pillar_tags": [],
+            "eligible_tactic_families": [],
+            "ineligible_tactic_families": [],
+            "valid_metric_levels": [
+              "activity",
+              "output",
+              "outcome"
+            ]
+          },
+          "decision_influence": "secondary",
+          "data_maturity": "high",
+          "weight_modifier": 1.2
+        },
+        "EU": {
+          "constraints": {
+            "access_level": "managed",
+            "relationship_mediation": "limited",
+            "typical_gatekeepers": [
+              "business_development"
+            ],
+            "engagement_complexity": "high",
+            "compliance_risk": "very_high",
+            "privacy_sensitivity": "very_high",
+            "transparency_requirement": "full",
+            "cross_border_data_restriction": true,
+            "channel_viability": {
+              "field_scientific_exchange": "low",
+              "scientific_publications": "medium",
+              "congress": "medium",
+              "medical_education": "medium",
+              "digital_scientific_platform": "very_high",
+              "internal_enablement": "medium",
+              "payer_value_communication": "medium",
+              "patient_advocacy_engagement": "high"
+            },
+            "digital_maturity": "digital_native"
+          },
+          "insight_role": {
+            "insight_types": [
+              "technology_trends",
+              "digital_adoption",
+              "patient_engagement_patterns"
+            ],
+            "primary_questions": [],
+            "bias_risks": [
+              "technology_optimism",
+              "commercial_interest"
+            ],
+            "confidence_ceiling": "medium"
+          },
+          "cascade": {
+            "enables_pillar_tags": [],
+            "blocks_pillar_tags": [],
+            "eligible_tactic_families": [],
+            "ineligible_tactic_families": [],
+            "valid_metric_levels": [
+              "activity",
+              "output",
+              "outcome"
+            ]
+          },
+          "decision_influence": "secondary",
+          "data_maturity": "high",
+          "weight_modifier": 1.15
+        }
+      },
+      "governance": {
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2025-12-30",
+        "owner_roles": [
+          "digital_health_lead",
+          "medical_affairs_innovation_lead"
+        ],
+        "notes": "Emerging stakeholder type with increasing importance in combination therapy strategies"
+      }
+    },
+    {
+      "id": "employer_group",
+      "display_name": "Employer Group / Benefits",
+      "category": "market_access_payers",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 0.85,
+        "weight_distribution": {
+          "mean": 0.85,
+          "stddev": 0.12,
+          "min": 0.5,
+          "max": 1.2
+        },
+        "priority_level": "medium"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "medium"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "formulary_committee",
+      "display_name": "Formulary Committee",
+      "category": "market_access_payers",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.0,
+        "weight_distribution": {
+          "mean": 1.0,
+          "stddev": 0.12,
+          "min": 0.65,
+          "max": 1.35
+        },
+        "priority_level": "high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "medium"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "gpo",
+      "display_name": "Group Purchasing Organisation (GPO)",
+      "category": "market_access_payers",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 0.9,
+        "weight_distribution": {
+          "mean": 0.9,
+          "stddev": 0.12,
+          "min": 0.55,
+          "max": 1.25
+        },
+        "priority_level": "medium"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "medium"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "guideline_committee_member",
+      "display_name": "Guideline Committee Member",
+      "category": "external_experts",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.05,
+        "weight_distribution": {
+          "mean": 1.05,
+          "stddev": 0.12,
+          "min": 0.7,
+          "max": 1.4
+        },
+        "priority_level": "high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": true,
+        "transparency_requirements": "full",
+        "tov_disclosure_likely": true
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "high",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "hcp_nurse_practitioner",
+      "display_name": "Nurse Practitioner / Advanced Practice",
+      "category": "healthcare_professionals",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 0.9,
+        "weight_distribution": {
+          "mean": 0.9,
+          "stddev": 0.12,
+          "min": 0.55,
+          "max": 1.25
+        },
+        "priority_level": "medium"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "medium",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": true
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "hcp_pharmacist",
+      "display_name": "Pharmacist",
+      "category": "healthcare_professionals",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 0.9,
+        "weight_distribution": {
+          "mean": 0.9,
+          "stddev": 0.12,
+          "min": 0.55,
+          "max": 1.25
+        },
+        "priority_level": "medium"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "medium",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": true
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "hcp_physician_primary_care",
+      "display_name": "Physician – Primary Care",
+      "category": "healthcare_professionals",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.0,
+        "weight_distribution": {
+          "mean": 1.0,
+          "stddev": 0.12,
+          "min": 0.65,
+          "max": 1.35
+        },
+        "priority_level": "high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "medium",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": true
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "hcp_physician_specialist",
+      "display_name": "Physician – Specialist",
+      "category": "healthcare_professionals",
+      "tags": [
+        "clinic",
+        "hospital",
+        "physician",
+        "practice",
+        "specialist"
+      ],
+      "identity": {
+        "job_roles": [
+          "physician",
+          "specialist"
+        ],
+        "organization_types": [
+          "hospital",
+          "clinic",
+          "practice"
+        ],
+        "sector": [
+          "public",
+          "private"
+        ],
+        "typical_titles": [
+          "consultant",
+          "attending physician",
+          "senior registrar"
+        ],
+        "affiliation_examples": [
+          "NHS trust",
+          "academic medical center",
+          "private hospital group"
+        ]
+      },
+      "importance": {
+        "base_weight": 1.05,
+        "priority_level": "high",
+        "decision_influence": "primary",
+        "weight_distribution": {
+          "mean": 1.05,
+          "stddev": 0.15,
+          "min": 0.75,
+          "max": 1.25,
+          "confidence_level": "medium"
+        }
+      },
+      "constraints": {
+        "access_level": "managed",
+        "relationship_mediation": "limited",
+        "typical_gatekeepers": [
+          "admin_assistant",
+          "department_head"
+        ],
+        "engagement_complexity": "moderate",
+        "compliance_risk": "medium",
+        "privacy_sensitivity": "high",
+        "transparency_requirement": "partial",
+        "cross_border_data_restriction": true,
+        "professional_licensing": true,
+        "conflict_of_interest_risk": "medium",
+        "sunshine_act_reporting_applicable": true,
+        "gdpr_sensitivity": "high",
+        "channel_viability": {
+          "field_scientific_exchange": "high",
+          "scientific_publications": "medium",
+          "congress": "medium",
+          "medical_education": "medium",
+          "digital_scientific_platform": "medium",
+          "internal_enablement": "low",
+          "payer_value_communication": "low",
+          "patient_advocacy_engagement": "low"
+        },
+        "digital_maturity": "digital_adopter",
+        "preferred_communication_channels": [
+          "email",
+          "face_to_face",
+          "virtual",
+          "digital_platforms"
+        ],
+        "interaction_frequency": "monthly",
+        "response_time_expectation": "weekly"
+      },
+      "engagement": {
+        "approval_hierarchy": "individual_or_institutional",
+        "content_preferences": [
+          "clinical_data",
+          "practice_guidelines",
+          "case_studies"
+        ],
+        "meeting_preferences": [
+          "face_to_face",
+          "virtual",
+          "congresses"
+        ],
+        "compliance_requirements": {
+          "promotional_material_review": true,
+          "medical_information_only": false,
+          "adverse_event_reporting": true,
+          "financial_disclosure": true,
+          "institutional_approval": false
+        }
+      },
+      "insight_role": {
+        "insight_types": [
+          "needs",
+          "barriers",
+          "clinical_practice_patterns"
+        ],
+        "primary_questions": [
+          "What are the unmet needs in current treatment paradigms?",
+          "What barriers exist to adopting new therapies?",
+          "How does real-world practice differ from trial protocols?"
+        ],
+        "bias_risks": [
+          "social_desirability",
+          "availability_bias",
+          "recency_bias"
+        ],
+        "confidence_ceiling": "medium",
+        "data_sharing_willingness": "conditional"
+      },
+      "cascade": {
+        "enables_pillar_tags": [
+          "clinical_evidence",
+          "medical_education",
+          "real_world_insights"
+        ],
+        "blocks_pillar_tags": [
+          "pricing_strategy",
+          "regulatory_strategy"
+        ],
+        "eligible_tactic_families": [
+          "scientific_exchange",
+          "insight_generation",
+          "evidence_dissemination",
+          "medical_education",
+          "digital_omnichannel"
+        ],
+        "ineligible_tactic_families": [
+          "market_access_value",
+          "internal_enablement"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "output",
+          "outcome"
+        ],
+        "cascade_probability_weights": {
+          "evidence_dissemination": 0.85,
+          "scientific_exchange": 0.9,
+          "insight_generation": 0.75
+        }
+      },
+      "stakeholder_relationships": {
+        "influences": [
+          "hcp_nurse_practitioner",
+          "hcp_physician_primary_care",
+          "patient_individual"
+        ],
+        "influenced_by": [
+          "guideline_committee_member",
+          "kol",
+          "professional_society"
+        ],
+        "collaborates_with": [
+          "academic_researcher",
+          "clinical_trial_investigator"
+        ],
+        "reports_to": [
+          "department_head",
+          "medical_director"
+        ],
+        "decision_dependency": [
+          "formulary_committee",
+          "payer_private"
+        ],
+        "relationship_strength": {
+          "kol": 0.75,
+          "professional_society": 0.65,
+          "academic_researcher": 0.55
+        }
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "medium",
+        "seasonal_pattern": "lower engagement summer/december",
+        "conference_calendar_alignment": true,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "medium",
+        "lifecycle_sensitivity": {
+          "pre_launch": 0.9,
+          "launch": 1.2,
+          "mature_product": 0.95
+        }
+      },
+      "therapy_area_overrides": {
+        "oncology": 1.25,
+        "rare_disease": 1.3,
+        "gene_therapy": 1.25
+      },
+      "region_overrides": {
+        "US": {
+          "base_weight_modifier": 1.15,
+          "compliance_risk": "high",
+          "transparency_requirement": "full"
+        }
+      },
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "high",
+        "data_breach_risk": "high",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "medscape",
+          "doximity",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {
+          "constraints": {
+            "access_level": "managed",
+            "relationship_mediation": "limited",
+            "typical_gatekeepers": [
+              "admin_assistant",
+              "department_head"
+            ],
+            "engagement_complexity": "moderate",
+            "compliance_risk": "high",
+            "privacy_sensitivity": "high",
+            "transparency_requirement": "full",
+            "cross_border_data_restriction": true,
+            "channel_viability": {
+              "field_scientific_exchange": "high",
+              "scientific_publications": "medium",
+              "congress": "medium",
+              "medical_education": "medium",
+              "digital_scientific_platform": "medium",
+              "internal_enablement": "low",
+              "payer_value_communication": "low",
+              "patient_advocacy_engagement": "low"
+            },
+            "digital_maturity": "digital_adopter"
+          },
+          "insight_role": {
+            "insight_types": [
+              "needs",
+              "barriers",
+              "clinical_practice_patterns"
+            ],
+            "primary_questions": [],
+            "bias_risks": [
+              "social_desirability",
+              "availability_bias"
+            ],
+            "confidence_ceiling": "medium"
+          },
+          "cascade": {
+            "enables_pillar_tags": [],
+            "blocks_pillar_tags": [],
+            "eligible_tactic_families": [],
+            "ineligible_tactic_families": [],
+            "valid_metric_levels": [
+              "activity",
+              "output",
+              "outcome"
+            ]
+          },
+          "decision_influence": "primary",
+          "data_maturity": "high",
+          "weight_modifier": 1.1
+        },
+        "US": {
+          "constraints": {
+            "access_level": "managed",
+            "relationship_mediation": "limited",
+            "typical_gatekeepers": [
+              "admin_assistant",
+              "department_head"
+            ],
+            "engagement_complexity": "moderate",
+            "compliance_risk": "high",
+            "privacy_sensitivity": "high",
+            "transparency_requirement": "full",
+            "cross_border_data_restriction": true,
+            "channel_viability": {
+              "field_scientific_exchange": "high",
+              "scientific_publications": "medium",
+              "congress": "medium",
+              "medical_education": "medium",
+              "digital_scientific_platform": "medium",
+              "internal_enablement": "low",
+              "payer_value_communication": "low",
+              "patient_advocacy_engagement": "low"
+            },
+            "digital_maturity": "digital_adopter"
+          },
+          "insight_role": {
+            "insight_types": [
+              "needs",
+              "barriers",
+              "clinical_practice_patterns"
+            ],
+            "primary_questions": [],
+            "bias_risks": [
+              "social_desirability",
+              "availability_bias"
+            ],
+            "confidence_ceiling": "medium"
+          },
+          "cascade": {
+            "enables_pillar_tags": [],
+            "blocks_pillar_tags": [],
+            "eligible_tactic_families": [],
+            "ineligible_tactic_families": [],
+            "valid_metric_levels": [
+              "activity",
+              "output",
+              "outcome"
+            ]
+          },
+          "decision_influence": "primary",
+          "data_maturity": "high",
+          "weight_modifier": 1.15
+        },
+        "Eastern_Europe": {
+          "constraints": {
+            "access_level": "managed",
+            "relationship_mediation": "moderate",
+            "typical_gatekeepers": [
+              "admin_assistant",
+              "department_head",
+              "hospital_administrator"
+            ],
+            "engagement_complexity": "moderate",
+            "compliance_risk": "medium",
+            "privacy_sensitivity": "high",
+            "transparency_requirement": "partial",
+            "cross_border_data_restriction": true,
+            "channel_viability": {
+              "field_scientific_exchange": "high",
+              "scientific_publications": "low",
+              "congress": "medium",
+              "medical_education": "medium",
+              "digital_scientific_platform": "low",
+              "internal_enablement": "low",
+              "payer_value_communication": "low",
+              "patient_advocacy_engagement": "low"
+            },
+            "digital_maturity": "digital_reluctant"
+          },
+          "insight_role": {
+            "insight_types": [
+              "needs",
+              "barriers",
+              "clinical_practice_patterns"
+            ],
+            "primary_questions": [],
+            "bias_risks": [
+              "social_desirability",
+              "availability_bias",
+              "institutional_pressure"
+            ],
+            "confidence_ceiling": "medium"
+          },
+          "cascade": {
+            "enables_pillar_tags": [],
+            "blocks_pillar_tags": [],
+            "eligible_tactic_families": [],
+            "ineligible_tactic_families": [
+              "digital_omnichannel"
+            ],
+            "valid_metric_levels": [
+              "activity",
+              "output"
+            ]
+          },
+          "decision_influence": "secondary",
+          "data_maturity": "medium",
+          "weight_modifier": 0.9
+        }
+      },
+      "governance": {
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2025-12-30",
+        "owner_roles": [
+          "medical_affairs_lead",
+          "field_medical_lead"
+        ],
+        "notes": "High-value stakeholder for clinical insights and real-world evidence generation"
+      }
+    },
+    {
+      "id": "hta_agency",
+      "display_name": "HTA Agency",
+      "category": "market_access_payers",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.15,
+        "weight_distribution": {
+          "mean": 1.15,
+          "stddev": 0.1,
+          "min": 0.8,
+          "max": 1.5
+        },
+        "priority_level": "very_high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "medium"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "institutional_review_board",
+      "display_name": "Institutional Review Board",
+      "category": "external_experts",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 0.9,
+        "weight_distribution": {
+          "mean": 0.9,
+          "stddev": 0.12,
+          "min": 0.55,
+          "max": 1.25
+        },
+        "priority_level": "medium"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": true,
+        "transparency_requirements": "full",
+        "tov_disclosure_likely": true
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "high",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "international_health_organization",
+      "display_name": "International Health Organization",
+      "category": "government_policy",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.0,
+        "weight_distribution": {
+          "mean": 1.0,
+          "stddev": 0.12,
+          "min": 0.65,
+          "max": 1.35
+        },
+        "priority_level": "high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "medium",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "kol",
+      "display_name": "Key Opinion Leader (KOL)",
+      "category": "external_experts",
+      "tags": [
+        "expert",
+        "influencer",
+        "thought_leader",
+        "academic",
+        "speaker"
+      ],
+      "identity": {
+        "job_roles": [
+          "academic_physician",
+          "researcher",
+          "thought_leader"
+        ],
+        "organization_types": [
+          "academic_medical_center",
+          "research_institution"
+        ],
+        "sector": [
+          "public",
+          "academic"
+        ],
+        "typical_titles": [
+          "professor",
+          "department_chair",
+          "division_chief",
+          "principal_investigator"
+        ],
+        "affiliation_examples": [
+          "ivy_league_medical_school",
+          "top_tier_research_hospital"
+        ]
+      },
+      "importance": {
+        "base_weight": 1.2,
+        "priority_level": "very_high",
+        "decision_influence": "gatekeeper",
+        "weight_distribution": {
+          "mean": 1.2,
+          "stddev": 0.12,
+          "min": 0.95,
+          "max": 1.45,
+          "confidence_level": "medium"
+        }
+      },
+      "constraints": {
+        "access_level": "restricted",
+        "relationship_mediation": "moderate",
+        "typical_gatekeepers": [
+          "assistant",
+          "research_coordinator",
+          "speaker_bureau"
+        ],
+        "engagement_complexity": "high",
+        "compliance_risk": "high",
+        "privacy_sensitivity": "high",
+        "transparency_requirement": "full",
+        "cross_border_data_restriction": true,
+        "professional_licensing": true,
+        "conflict_of_interest_risk": "high",
+        "sunshine_act_reporting_applicable": true,
+        "gdpr_sensitivity": "high",
+        "channel_viability": {
+          "field_scientific_exchange": "high",
+          "scientific_publications": "very_high",
+          "congress": "very_high",
+          "medical_education": "high",
+          "digital_scientific_platform": "high",
+          "internal_enablement": "medium",
+          "payer_value_communication": "medium",
+          "patient_advocacy_engagement": "medium"
+        },
+        "digital_maturity": "digital_adopter",
+        "preferred_communication_channels": [
+          "email",
+          "face_to_face",
+          "advisory_boards"
+        ],
+        "interaction_frequency": "quarterly",
+        "response_time_expectation": "monthly"
+      },
+      "engagement": {
+        "approval_hierarchy": "individual",
+        "content_preferences": [
+          "cutting_edge_research",
+          "clinical_data",
+          "mechanism_of_action"
+        ],
+        "meeting_preferences": [
+          "advisory_boards",
+          "congresses",
+          "collaborative_research"
+        ],
+        "compliance_requirements": {
+          "promotional_material_review": false,
+          "medical_information_only": true,
+          "adverse_event_reporting": true,
+          "financial_disclosure": true,
+          "institutional_approval": true
+        }
+      },
+      "insight_role": {
+        "insight_types": [
+          "unmet_needs",
+          "research_direction",
+          "treatment_paradigms",
+          "competitive_landscape"
+        ],
+        "primary_questions": [
+          "What are the most critical research gaps in this field?",
+          "How will future treatment paradigms evolve?",
+          "What evidence would change clinical practice?"
+        ],
+        "bias_risks": [
+          "confirmation_bias",
+          "intellectual_investment",
+          "institutional_loyalty"
+        ],
+        "confidence_ceiling": "high",
+        "data_sharing_willingness": "conditional"
+      },
+      "cascade": {
+        "enables_pillar_tags": [
+          "clinical_evidence",
+          "medical_education",
+          "publication_strategy",
+          "scientific_leadership"
+        ],
+        "blocks_pillar_tags": [
+          "commercial_strategy"
+        ],
+        "eligible_tactic_families": [
+          "scientific_exchange",
+          "insight_generation",
+          "evidence_generation",
+          "evidence_dissemination",
+          "publication_strategy",
+          "advisory_boards"
+        ],
+        "ineligible_tactic_families": [
+          "internal_enablement"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "output",
+          "outcome",
+          "impact"
+        ],
+        "cascade_probability_weights": {
+          "scientific_exchange": 0.95,
+          "publication_strategy": 0.9,
+          "advisory_boards": 0.85
+        }
+      },
+      "stakeholder_relationships": {
+        "influences": [
+          "academic_researcher",
+          "guideline_committee_member",
+          "hcp_physician_specialist",
+          "professional_society",
+          "regulatory_authority"
+        ],
+        "influenced_by": [
+          "peer_kols"
+        ],
+        "collaborates_with": [
+          "academic_researcher",
+          "clinical_trial_investigator",
+          "professional_society"
+        ],
+        "reports_to": [],
+        "decision_dependency": [
+          "institutional_review_board"
+        ],
+        "relationship_strength": {
+          "hcp_physician_specialist": 0.85,
+          "guideline_committee_member": 0.8,
+          "academic_researcher": 0.75,
+          "regulatory_authority": 0.6
+        },
+        "relationship_concepts": [
+          "clinical_trial_data",
+          "regulatory_guidance"
+        ]
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "medium",
+        "seasonal_pattern": "lower engagement summer/academic breaks",
+        "conference_calendar_alignment": true,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "medium",
+        "lifecycle_sensitivity": {
+          "pre_clinical": 1.15,
+          "phase_3": 1.25,
+          "launch": 1.3,
+          "mature_product": 0.9
+        }
+      },
+      "therapy_area_overrides": {
+        "oncology": 1.25,
+        "rare_disease": 1.3,
+        "gene_therapy": 1.35,
+        "breakthrough_therapy": 1.4
+      },
+      "region_overrides": {
+        "US": {
+          "base_weight_modifier": 1.2,
+          "compliance_risk": "very_high",
+          "transparency_requirement": "full"
+        },
+        "EU": {
+          "base_weight_modifier": 1.15
+        }
+      },
+      "risk_factors": {
+        "regulatory_action_risk": "high",
+        "reputational_risk": "very_high",
+        "data_breach_risk": "high",
+        "competitive_intelligence_risk": "high"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "pubmed",
+          "linkedin",
+          "twitter",
+          "researchgate"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {
+          "constraints": {
+            "access_level": "restricted",
+            "relationship_mediation": "moderate",
+            "typical_gatekeepers": [
+              "assistant",
+              "research_coordinator"
+            ],
+            "engagement_complexity": "high",
+            "compliance_risk": "very_high",
+            "privacy_sensitivity": "high",
+            "transparency_requirement": "full",
+            "cross_border_data_restriction": true,
+            "channel_viability": {
+              "field_scientific_exchange": "high",
+              "scientific_publications": "very_high",
+              "congress": "very_high",
+              "medical_education": "high",
+              "digital_scientific_platform": "high",
+              "internal_enablement": "medium",
+              "payer_value_communication": "medium",
+              "patient_advocacy_engagement": "medium"
+            },
+            "digital_maturity": "digital_adopter"
+          },
+          "insight_role": {
+            "insight_types": [
+              "unmet_needs",
+              "research_direction",
+              "treatment_paradigms"
+            ],
+            "primary_questions": [],
+            "bias_risks": [
+              "confirmation_bias",
+              "intellectual_investment"
+            ],
+            "confidence_ceiling": "high"
+          },
+          "cascade": {
+            "enables_pillar_tags": [],
+            "blocks_pillar_tags": [],
+            "eligible_tactic_families": [],
+            "ineligible_tactic_families": [],
+            "valid_metric_levels": [
+              "activity",
+              "output",
+              "outcome",
+              "impact"
+            ]
+          },
+          "decision_influence": "gatekeeper",
+          "data_maturity": "very_high",
+          "weight_modifier": 1.2
+        },
+        "US": {
+          "constraints": {
+            "access_level": "restricted",
+            "relationship_mediation": "moderate",
+            "typical_gatekeepers": [
+              "assistant",
+              "research_coordinator",
+              "speaker_bureau"
+            ],
+            "engagement_complexity": "high",
+            "compliance_risk": "very_high",
+            "privacy_sensitivity": "high",
+            "transparency_requirement": "full",
+            "cross_border_data_restriction": true,
+            "channel_viability": {
+              "field_scientific_exchange": "high",
+              "scientific_publications": "very_high",
+              "congress": "very_high",
+              "medical_education": "high",
+              "digital_scientific_platform": "high",
+              "internal_enablement": "medium",
+              "payer_value_communication": "medium",
+              "patient_advocacy_engagement": "medium"
+            },
+            "digital_maturity": "digital_adopter"
+          },
+          "insight_role": {
+            "insight_types": [
+              "unmet_needs",
+              "research_direction",
+              "treatment_paradigms"
+            ],
+            "primary_questions": [],
+            "bias_risks": [
+              "confirmation_bias",
+              "intellectual_investment"
+            ],
+            "confidence_ceiling": "high"
+          },
+          "cascade": {
+            "enables_pillar_tags": [],
+            "blocks_pillar_tags": [],
+            "eligible_tactic_families": [],
+            "ineligible_tactic_families": [],
+            "valid_metric_levels": [
+              "activity",
+              "output",
+              "outcome",
+              "impact"
+            ]
+          },
+          "decision_influence": "gatekeeper",
+          "data_maturity": "very_high",
+          "weight_modifier": 1.25
+        }
+      },
+      "governance": {
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2025-12-30",
+        "owner_roles": [
+          "medical_affairs_lead",
+          "scientific_engagement_lead"
+        ],
+        "notes": "Critical influencer for scientific credibility and clinical adoption"
+      }
+    },
+    {
+      "id": "medical_director",
+      "display_name": "Medical Director (Payer/HMO)",
+      "category": "market_access_payers",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.05,
+        "weight_distribution": {
+          "mean": 1.05,
+          "stddev": 0.12,
+          "min": 0.7,
+          "max": 1.4
+        },
+        "priority_level": "high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "medium"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "ministry_of_health_official",
+      "display_name": "Ministry of Health Official",
+      "category": "government_policy",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.1,
+        "weight_distribution": {
+          "mean": 1.1,
+          "stddev": 0.1,
+          "min": 0.75,
+          "max": 1.45
+        },
+        "priority_level": "critical"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "medium",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "patient_advocacy_organization",
+      "display_name": "Patient Advocacy Organisation",
+      "category": "patients_carers",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.0,
+        "weight_distribution": {
+          "mean": 1.0,
+          "stddev": 0.12,
+          "min": 0.65,
+          "max": 1.35
+        },
+        "priority_level": "high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": true
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "high",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "patient_individual",
+      "display_name": "Patient (Individual)",
+      "category": "patients_carers",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.0,
+        "weight_distribution": {
+          "mean": 1.0,
+          "stddev": 0.12,
+          "min": 0.65,
+          "max": 1.35
+        },
+        "priority_level": "high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": true
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "high",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "payer_private",
+      "display_name": "Private Payer / Insurance",
+      "category": "market_access_payers",
+      "tags": [
+        "payer",
+        "insurance",
+        "formulary",
+        "access",
+        "reimbursement"
+      ],
+      "identity": {
+        "job_roles": [
+          "payer",
+          "medical_director",
+          "pharmacy_director",
+          "health_economist"
+        ],
+        "organization_types": [
+          "insurance",
+          "health_plan",
+          "managed_care_organization"
+        ],
+        "sector": [
+          "private"
+        ],
+        "typical_titles": [
+          "chief_medical_officer",
+          "pharmacy_and_therapeutics_director",
+          "medical_policy_director"
+        ],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.05,
+        "priority_level": "very_high",
+        "decision_influence": "primary",
+        "weight_distribution": {
+          "mean": 1.05,
+          "stddev": 0.1,
+          "min": 0.8,
+          "max": 1.25,
+          "confidence_level": "high"
+        }
+      },
+      "constraints": {
+        "access_level": "restricted",
+        "relationship_mediation": "moderate",
+        "typical_gatekeepers": [
+          "account_manager",
+          "medical_affairs_liaison"
+        ],
+        "engagement_complexity": "very_high",
+        "compliance_risk": "high",
+        "privacy_sensitivity": "high",
+        "transparency_requirement": "partial",
+        "cross_border_data_restriction": false,
+        "professional_licensing": true,
+        "conflict_of_interest_risk": "medium",
+        "sunshine_act_reporting_applicable": false,
+        "gdpr_sensitivity": "high",
+        "channel_viability": {
+          "field_scientific_exchange": "medium",
+          "scientific_publications": "low",
+          "congress": "low",
+          "medical_education": "low",
+          "digital_scientific_platform": "medium",
+          "internal_enablement": "low",
+          "payer_value_communication": "very_high",
+          "patient_advocacy_engagement": "low"
+        },
+        "digital_maturity": "digital_adopter",
+        "preferred_communication_channels": [
+          "email",
+          "phone",
+          "face_to_face"
+        ],
+        "interaction_frequency": "quarterly",
+        "response_time_expectation": "monthly"
+      },
+      "engagement": {
+        "approval_hierarchy": "organization",
+        "content_preferences": [
+          "economic_data",
+          "clinical_data",
+          "budget_impact",
+          "real_world_evidence"
+        ],
+        "meeting_preferences": [
+          "face_to_face",
+          "advisory_boards",
+          "virtual"
+        ],
+        "compliance_requirements": {
+          "promotional_material_review": true,
+          "medical_information_only": true,
+          "adverse_event_reporting": false,
+          "financial_disclosure": true,
+          "institutional_approval": true
+        }
+      },
+      "insight_role": {
+        "insight_types": [
+          "cost_effectiveness",
+          "utilization_patterns",
+          "access_barriers",
+          "formulary_dynamics"
+        ],
+        "primary_questions": [
+          "What is the budget impact and cost-effectiveness vs alternatives?",
+          "What utilization management strategies would be appropriate?",
+          "What real-world outcomes data support value claims?"
+        ],
+        "bias_risks": [
+          "cost_containment_bias",
+          "institutional_policy_constraints"
+        ],
+        "confidence_ceiling": "high",
+        "data_sharing_willingness": "restricted"
+      },
+      "cascade": {
+        "enables_pillar_tags": [
+          "market_access",
+          "health_economics",
+          "value_demonstration"
+        ],
+        "blocks_pillar_tags": [
+          "clinical_education"
+        ],
+        "eligible_tactic_families": [
+          "market_access_value",
+          "insight_generation",
+          "evidence_generation",
+          "advisory_boards",
+          "data_partnership"
+        ],
+        "ineligible_tactic_families": [
+          "medical_education",
+          "scientific_exchange"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "output",
+          "outcome"
+        ],
+        "cascade_probability_weights": {
+          "market_access_value": 0.95,
+          "evidence_generation": 0.8
+        }
+      },
+      "stakeholder_relationships": {
+        "influences": [
+          "hcp_pharmacist",
+          "hcp_physician_specialist"
+        ],
+        "influenced_by": [
+          "hta_agency",
+          "professional_society",
+          "regulatory_authority"
+        ],
+        "collaborates_with": [
+          "employer_group",
+          "gpo",
+          "pbm"
+        ],
+        "reports_to": [],
+        "decision_dependency": [
+          "hta_agency"
+        ],
+        "relationship_strength": {
+          "hta_agency": 0.85,
+          "pbm": 0.75,
+          "employer_group": 0.6
+        },
+        "relationship_concepts": [
+          "patient_access"
+        ]
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "high",
+        "seasonal_pattern": "highest engagement Q4/Q1 budget planning",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "very_high",
+        "lifecycle_sensitivity": {
+          "hta_review": 1.35,
+          "pricing_negotiation": 1.4,
+          "launch": 1.25,
+          "access_expansion": 1.2
+        }
+      },
+      "therapy_area_overrides": {
+        "orphan_drugs": 1.25,
+        "gene_therapy": 1.3,
+        "cell_therapy": 1.3
+      },
+      "region_overrides": {
+        "US": {
+          "base_weight_modifier": 1.2,
+          "engagement_complexity": "very_high"
+        },
+        "Germany": {
+          "base_weight_modifier": 1.15,
+          "engagement_complexity": "very_high"
+        }
+      },
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "high",
+        "data_breach_risk": "high",
+        "competitive_intelligence_risk": "high"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "proprietary_portals",
+          "email"
+        ],
+        "api_integration_capability": true,
+        "real_time_data_access": true
+      },
+      "regional_profiles": {
+        "US": {
+          "constraints": {
+            "access_level": "restricted",
+            "relationship_mediation": "moderate",
+            "typical_gatekeepers": [
+              "account_manager",
+              "medical_affairs_liaison"
+            ],
+            "engagement_complexity": "very_high",
+            "compliance_risk": "high",
+            "privacy_sensitivity": "high",
+            "transparency_requirement": "partial",
+            "cross_border_data_restriction": false,
+            "channel_viability": {
+              "field_scientific_exchange": "medium",
+              "scientific_publications": "low",
+              "congress": "low",
+              "medical_education": "low",
+              "digital_scientific_platform": "medium",
+              "internal_enablement": "low",
+              "payer_value_communication": "very_high",
+              "patient_advocacy_engagement": "low"
+            },
+            "digital_maturity": "digital_adopter"
+          },
+          "insight_role": {
+            "insight_types": [
+              "cost_effectiveness",
+              "utilization_patterns",
+              "access_barriers"
+            ],
+            "primary_questions": [],
+            "bias_risks": [
+              "cost_containment_bias"
+            ],
+            "confidence_ceiling": "high"
+          },
+          "cascade": {
+            "enables_pillar_tags": [],
+            "blocks_pillar_tags": [],
+            "eligible_tactic_families": [],
+            "ineligible_tactic_families": [],
+            "valid_metric_levels": [
+              "activity",
+              "output",
+              "outcome"
+            ]
+          },
+          "decision_influence": "primary",
+          "data_maturity": "very_high",
+          "weight_modifier": 1.2
+        },
+        "EU": {
+          "constraints": {
+            "access_level": "restricted",
+            "relationship_mediation": "high",
+            "typical_gatekeepers": [
+              "account_manager",
+              "medical_affairs_liaison",
+              "hta_liaison"
+            ],
+            "engagement_complexity": "very_high",
+            "compliance_risk": "high",
+            "privacy_sensitivity": "high",
+            "transparency_requirement": "full",
+            "cross_border_data_restriction": true,
+            "channel_viability": {
+              "field_scientific_exchange": "low",
+              "scientific_publications": "low",
+              "congress": "low",
+              "medical_education": "low",
+              "digital_scientific_platform": "low",
+              "internal_enablement": "low",
+              "payer_value_communication": "very_high",
+              "patient_advocacy_engagement": "low"
+            },
+            "digital_maturity": "digital_adopter"
+          },
+          "insight_role": {
+            "insight_types": [
+              "cost_effectiveness",
+              "utilization_patterns",
+              "access_barriers"
+            ],
+            "primary_questions": [],
+            "bias_risks": [
+              "cost_containment_bias",
+              "political_constraints"
+            ],
+            "confidence_ceiling": "high"
+          },
+          "cascade": {
+            "enables_pillar_tags": [],
+            "blocks_pillar_tags": [],
+            "eligible_tactic_families": [],
+            "ineligible_tactic_families": [],
+            "valid_metric_levels": [
+              "activity",
+              "output"
+            ]
+          },
+          "decision_influence": "primary",
+          "data_maturity": "high",
+          "weight_modifier": 1.15
+        }
+      },
+      "governance": {
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2025-12-30",
+        "owner_roles": [
+          "market_access_lead",
+          "health_economics_lead"
+        ],
+        "notes": "Critical gatekeeper for product access and commercial success"
+      }
+    },
+    {
+      "id": "payer_public",
+      "display_name": "Public Payer",
+      "category": "market_access_payers",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.1,
+        "weight_distribution": {
+          "mean": 1.1,
+          "stddev": 0.1,
+          "min": 0.75,
+          "max": 1.45
+        },
+        "priority_level": "very_high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "medium"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "pbm",
+      "display_name": "Pharmacy Benefit Manager (PBM)",
+      "category": "market_access_payers",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.0,
+        "weight_distribution": {
+          "mean": 1.0,
+          "stddev": 0.12,
+          "min": 0.65,
+          "max": 1.35
+        },
+        "priority_level": "high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "medium"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "peer_kols",
+      "display_name": "Peer KOL Network",
+      "category": "external_experts",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 0.95,
+        "weight_distribution": {
+          "mean": 0.95,
+          "stddev": 0.12,
+          "min": 0.6,
+          "max": 1.3
+        },
+        "priority_level": "medium"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": true,
+        "transparency_requirements": "full",
+        "tov_disclosure_likely": true
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "high",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "pharmacovigilance_authority",
+      "display_name": "Pharmacovigilance Authority",
+      "category": "regulators",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.05,
+        "weight_distribution": {
+          "mean": 1.05,
+          "stddev": 0.12,
+          "min": 0.7,
+          "max": 1.4
+        },
+        "priority_level": "high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "high",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": true,
+        "transparency_requirements": "full",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "high",
+        "reputational_risk": "medium",
+        "data_breach_risk": "high",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "professional_society",
+      "display_name": "Professional Society",
+      "category": "societies_associations",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 0.9,
+        "weight_distribution": {
+          "mean": 0.9,
+          "stddev": 0.12,
+          "min": 0.55,
+          "max": 1.25
+        },
+        "priority_level": "medium"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "medium",
+        "cross_border_restrictions": false,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "medium",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "real_world_data_provider",
+      "display_name": "Real-World Data Provider",
+      "category": "data_tech_partners",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 0.9,
+        "weight_distribution": {
+          "mean": 0.9,
+          "stddev": 0.12,
+          "min": 0.55,
+          "max": 1.25
+        },
+        "priority_level": "medium"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "medium",
+        "cross_border_restrictions": true,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "high",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": true,
+        "real_time_data_access": true
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "regulatory_authority",
+      "display_name": "Regulatory Authority",
+      "category": "regulators",
+      "tags": [
+        "regulator",
+        "agency",
+        "compliance",
+        "approval",
+        "safety"
+      ],
+      "identity": {
+        "job_roles": [
+          "regulator",
+          "medical_assessor",
+          "regulatory_scientist"
+        ],
+        "organization_types": [
+          "agency",
+          "government_body"
+        ],
+        "sector": [
+          "public"
+        ],
+        "typical_titles": [
+          "medical_officer",
+          "senior_assessor",
+          "regulatory_reviewer"
+        ],
+        "affiliation_examples": [
+          "FDA",
+          "EMA",
+          "MHRA",
+          "national_regulatory_agency"
+        ]
+      },
+      "importance": {
+        "base_weight": 1.1,
+        "priority_level": "critical",
+        "decision_influence": "gatekeeper",
+        "weight_distribution": {
+          "mean": 1.1,
+          "stddev": 0.08,
+          "min": 0.85,
+          "max": 1.25,
+          "confidence_level": "high"
+        }
+      },
+      "constraints": {
+        "access_level": "restricted",
+        "relationship_mediation": "high",
+        "typical_gatekeepers": [
+          "regulatory_submissions_portal",
+          "agency_liaison"
+        ],
+        "engagement_complexity": "very_high",
+        "compliance_risk": "very_high",
+        "privacy_sensitivity": "very_high",
+        "transparency_requirement": "full",
+        "cross_border_data_restriction": true,
+        "professional_licensing": true,
+        "conflict_of_interest_risk": "low",
+        "sunshine_act_reporting_applicable": false,
+        "gdpr_sensitivity": "high",
+        "channel_viability": {
+          "field_scientific_exchange": "none",
+          "scientific_publications": "low",
+          "congress": "none",
+          "medical_education": "none",
+          "digital_scientific_platform": "none",
+          "internal_enablement": "none",
+          "payer_value_communication": "none",
+          "patient_advocacy_engagement": "none"
+        },
+        "digital_maturity": "digital_reluctant",
+        "preferred_communication_channels": [
+          "formal_submission",
+          "email",
+          "face_to_face"
+        ],
+        "interaction_frequency": "quarterly",
+        "response_time_expectation": "monthly"
+      },
+      "engagement": {
+        "approval_hierarchy": "regulatory",
+        "content_preferences": [
+          "clinical_data",
+          "safety_data",
+          "regulatory_updates",
+          "quality_data"
+        ],
+        "meeting_preferences": [
+          "formal_meetings",
+          "scientific_advice",
+          "type_a_b_c_meetings"
+        ],
+        "compliance_requirements": {
+          "promotional_material_review": false,
+          "medical_information_only": true,
+          "adverse_event_reporting": true,
+          "financial_disclosure": false,
+          "institutional_approval": true
+        }
+      },
+      "insight_role": {
+        "insight_types": [
+          "regulatory_requirements",
+          "safety_signals",
+          "approval_pathway_guidance"
+        ],
+        "primary_questions": [
+          "What regulatory requirements must be met?",
+          "What safety monitoring is required post-approval?",
+          "What additional evidence would support approval?"
+        ],
+        "bias_risks": [
+          "regulatory_conservatism",
+          "political_pressure"
+        ],
+        "confidence_ceiling": "very_high",
+        "data_sharing_willingness": "restricted"
+      },
+      "cascade": {
+        "enables_pillar_tags": [
+          "regulatory_compliance",
+          "safety_surveillance"
+        ],
+        "blocks_pillar_tags": [
+          "commercial_strategy",
+          "promotional_activity"
+        ],
+        "eligible_tactic_families": [
+          "evidence_generation",
+          "scientific_exchange"
+        ],
+        "ineligible_tactic_families": [
+          "medical_education",
+          "digital_omnichannel",
+          "publication_strategy",
+          "market_access_value",
+          "patient_advocacy",
+          "internal_enablement"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "output"
+        ],
+        "cascade_probability_weights": {
+          "evidence_generation": 0.85,
+          "scientific_exchange": 0.7
+        }
+      },
+      "stakeholder_relationships": {
+        "influences": [
+          "hcp_physician_specialist",
+          "kol",
+          "payer_private",
+          "payer_public",
+          "professional_society"
+        ],
+        "influenced_by": [
+          "international_health_organization",
+          "scientific_advisory_committee"
+        ],
+        "collaborates_with": [
+          "hta_agency",
+          "pharmacovigilance_authority"
+        ],
+        "reports_to": [
+          "ministry_of_health_official"
+        ],
+        "decision_dependency": [],
+        "relationship_strength": {
+          "pharmacovigilance_authority": 0.9,
+          "hta_agency": 0.7,
+          "international_health_organization": 0.75
+        }
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "seasonal_pattern": "consistent year-round",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": true,
+        "budget_cycle_sensitivity": "low",
+        "lifecycle_sensitivity": {
+          "regulatory_review": 1.5,
+          "pre_launch": 1.3,
+          "safety_signal": 1.4
+        }
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "low",
+        "reputational_risk": "high",
+        "data_breach_risk": "very_high",
+        "competitive_intelligence_risk": "low"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_reluctant",
+        "platform_preferences": [
+          "formal_portals",
+          "email"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {
+          "constraints": {
+            "access_level": "restricted",
+            "relationship_mediation": "high",
+            "typical_gatekeepers": [
+              "regulatory_submissions_portal"
+            ],
+            "engagement_complexity": "very_high",
+            "compliance_risk": "very_high",
+            "privacy_sensitivity": "very_high",
+            "transparency_requirement": "full",
+            "cross_border_data_restriction": true,
+            "channel_viability": {
+              "field_scientific_exchange": "none",
+              "scientific_publications": "low",
+              "congress": "none",
+              "medical_education": "none",
+              "digital_scientific_platform": "none",
+              "internal_enablement": "none",
+              "payer_value_communication": "none",
+              "patient_advocacy_engagement": "none"
+            },
+            "digital_maturity": "digital_reluctant"
+          },
+          "insight_role": {
+            "insight_types": [
+              "regulatory_requirements",
+              "safety_signals"
+            ],
+            "primary_questions": [],
+            "bias_risks": [
+              "regulatory_conservatism"
+            ],
+            "confidence_ceiling": "very_high"
+          },
+          "cascade": {
+            "enables_pillar_tags": [],
+            "blocks_pillar_tags": [],
+            "eligible_tactic_families": [],
+            "ineligible_tactic_families": [],
+            "valid_metric_levels": [
+              "activity",
+              "output"
+            ]
+          },
+          "decision_influence": "gatekeeper",
+          "data_maturity": "very_high",
+          "weight_modifier": 1.1
+        },
+        "US": {
+          "constraints": {
+            "access_level": "restricted",
+            "relationship_mediation": "high",
+            "typical_gatekeepers": [
+              "regulatory_submissions_portal"
+            ],
+            "engagement_complexity": "very_high",
+            "compliance_risk": "very_high",
+            "privacy_sensitivity": "very_high",
+            "transparency_requirement": "full",
+            "cross_border_data_restriction": true,
+            "channel_viability": {
+              "field_scientific_exchange": "none",
+              "scientific_publications": "low",
+              "congress": "none",
+              "medical_education": "none",
+              "digital_scientific_platform": "none",
+              "internal_enablement": "none",
+              "payer_value_communication": "none",
+              "patient_advocacy_engagement": "none"
+            },
+            "digital_maturity": "digital_reluctant"
+          },
+          "insight_role": {
+            "insight_types": [
+              "regulatory_requirements",
+              "safety_signals"
+            ],
+            "primary_questions": [],
+            "bias_risks": [
+              "regulatory_conservatism"
+            ],
+            "confidence_ceiling": "very_high"
+          },
+          "cascade": {
+            "enables_pillar_tags": [],
+            "blocks_pillar_tags": [],
+            "eligible_tactic_families": [],
+            "ineligible_tactic_families": [],
+            "valid_metric_levels": [
+              "activity",
+              "output"
+            ]
+          },
+          "decision_influence": "gatekeeper",
+          "data_maturity": "very_high",
+          "weight_modifier": 1.15
+        },
+        "EU": {
+          "constraints": {
+            "access_level": "restricted",
+            "relationship_mediation": "high",
+            "typical_gatekeepers": [
+              "regulatory_submissions_portal"
+            ],
+            "engagement_complexity": "very_high",
+            "compliance_risk": "very_high",
+            "privacy_sensitivity": "very_high",
+            "transparency_requirement": "full",
+            "cross_border_data_restriction": true,
+            "channel_viability": {
+              "field_scientific_exchange": "none",
+              "scientific_publications": "low",
+              "congress": "none",
+              "medical_education": "none",
+              "digital_scientific_platform": "none",
+              "internal_enablement": "none",
+              "payer_value_communication": "none",
+              "patient_advocacy_engagement": "none"
+            },
+            "digital_maturity": "digital_reluctant"
+          },
+          "insight_role": {
+            "insight_types": [
+              "regulatory_requirements",
+              "safety_signals"
+            ],
+            "primary_questions": [],
+            "bias_risks": [
+              "regulatory_conservatism"
+            ],
+            "confidence_ceiling": "very_high"
+          },
+          "cascade": {
+            "enables_pillar_tags": [],
+            "blocks_pillar_tags": [],
+            "eligible_tactic_families": [],
+            "ineligible_tactic_families": [],
+            "valid_metric_levels": [
+              "activity",
+              "output"
+            ]
+          },
+          "decision_influence": "gatekeeper",
+          "data_maturity": "very_high",
+          "weight_modifier": 1.1
+        }
+      },
+      "governance": {
+        "review_cadence": "annually",
+        "last_reviewed_on": "2025-12-30",
+        "owner_roles": [
+          "regulatory_affairs_lead",
+          "medical_affairs_compliance_lead"
+        ],
+        "notes": "Non-negotiable gatekeeper for product approval and market access"
+      }
+    },
+    {
+      "id": "scientific_advisory_committee",
+      "display_name": "Scientific Advisory Committee",
+      "category": "external_experts",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 1.05,
+        "weight_distribution": {
+          "mean": 1.05,
+          "stddev": 0.12,
+          "min": 0.7,
+          "max": 1.4
+        },
+        "priority_level": "high"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "high",
+        "cross_border_restrictions": true,
+        "transparency_requirements": "full",
+        "tov_disclosure_likely": true
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "high",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": false,
+        "real_time_data_access": false
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    },
+    {
+      "id": "tech_vendor_ehr",
+      "display_name": "EHR / Health IT Vendor",
+      "category": "data_tech_partners",
+      "tags": [],
+      "identity": {
+        "job_roles": [],
+        "organization_types": [],
+        "sector": [],
+        "typical_titles": [],
+        "affiliation_examples": []
+      },
+      "importance": {
+        "base_weight": 0.85,
+        "weight_distribution": {
+          "mean": 0.85,
+          "stddev": 0.12,
+          "min": 0.5,
+          "max": 1.2
+        },
+        "priority_level": "medium"
+      },
+      "constraints": {
+        "access_level": "standard",
+        "relationship_mediation": "none",
+        "compliance_risk": "medium",
+        "data_sensitivity": "medium",
+        "cross_border_restrictions": true,
+        "transparency_requirements": "partial",
+        "tov_disclosure_likely": false
+      },
+      "engagement": {
+        "interaction_frequency": "monthly",
+        "preferred_channels": [
+          "email",
+          "virtual"
+        ],
+        "engagement_complexity": "moderate"
+      },
+      "insight_role": {
+        "insight_types": [
+          "insights",
+          "barriers",
+          "unmet_needs"
+        ],
+        "decision_influence": "secondary"
+      },
+      "cascade": {
+        "eligible_tactic_families": [
+          "advisory_board",
+          "scientific_exchange",
+          "education"
+        ],
+        "valid_metric_levels": [
+          "activity",
+          "engagement",
+          "impact"
+        ]
+      },
+      "stakeholder_relationships": {
+        "influences": [],
+        "influenced_by": [],
+        "collaborates_with": [],
+        "reports_to": [],
+        "decision_dependency": []
+      },
+      "temporal_factors": {
+        "seasonal_relevance": "low",
+        "conference_calendar_alignment": false,
+        "regulatory_calendar_dependency": false,
+        "budget_cycle_sensitivity": "low"
+      },
+      "therapy_area_overrides": {},
+      "region_overrides": {},
+      "risk_factors": {
+        "regulatory_action_risk": "medium",
+        "reputational_risk": "medium",
+        "data_breach_risk": "high",
+        "competitive_intelligence_risk": "medium"
+      },
+      "digital_profile": {
+        "digital_maturity": "digital_adopter",
+        "platform_preferences": [
+          "email",
+          "linkedin"
+        ],
+        "api_integration_capability": true,
+        "real_time_data_access": true
+      },
+      "regional_profiles": {
+        "UK": {},
+        "EU": {},
+        "US": {},
+        "Eastern_Europe": {},
+        "LATAM": {},
+        "SE_Asia_Emerging": {},
+        "Middle_East": {}
+      },
+      "governance": {
+        "notes": "Auto-generated stub to close stakeholder graph integrity. Review and calibrate weights per programme/therapy area."
+      }
+    }
+  ]
+}

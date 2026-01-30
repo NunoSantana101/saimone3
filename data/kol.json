@@ -1,0 +1,654 @@
+{
+  "schema": "saimone.kol.validation",
+  "version": "1.2+internal_planning_relax_v1",
+  "last_updated": "2026-01-07",
+  "purpose": "Pre-generation KOL validation, hallucination prevention, and claim-gated output for Medical Affairs / MedComms workflows using GPT-4.1 with natural-language search.",
+  "design_principles": [
+    "deny_by_default",
+    "evidence_first_text_last",
+    "identity_before_authority",
+    "no_lexical_prestige_without_proof",
+    "insufficient_evidence_is_a_valid_outcome"
+  ],
+  "definitions": {
+    "regions": [
+      "UK",
+      "EU",
+      "US",
+      "JP",
+      "LATAM",
+      "Global"
+    ],
+    "engagement_types": [
+      "AdvisoryBoard",
+      "SpeakerProgram",
+      "CongressEngagement",
+      "PublicationPlanning",
+      "MedicalEducation",
+      "SteeringCommittee",
+      "Consultancy"
+    ],
+    "kol_tiers": [
+      "National",
+      "Regional",
+      "Local",
+      "RisingStar"
+    ],
+    "evidence_types": [
+      "PubMedPublication",
+      "ClinicalTrialRole",
+      "GuidelineAuthorship",
+      "CongressFaculty",
+      "InstitutionalRole",
+      "EditorialRole",
+      "SocietyLeadership",
+      "GrantFunding",
+      "PatentOrInnovation",
+      "MediaOrPublicEducation"
+    ]
+  },
+  "hallucination_prevention": {
+    "mode": "deny_by_default",
+    "generation_contract": {
+      "description": "Narrative may only be generated from explicitly validated claims. No additional facts, roles, rankings, or descriptors are permitted.",
+      "kol_label_requires": [
+        "identity_anchor",
+        "primary_evidence_minimum"
+      ],
+      "primary_evidence_minimum": {
+        "min_distinct_evidence_items": 1,
+        "min_distinct_sources": 2,
+        "must_include_one_of": [
+          "ClinicalTrialRole",
+          "GuidelineAuthorship",
+          "PubMedPublication",
+          "CongressFaculty",
+          "SocietyLeadership"
+        ]
+      }
+    },
+    "entity_constraints": {
+      "require_identity_anchor": true,
+      "accepted_anchors": [
+        "NPI",
+        "GMC",
+        "Institution+Specialty+Country",
+        "UniqueTrialInvestigatorRecord"
+      ],
+      "if_ambiguous_identity": {
+        "verdict_cap": "InsufficientEvidence",
+        "block_phrases": [
+          "key opinion leader",
+          "leading",
+          "top",
+          "world-renowned",
+          "most influential"
+        ]
+      }
+    },
+    "claim_types": {
+      "allowed_only_if_evidenced": [
+        "KOL_label",
+        "LeadershipRole",
+        "GuidelineAuthorship",
+        "TrialPI",
+        "HighPublicationImpact",
+        "CongressFaculty"
+      ],
+      "never_generate": [
+        "UnverifiableAwards",
+        "PrivateAdvisoryRoles",
+        "RevenueOrPaymentAmounts",
+        "InternalCompanyAffiliations",
+        "MotivesOrIntent",
+        "CompetitiveComparisons"
+      ]
+    },
+    "lexical_controls": {
+      "forbidden_phrases": [
+        "leading",
+        "top",
+        "world-renowned",
+        "number one",
+        "most influential",
+        "renowned expert",
+        "globally recognised",
+        "key opinion leader"
+      ],
+      "soften_to": {
+        "leading": "active in",
+        "top": "well-published",
+        "world-renowned": "widely published",
+        "most influential": "frequently cited within"
+      }
+    },
+    "output_controls": {
+      "must_output_allowed_claims_array": true,
+      "must_output_blocked_claims_array": true,
+      "narrative_must_reference_claim_ids_only": true,
+      "if_no_allowed_claims": "return_gaps_only"
+    }
+  },
+  "policy": {
+    "no_hallucination": true,
+    "evidence_required_for_kol_label": true,
+    "minimum_sources_for_high_confidence": 3,
+    "source_preference_order": [
+      "GuidelineAuthorship",
+      "ClinicalTrialRole",
+      "PubMedPublication",
+      "SocietyLeadership",
+      "CongressFaculty",
+      "InstitutionalRole",
+      "EditorialRole",
+      "GrantFunding",
+      "PatentOrInnovation",
+      "MediaOrPublicEducation"
+    ],
+    "recency_windows_months": {
+      "high_confidence": 24,
+      "medium_confidence": 48,
+      "rising_star": 36
+    }
+  },
+  "scoring_model": {
+    "total_points": 100,
+    "bands": {
+      "VerifiedHigh": {
+        "min": 80
+      },
+      "VerifiedMedium": {
+        "min": 65
+      },
+      "Provisional": {
+        "min": 50
+      },
+      "InsufficientEvidence": {
+        "min": 0
+      }
+    },
+    "weights": {
+      "identity_resolution": 15,
+      "therapy_relevance": 20,
+      "scientific_output": 20,
+      "trial_leadership": 15,
+      "guideline_influence": 15,
+      "society_leadership": 10,
+      "congress_presence": 5
+    },
+    "penalties": {
+      "identity_ambiguity": -20,
+      "stale_activity": -10,
+      "high_coi_risk": -15,
+      "missing_primary_evidence": -25
+    },
+    "legacy_note": "Retained for backward compatibility. Prefer ranking_model scores; map TotalFit to 'score' in outputs when available."
+  },
+  "identity_resolution": {
+    "required_fields": [
+      "full_name",
+      "country_or_region"
+    ],
+    "preferred_fields": [
+      "institution",
+      "specialty",
+      "gmc_or_npi_if_available"
+    ],
+    "disambiguation_rules": [
+      {
+        "name": "institution_alignment",
+        "description": "Institution and specialty alignment across sources reduces ambiguity.",
+        "points": 5
+      },
+      {
+        "name": "trial_registry_investigator_match",
+        "description": "Match name + institution against trial registry investigator listings (PI/CoI) to reduce ambiguity.",
+        "points": 8
+      },
+      {
+        "name": "institutional_profile_match",
+        "description": "Match against official institutional profile pages (department directory) to reduce ambiguity.",
+        "points": 7
+      }
+    ],
+    "hard_fail_conditions": [
+      {
+        "name": "multiple_distinct_profiles",
+        "description": "Evidence indicates multiple individuals with same name and insufficient anchors.",
+        "verdict": "InsufficientEvidence"
+      }
+    ]
+  },
+  "evidence_rules": [
+    {
+      "evidence_type": "GuidelineAuthorship",
+      "points": 15,
+      "recency_months": 60,
+      "minimum_count_for_points": 1,
+      "accepted_roles": [
+        "Chair",
+        "Co-Chair",
+        "WritingGroup",
+        "TaskForceMember"
+      ]
+    },
+    {
+      "evidence_type": "ClinicalTrialRole",
+      "points": 12,
+      "recency_months": 60,
+      "minimum_count_for_points": 1,
+      "accepted_roles": [
+        "PI",
+        "GlobalPI",
+        "SteeringCommittee",
+        "CoI"
+      ]
+    },
+    {
+      "evidence_type": "PubMedPublication",
+      "points": 10,
+      "recency_months": 48,
+      "minimum_count_for_points": 3,
+      "accepted_roles": [
+        "FirstAuthor",
+        "LastAuthor",
+        "CorrespondingAuthor"
+      ]
+    },
+    {
+      "evidence_type": "SocietyLeadership",
+      "points": 8,
+      "recency_months": 72,
+      "minimum_count_for_points": 1,
+      "accepted_roles": [
+        "President",
+        "BoardMember",
+        "CommitteeChair"
+      ]
+    },
+    {
+      "evidence_type": "CongressFaculty",
+      "points": 5,
+      "recency_months": 36,
+      "minimum_count_for_points": 2,
+      "accepted_roles": [
+        "InvitedSpeaker",
+        "SessionChair",
+        "Faculty"
+      ]
+    },
+    {
+      "evidence_type": "HTACommitteeRole",
+      "accepted_roles": [
+        "Member",
+        "Chair",
+        "Reviewer",
+        "SecretariatAdvisor"
+      ],
+      "minimum_count_for_points": 1,
+      "points": 10,
+      "recency_months": 72
+    },
+    {
+      "evidence_type": "RegulatoryAdvisoryRole",
+      "accepted_roles": [
+        "Advisor",
+        "CommitteeMember",
+        "ExpertReviewer"
+      ],
+      "minimum_count_for_points": 1,
+      "points": 8,
+      "recency_months": 72
+    },
+    {
+      "evidence_type": "HEORPublication",
+      "accepted_roles": [
+        "FirstAuthor",
+        "LastAuthor",
+        "CorrespondingAuthor"
+      ],
+      "minimum_count_for_points": 1,
+      "points": 8,
+      "recency_months": 60
+    },
+    {
+      "evidence_type": "PatientAdvocacyEngagement",
+      "accepted_roles": [
+        "BoardMember",
+        "ScientificAdvisor",
+        "Speaker"
+      ],
+      "minimum_count_for_points": 1,
+      "points": 5,
+      "recency_months": 60
+    },
+    {
+      "evidence_type": "MediaPresence",
+      "accepted_roles": [
+        "Interviewee",
+        "QuotedExpert",
+        "OpEdAuthor"
+      ],
+      "minimum_count_for_points": 2,
+      "points": 3,
+      "recency_months": 36
+    }
+  ],
+  "coi_assessment": {
+    "levels": [
+      "Low",
+      "Moderate",
+      "High",
+      "Unknown"
+    ],
+    "signals": [
+      {
+        "name": "company_payments_disclosed",
+        "description": "Disclosed payments or consultancy in public records or disclosures.",
+        "risk_level": "Moderate"
+      },
+      {
+        "name": "speaker_bureau",
+        "description": "Repeated paid speaker program participation.",
+        "risk_level": "High"
+      },
+      {
+        "name": "equity_or_patents_related",
+        "description": "Equity stake or IP related to product class under discussion.",
+        "risk_level": "High"
+      }
+    ],
+    "default_if_no_data": "Unknown",
+    "penalty_by_level": {
+      "Low": 0,
+      "Moderate": -5,
+      "High": -15,
+      "Unknown": -3
+    }
+  },
+  "preflight_hard_stops": [
+    {
+      "if": "identity_confidence == 'Low'",
+      "action": "return_gaps_only"
+    },
+    {
+      "if": "primary_evidence_met == false",
+      "action": "cap_verdict",
+      "cap_to": "Provisional",
+      "description": "Internal-planning mode: allow provisional candidates when primary evidence is missing, but prevent 'Verified' KOL labeling."
+    },
+    {
+      "if": "evidence_recency_met == false",
+      "action": "block_recency_language"
+    },
+    {
+      "if": "retrieved_candidates_count == 0",
+      "action": "return_gaps_only"
+    },
+    {
+      "if": "provenance_distinct_sources_count < 2",
+      "action": "return_gaps_only"
+    }
+  ],
+  "compliance_overlays": {
+    "UK": {
+      "notes": [
+        "Apply ABPI/PMCPA: no inducement framing; ensure legitimate need; document FMV and rationale."
+      ],
+      "high_risk_engagement_types": [
+        "SpeakerProgram"
+      ],
+      "required_documentation": [
+        "Rationale",
+        "FairMarketValue",
+        "Contract",
+        "DisclosurePlan"
+      ]
+    },
+    "EU": {
+      "notes": [
+        "EFPIA disclosure rules apply; treat cross-border engagements conservatively."
+      ],
+      "required_documentation": [
+        "Rationale",
+        "FMV",
+        "DisclosurePlan"
+      ]
+    },
+    "US": {
+      "notes": [
+        "Sunshine Act/Open Payments visibility for transfers of value."
+      ],
+      "required_documentation": [
+        "Rationale",
+        "FMV",
+        "DisclosurePlan"
+      ]
+    }
+  },
+  "outputs": {
+    "required_fields": [
+      "kol_candidate",
+      "verdict",
+      "confidence",
+      "score",
+      "tier_suggestion",
+      "identity_confidence",
+      "allowed_claims",
+      "blocked_claims",
+      "evidence_summary",
+      "gaps",
+      "coi_level",
+      "compliance_flags"
+    ],
+    "verdicts": [
+      "VerifiedHigh",
+      "VerifiedMedium",
+      "Provisional",
+      "InsufficientEvidence"
+    ],
+    "score_definition": "If ranking_model is used, output 'score' should equal TotalFit; also include EvidenceScore and UseCaseFitScore in evidence_summary or extended fields."
+  },
+  "retrieval_policy": {
+    "purpose": "Evidence-first candidate retrieval; prevents synthetic placeholders by requiring provenance-linked candidates prior to scoring.",
+    "allowed_sources": [
+      "PubMed",
+      "ClinicalTrialsGov",
+      "ORCID",
+      "OpenAlex",
+      "CongressFaculty",
+      "SocietySites",
+      "InstitutionDirectory"
+    ],
+    "disallowed_sources": [
+      "UnattributedBlogs",
+      "Forums",
+      "AIGeneratedLists"
+    ],
+    "min_candidates_before_ranking": 5,
+    "max_candidates_to_score": 100,
+    "query_templates_by_intent": {
+      "car_t_b_cell_lymphoma_latam_market_access": [
+        {
+          "source": "PubMed",
+          "query_template": "(CAR-T OR chimeric antigen receptor) AND (lymphoma OR DLBCL OR 'B-cell') AND (Brazil OR Argentina OR Mexico OR Colombia OR Chile OR Latin America) AND (2021:3000[pdat])",
+          "notes": "Topic+region+recency constrained"
+        },
+        {
+          "source": "ClinicalTrialsGov",
+          "query_template": "(CAR-T OR chimeric antigen receptor) AND (lymphoma OR DLBCL OR B-cell) AND (Brazil OR Argentina OR Mexico OR Colombia OR Chile)",
+          "notes": "Trial investigators and sites"
+        },
+        {
+          "source": "PubMed",
+          "query_template": "(CAR-T OR chimeric antigen receptor) AND (reimbursement OR access OR cost OR HTA OR health technology assessment OR 'health economics') AND (Latin America OR Brazil OR Argentina OR Mexico OR Colombia OR Chile) AND (2021:3000[pdat])",
+          "notes": "Access/HEOR layer"
+        }
+      ]
+    },
+    "candidate_object_schema": {
+      "required_fields": [
+        "full_name",
+        "affiliations",
+        "countries",
+        "evidence_objects"
+      ],
+      "evidence_object_required_fields": [
+        "evidence_id",
+        "source",
+        "source_record_id",
+        "url",
+        "date",
+        "evidence_type",
+        "role",
+        "snippet",
+        "confidence"
+      ]
+    },
+    "provenance_rules": {
+      "name_must_have_evidence_refs": true,
+      "min_distinct_sources_per_person": 2,
+      "min_primary_sources_per_person": 1,
+      "primary_sources": [
+        "PubMed",
+        "ClinicalTrialsGov",
+        "GuidelineBody"
+      ],
+      "secondary_sources": [
+        "ORCID",
+        "OpenAlex",
+        "CongressFaculty",
+        "SocietySites",
+        "InstitutionDirectory"
+      ]
+    }
+  },
+  "ranking_model": {
+    "purpose": "Separate credibility (EvidenceScore) from contextual usefulness (UseCaseFitScore); rank on calibrated TotalFit.",
+    "scores": {
+      "EvidenceScore": {
+        "scale": "0-100",
+        "weights": {
+          "identity_resolution": 15,
+          "therapy_relevance": 25,
+          "primary_evidence": 35,
+          "recency": 15,
+          "anchor_quality": 10
+        },
+        "minimum_to_list": 65
+      },
+      "UseCaseFitScore": {
+        "scale": "0-100",
+        "weights": {
+          "market_access_hta_engagement": 25,
+          "trial_leadership_target_indication": 20,
+          "regional_centrality": 15,
+          "heor_access_publications": 15,
+          "policy_committee_society_leadership": 10,
+          "media_advocacy_language_presence": 10,
+          "cross_border_collaboration": 5
+        }
+      },
+      "TotalFit": {
+        "formula": "0.55*UseCaseFitScore + 0.45*EvidenceScore",
+        "scale": "0-100"
+      }
+    },
+    "hard_constraints": {
+      "block_if_no_primary_evidence": true,
+      "block_if_identity_confidence_low": true,
+      "block_if_wrong_indication_or_modality": true
+    },
+    "penalties": {
+      "wrong_indication_or_modality": -15,
+      "identity_ambiguity": -20,
+      "missing_primary_evidence": -25,
+      "stale_activity": -10,
+      "high_coi_risk": -15
+    },
+    "tie_breakers": [
+      "EvidenceScore",
+      "trial_leadership_target_indication",
+      "market_access_hta_engagement",
+      "recency"
+    ]
+  },
+  "calibration": {
+    "purpose": "Prevent drift and generic picks by replaying golden tests and negative controls; tune weights and penalties.",
+    "golden_tests": [
+      {
+        "id": "GT-CAR-T-LATAM-ACCESS-001",
+        "intent": "Market access preparation for CAR-T in R/R B-cell lymphomas in LATAM",
+        "expected_behavior": "Prefer KOLs with (a) LATAM institutional footprint, (b) CAR-T lymphoma clinical involvement, (c) access/HEOR/implementation evidence; return fewer names if evidence sparse."
+      }
+    ],
+    "negative_controls": [
+      {
+        "id": "NC-WRONG-DISEASE-001",
+        "description": "CAR-T in myeloma only; should be penalized for B-cell lymphoma request."
+      },
+      {
+        "id": "NC-WRONG-MODALITY-001",
+        "description": "CAR-NK only; should be penalized when CAR-T is required unless explicitly allowed by intent."
+      },
+      {
+        "id": "NC-WRONG-REGION-001",
+        "description": "US/EU-only KOLs; should be penalized or excluded absent LATAM footprint."
+      },
+      {
+        "id": "NC-LAB-ONLY-001",
+        "description": "Pure lab scientist with no clinical, access, or regional engagement; should not outrank access-facing clinical leaders for market access intent."
+      }
+    ],
+    "drift_checks": {
+      "monitor_metrics": [
+        "avg_EvidenceScore",
+        "avg_TotalFit",
+        "percent_candidates_blocked_no_primary_evidence",
+        "countries_coverage"
+      ],
+      "alert_thresholds": {
+        "avg_EvidenceScore_drop_points": 10,
+        "percent_blocked_no_primary_evidence_gt": 0.6
+      }
+    },
+    "verdict_mapping_notes": [
+      "When outcomes are corroborated by multiple reputable secondary sources but primary numerical results are not yet public, treat the event-claim as Verified for internal planning while explicitly tagging magnitude as Pending."
+    ]
+  },
+  "output_contract": {
+    "purpose": "Guarantee 'real names only' outputs and auditable ranking explainability.",
+    "name_output_rule": "Never output a person name unless linked to at least one evidence_object; remove otherwise.",
+    "required_person_fields": [
+      "full_name",
+      "identity_anchor",
+      "identity_confidence",
+      "affiliations",
+      "countries",
+      "evidence_refs",
+      "EvidenceScore",
+      "UseCaseFitScore",
+      "TotalFit"
+    ],
+    "required_per_person_provenance": [
+      "retrieval_queries_hit",
+      "distinct_sources_count",
+      "primary_sources_count"
+    ],
+    "ranking_explainability": {
+      "top_contributors_required": 5,
+      "format": "feature_contribution_list",
+      "no_freeform_story_until_after_scoring": true
+    },
+    "coverage_gap_reporting": {
+      "required_when_returning_fewer_than_requested": true,
+      "fields": [
+        "requested_n",
+        "returned_n",
+        "blocked_reasons_counts",
+        "countries_with_no_validated_kols",
+        "recommended_next_queries"
+      ]
+    }
+  }
+}

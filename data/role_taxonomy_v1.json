@@ -1,0 +1,884 @@
+{
+  "metadata": {
+    "schema_version": "2.0",
+    "generated_on": "2026-01-08",
+    "description": "Medical Affairs roles output blueprint with explicit deliverable requirements, conditional dependencies, and validation cascades",
+    "design_philosophy": "Constraint-based deliverable validation: each role's outputs are explicitly enumerated with conditional triggers, approval requirements, and cross-functional dependencies to prevent scope creep and hallucinated deliverables",
+    "alignment_frameworks": [
+      "MAPS_iMC_Strategy_and_Plan",
+      "MAPS_Field_Medical_KPIs",
+      "ISO_13485_quality_management",
+      "organizational_governance"
+    ],
+    "model_runtime_target": "gpt-4.1 / claude-sonnet-4",
+    "design_principles": [
+      "Explicit enumeration of required vs conditional outputs",
+      "Dependency triggers based on operational thresholds",
+      "Approval workflows with clear escalation paths",
+      "Strategic-tactical cascade with bidirectional traceability",
+      "Validation rules prevent deliverable hallucination",
+      "Regional and organizational adaptability via overrides"
+    ],
+    "cascade_targets": {
+      "upstream": [
+        "stakeholder_taxonomy.json - role outputs must align with stakeholder constraints",
+        "tactics_taxonomy.json - tactical outputs must reference valid tactic families",
+        "metrics.json - KPI requirements must use defined metric levels"
+      ],
+      "downstream": [
+        "validation_engine - deliverable completeness checking",
+        "approval_workflows - conditional dependency resolution",
+        "reporting_templates - automated report generation based on role requirements"
+      ]
+    }
+  },
+
+  "enums": {
+    "output_category": ["strategic", "tactical", "governance", "operational"],
+    "output_type": [
+      "narrative",
+      "table",
+      "log",
+      "tracker",
+      "dashboard",
+      "matrix",
+      "checklist",
+      "report",
+      "plan",
+      "framework",
+      "policy",
+      "register"
+    ],
+    "frequency": [
+      "ad_hoc",
+      "monthly",
+      "quarterly",
+      "biannual",
+      "annual",
+      "per_cycle",
+      "continuous"
+    ],
+    "validation_level": [
+      "self_review",
+      "peer_review",
+      "manager_approval",
+      "executive_approval",
+      "cross_functional_approval",
+      "compliance_review"
+    ],
+    "dependency_trigger_type": [
+      "threshold_exceeded",
+      "status_change",
+      "event_occurrence",
+      "budget_variance",
+      "timeline_delay",
+      "risk_escalation",
+      "regulatory_change",
+      "negative_feedback",
+      "scope_expansion"
+    ],
+    "output_status": [
+      "not_applicable",
+      "pending",
+      "in_progress",
+      "submitted",
+      "approved",
+      "published",
+      "archived"
+    ],
+    "criticality": ["optional", "recommended", "required", "mandatory"],
+    "scope_level": ["global", "regional", "country", "local", "team"]
+  },
+
+  "output_field_schema": {
+    "description": "Standard schema for all output fields across roles",
+    "properties": {
+      "field_name": "string - unique identifier",
+      "display_name": "string - human-readable name",
+      "output_type": "enum - from output_type",
+      "output_category": "enum - from output_category",
+      "description": "string - what this output contains",
+      "frequency": "enum - from frequency",
+      "criticality": "enum - from criticality",
+      "validation_level": "enum or array - from validation_level",
+      "format_requirements": "array of strings - specific format rules",
+      "cross_references": "array of strings - must link to other taxonomies/outputs",
+      "data_sources": "array of strings - where data comes from",
+      "approval_chain": "array of strings - ordered approval sequence",
+      "retention_period": "string - how long to maintain",
+      "audience": "array of strings - who consumes this output"
+    }
+  },
+
+  "dependency_schema": {
+    "description": "Standard schema for conditional output requirements",
+    "properties": {
+      "dependency_id": "string - unique identifier",
+      "trigger_type": "enum - from dependency_trigger_type",
+      "condition": "string - explicit trigger condition",
+      "threshold": "string or number - when dependency activates",
+      "required_outputs": "array - outputs that become mandatory when triggered",
+      "escalation_path": "array - who must be notified",
+      "resolution_deadline": "string - timeframe for addressing",
+      "validation_rules": "array - how to verify dependency resolution"
+    }
+  },
+
+  "roles": [
+    {
+      "role_id": "global_medical_director",
+      "role_name": "Global Medical Director",
+      "scope_level": "global",
+      "reports_to": ["chief_medical_officer", "head_of_medical_affairs"],
+      "direct_reports": [
+        "regional_medical_director",
+        "publication_manager",
+        "heor_rwe_lead",
+        "patient_advocacy_lead",
+        "medical_education_manager"
+      ],
+
+      "strategic_outputs": [
+        {
+          "field_name": "strategic_vision_statement",
+          "display_name": "Strategic Vision Statement",
+          "output_type": "narrative",
+          "output_category": "strategic",
+          "description": "Overarching medical affairs vision aligned with corporate strategy",
+          "frequency": "annual",
+          "criticality": "mandatory",
+          "validation_level": ["executive_approval", "cross_functional_approval"],
+          "format_requirements": [
+            "1-2 page executive summary",
+            "Must reference corporate strategy",
+            "Must include 3-5 year horizon",
+            "Must align with commercial and R&D objectives"
+          ],
+          "cross_references": ["company_strategic_plan", "medical_strategy_framework"],
+          "data_sources": ["executive_planning_sessions", "market_intelligence"],
+          "approval_chain": ["cmo", "executive_committee"],
+          "retention_period": "10_years",
+          "audience": ["executive_leadership", "regional_medical_directors", "commercial_leadership"]
+        },
+        {
+          "field_name": "annual_medical_objectives",
+          "display_name": "Annual Medical Objectives",
+          "output_type": "table",
+          "output_category": "strategic",
+          "description": "Specific, measurable objectives by therapy area and product",
+          "frequency": "annual",
+          "criticality": "mandatory",
+          "validation_level": ["manager_approval", "cross_functional_approval"],
+          "format_requirements": [
+            "Objective, Therapy Area, Product, Owner, Timeline, Success Criteria",
+            "Must use SMART criteria",
+            "Must cascade to regional objectives",
+            "Must align with metrics_taxonomy.json metric definitions"
+          ],
+          "cross_references": ["metrics_taxonomy", "tactics_taxonomy", "pillars_taxonomy"],
+          "data_sources": ["strategic_planning", "prior_year_performance"],
+          "approval_chain": ["head_of_medical_affairs", "cross_functional_leads"],
+          "retention_period": "7_years",
+          "audience": ["regional_mds", "country_mds", "cross_functional_partners"]
+        },
+        {
+          "field_name": "cross_functional_alignment_narrative",
+          "display_name": "Cross-Functional Alignment Narrative",
+          "output_type": "narrative",
+          "output_category": "strategic",
+          "description": "How medical affairs strategy interfaces with commercial, regulatory, R&D, and market access",
+          "frequency": "annual",
+          "criticality": "mandatory",
+          "validation_level": "cross_functional_approval",
+          "format_requirements": [
+            "Must explicitly reference all four functions: commercial, regulatory, R&D, market access",
+            "Must identify integration points and dependencies",
+            "Must include conflict resolution mechanisms"
+          ],
+          "cross_references": ["stakeholder_taxonomy", "organizational_structure"],
+          "data_sources": ["cross_functional_workshops", "strategic_planning"],
+          "approval_chain": ["heads_of_functions"],
+          "retention_period": "7_years",
+          "audience": ["executive_leadership", "functional_heads", "regional_leadership"]
+        },
+        {
+          "field_name": "global_stakeholder_map",
+          "display_name": "Key Global Stakeholder Map",
+          "output_type": "matrix",
+          "output_category": "strategic",
+          "description": "Comprehensive mapping of KOLs, advocacy groups, payers, and regulatory stakeholders",
+          "frequency": "annual",
+          "criticality": "mandatory",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "Must include: Name, Type (KOL/Advocacy/Payer/Regulatory), Region, Tier, Engagement Strategy",
+            "Must align with stakeholder_taxonomy.json persona definitions",
+            "Must include relationship strength scoring",
+            "Must reference data privacy compliance status"
+          ],
+          "cross_references": ["stakeholder_taxonomy", "kol_taxonomy", "privacy_compliance_framework"],
+          "data_sources": ["crm_system", "msl_field_intelligence", "kol_management_platform"],
+          "approval_chain": ["global_medical_director"],
+          "retention_period": "3_years_active_plus_2_years_archived",
+          "audience": ["regional_mds", "msls", "patient_advocacy_team"]
+        },
+        {
+          "field_name": "launch_governance_plan",
+          "display_name": "Launch Governance Plan",
+          "output_type": "plan",
+          "output_category": "strategic",
+          "description": "Comprehensive launch oversight framework",
+          "frequency": "per_cycle",
+          "criticality": "required",
+          "validation_level": ["executive_approval", "compliance_review"],
+          "format_requirements": [
+            "Launch timelines with milestones",
+            "Cross-functional dependencies mapped",
+            "Risk mitigation strategies",
+            "Success criteria and KPIs"
+          ],
+          "cross_references": ["launch_excellence_framework", "tactics_taxonomy"],
+          "data_sources": ["launch_readiness_assessments", "cross_functional_inputs"],
+          "approval_chain": ["cmo", "launch_steering_committee"],
+          "retention_period": "7_years",
+          "audience": ["launch_team", "regional_mds", "executive_sponsors"],
+          "conditional_on": "has_active_launch_in_scope"
+        }
+      ],
+
+      "strategic_dependencies": [
+        {
+          "dependency_id": "launch_governance_active",
+          "trigger_type": "scope_expansion",
+          "condition": "Launch Governance Plan is included in strategic outputs",
+          "threshold": "has_active_launch_in_scope == true",
+          "required_outputs": [
+            "launch_readiness_status_table",
+            "risk_mitigation_narrative",
+            "prelaunch_training_compliance_rate"
+          ],
+          "escalation_path": ["global_medical_director", "launch_steering_committee"],
+          "resolution_deadline": "prior_to_launch_approval",
+          "validation_rules": [
+            "Launch readiness must show >90% completion across all workstreams",
+            "Training compliance must be >95%",
+            "All critical risks must have documented mitigation plans"
+          ]
+        }
+      ],
+
+      "tactical_outputs": [
+        {
+          "field_name": "direct_report_list",
+          "display_name": "Direct Report List",
+          "output_type": "table",
+          "output_category": "operational",
+          "description": "Current organizational structure with names, roles, and geographies",
+          "frequency": "quarterly",
+          "criticality": "mandatory",
+          "validation_level": "self_review",
+          "format_requirements": ["Name, Role, Geography, Start Date, Reporting Relationship"],
+          "cross_references": ["hr_system", "organizational_chart"],
+          "data_sources": ["hr_management_system"],
+          "approval_chain": ["global_medical_director"],
+          "retention_period": "current_plus_2_years",
+          "audience": ["hr", "regional_leadership", "finance"]
+        },
+        {
+          "field_name": "global_initiative_tracker",
+          "display_name": "Global Initiative Tracker",
+          "output_type": "tracker",
+          "output_category": "tactical",
+          "description": "All active initiatives with status, region, and owner",
+          "frequency": "monthly",
+          "criticality": "mandatory",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "Initiative Name, Status (On Track/At Risk/Delayed), Region, Owner, Timeline, Budget Status",
+            "Must use standardized status definitions",
+            "Must link to strategic objectives"
+          ],
+          "cross_references": ["annual_medical_objectives", "tactics_taxonomy"],
+          "data_sources": ["project_management_system", "regional_reports"],
+          "approval_chain": ["global_medical_director"],
+          "retention_period": "3_years",
+          "audience": ["executive_leadership", "regional_mds", "finance"]
+        },
+        {
+          "field_name": "strategic_initiative_kpi_dashboard",
+          "display_name": "Strategic Initiative KPI Dashboard",
+          "output_type": "dashboard",
+          "output_category": "tactical",
+          "description": "KPI performance tracking across all strategic initiatives",
+          "frequency": "monthly",
+          "criticality": "mandatory",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "KPI Name, Baseline, Target, Achieved, Variance %, Status",
+            "Must align with metrics_taxonomy.json definitions",
+            "Must show trend data (3-month minimum)",
+            "Must flag any KPI >15% off target"
+          ],
+          "cross_references": ["metrics_taxonomy", "annual_medical_objectives"],
+          "data_sources": ["bi_platform", "regional_dashboards", "crm_system"],
+          "approval_chain": ["global_medical_director"],
+          "retention_period": "5_years",
+          "audience": ["executive_leadership", "regional_mds", "metrics_team"]
+        },
+        {
+          "field_name": "resource_allocation_by_initiative",
+          "display_name": "Resource Allocation by Initiative",
+          "output_type": "table",
+          "output_category": "tactical",
+          "description": "Budget, FTEs, and external partners allocated to each initiative",
+          "frequency": "quarterly",
+          "criticality": "mandatory",
+          "validation_level": ["manager_approval", "cross_functional_approval"],
+          "format_requirements": [
+            "Initiative, Budget Allocated, Budget Spent, FTE Count, External Partners, Variance",
+            "Must reconcile with finance system",
+            "Must show ROI projections where applicable"
+          ],
+          "cross_references": ["budget_planning", "global_initiative_tracker"],
+          "data_sources": ["finance_system", "hr_analytics", "vendor_management"],
+          "approval_chain": ["global_medical_director", "finance_lead"],
+          "retention_period": "7_years",
+          "audience": ["finance", "executive_leadership", "regional_mds"]
+        },
+        {
+          "field_name": "risk_register",
+          "display_name": "Risk Register",
+          "output_type": "register",
+          "output_category": "governance",
+          "description": "Active risks to strategic objectives with mitigation status",
+          "frequency": "monthly",
+          "criticality": "required",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "Risk ID, Description, Impact, Likelihood, Mitigation Plan, Owner, Status",
+            "Must use standardized risk scoring matrix",
+            "Must escalate any risk with impact * likelihood > threshold"
+          ],
+          "cross_references": ["enterprise_risk_management", "global_initiative_tracker"],
+          "data_sources": ["risk_management_system", "regional_inputs"],
+          "approval_chain": ["global_medical_director"],
+          "retention_period": "7_years",
+          "audience": ["executive_leadership", "compliance", "regional_mds"],
+          "conditional_on": "any_objective_flagged_at_risk"
+        }
+      ],
+
+      "tactical_dependencies": [
+        {
+          "dependency_id": "initiative_delay_threshold",
+          "trigger_type": "timeline_delay",
+          "condition": "Any initiative is delayed >1 cycle from original timeline",
+          "threshold": "delay_duration > 1_cycle",
+          "required_outputs": [
+            "delay_root_cause_analysis",
+            "remediation_plan"
+          ],
+          "escalation_path": ["global_medical_director", "initiative_sponsor"],
+          "resolution_deadline": "within_2_weeks_of_delay_identification",
+          "validation_rules": [
+            "Root cause must be categorized (resource, scope, dependency, external)",
+            "Remediation plan must include revised timeline",
+            "Must identify if delay impacts dependent initiatives"
+          ]
+        }
+      ],
+
+      "governance": {
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2026-01-08",
+        "owner_roles": ["global_medical_director", "medical_operations_lead"],
+        "compliance_requirements": [
+          "SOX_compliance_for_financial_reporting",
+          "GDPR_compliance_for_stakeholder_data",
+          "organizational_governance_policy"
+        ],
+        "notes": "Highest-level medical affairs role with enterprise-wide accountability"
+      }
+    },
+
+    {
+      "role_id": "regional_medical_director",
+      "role_name": "Regional Medical Director",
+      "scope_level": "regional",
+      "reports_to": ["global_medical_director"],
+      "direct_reports": ["country_medical_director", "msl_team_lead"],
+
+      "strategic_outputs": [
+        {
+          "field_name": "regional_strategy_statement",
+          "display_name": "Regional Strategy Statement",
+          "output_type": "narrative",
+          "output_category": "strategic",
+          "description": "Regional medical strategy aligned to global vision with local adaptations",
+          "frequency": "annual",
+          "criticality": "mandatory",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "Must reference global strategic vision",
+            "Must identify regional priorities and differences",
+            "Must address regional regulatory/market access landscape",
+            "1-2 pages maximum"
+          ],
+          "cross_references": ["strategic_vision_statement_global", "regional_market_intelligence"],
+          "data_sources": ["regional_planning_sessions", "country_inputs"],
+          "approval_chain": ["global_medical_director"],
+          "retention_period": "7_years",
+          "audience": ["country_mds", "regional_stakeholders", "global_leadership"]
+        },
+        {
+          "field_name": "regional_medical_objectives",
+          "display_name": "Regional Medical Objectives",
+          "output_type": "table",
+          "output_category": "strategic",
+          "description": "Regional objectives mapped to countries with owners and timelines",
+          "frequency": "annual",
+          "criticality": "mandatory",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "Objective, Country, Owner, Timeline, Success Metrics, Link to Global Objective",
+            "Must use SMART framework",
+            "Must show how regional objectives roll up to global objectives"
+          ],
+          "cross_references": ["annual_medical_objectives_global", "country_strategy_plans"],
+          "data_sources": ["regional_planning", "country_inputs"],
+          "approval_chain": ["global_medical_director"],
+          "retention_period": "7_years",
+          "audience": ["country_mds", "regional_team", "global_leadership"]
+        },
+        {
+          "field_name": "stakeholder_alignment_log",
+          "display_name": "Stakeholder Alignment Log",
+          "output_type": "log",
+          "output_category": "strategic",
+          "description": "Key regional stakeholders with engagement status and alignment assessment",
+          "frequency": "quarterly",
+          "criticality": "mandatory",
+          "validation_level": "peer_review",
+          "format_requirements": [
+            "Stakeholder Name, Type, Country, Alignment Status, Last Engagement, Next Steps",
+            "Must align with stakeholder_taxonomy.json",
+            "Must include both internal (country leads) and external stakeholders"
+          ],
+          "cross_references": ["stakeholder_taxonomy", "global_stakeholder_map"],
+          "data_sources": ["crm_system", "country_reports"],
+          "approval_chain": ["regional_medical_director"],
+          "retention_period": "3_years",
+          "audience": ["country_mds", "msls", "global_leadership"]
+        },
+        {
+          "field_name": "country_adaptation_matrix",
+          "display_name": "Country Adaptation Matrix",
+          "output_type": "matrix",
+          "output_category": "strategic",
+          "description": "How global strategy is adapted per country based on local requirements",
+          "frequency": "annual",
+          "criticality": "required",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "Country, Global Strategy Element, Local Adaptation, Rationale, Approval Status",
+            "Must show variance from global approach with justification",
+            "Must identify regulatory or market access drivers"
+          ],
+          "cross_references": ["regional_strategy_statement", "country_regulatory_profiles"],
+          "data_sources": ["country_planning_sessions", "regulatory_intelligence"],
+          "approval_chain": ["global_medical_director"],
+          "retention_period": "7_years",
+          "audience": ["country_mds", "compliance", "global_leadership"],
+          "conditional_on": "region_has_multiple_countries"
+        }
+      ],
+
+      "strategic_dependencies": [
+        {
+          "dependency_id": "country_risk_flag",
+          "trigger_type": "risk_escalation",
+          "condition": "Any country in region is flagged 'at risk' status",
+          "threshold": "country_risk_status == at_risk",
+          "required_outputs": ["country_risk_mitigation_plan"],
+          "escalation_path": ["regional_medical_director", "global_medical_director"],
+          "resolution_deadline": "within_30_days",
+          "validation_rules": [
+            "Must identify root cause of risk",
+            "Must have mitigation actions with owners and timelines",
+            "Must show impact assessment on regional objectives"
+          ]
+        }
+      ],
+
+      "tactical_outputs": [
+        {
+          "field_name": "initiative_list",
+          "display_name": "Initiative List",
+          "output_type": "table",
+          "output_category": "tactical",
+          "description": "All regional initiatives with country allocation and status",
+          "frequency": "monthly",
+          "criticality": "mandatory",
+          "validation_level": "self_review",
+          "format_requirements": [
+            "Initiative, Country, Status, Timeline, Budget, Owner",
+            "Must link to regional objectives",
+            "Must flag any initiative at risk or delayed"
+          ],
+          "cross_references": ["regional_medical_objectives", "global_initiative_tracker"],
+          "data_sources": ["project_management_system", "country_reports"],
+          "approval_chain": ["regional_medical_director"],
+          "retention_period": "3_years",
+          "audience": ["country_mds", "global_leadership", "finance"]
+        },
+        {
+          "field_name": "regional_kpi_summary",
+          "display_name": "Regional KPI Summary",
+          "output_type": "dashboard",
+          "output_category": "tactical",
+          "description": "Key metrics by country showing performance against targets",
+          "frequency": "monthly",
+          "criticality": "mandatory",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "KPI, Country, Target, Achieved, Variance, Trend",
+            "Must align with metrics_taxonomy.json",
+            "Must aggregate to regional totals",
+            "Must flag any country >15% off target"
+          ],
+          "cross_references": ["metrics_taxonomy", "strategic_initiative_kpi_dashboard_global"],
+          "data_sources": ["country_dashboards", "bi_platform"],
+          "approval_chain": ["regional_medical_director"],
+          "retention_period": "5_years",
+          "audience": ["global_leadership", "country_mds", "finance"]
+        },
+        {
+          "field_name": "field_team_resource_matrix",
+          "display_name": "Field Team Resource Matrix",
+          "output_type": "matrix",
+          "output_category": "operational",
+          "description": "Team size and allocation per country with utilization metrics",
+          "frequency": "quarterly",
+          "criticality": "mandatory",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "Country, MSL Count, Specialists Count, Allocation (%), Utilization %, Gaps",
+            "Must identify resource gaps or overallocation",
+            "Must align with budget and headcount planning"
+          ],
+          "cross_references": ["hr_system", "resource_allocation_by_initiative_global"],
+          "data_sources": ["hr_analytics", "field_activity_reports"],
+          "approval_chain": ["regional_medical_director", "hr_business_partner"],
+          "retention_period": "3_years",
+          "audience": ["global_leadership", "hr", "country_mds"]
+        }
+      ],
+
+      "tactical_dependencies": [
+        {
+          "dependency_id": "large_initiative_approval",
+          "trigger_type": "budget_variance",
+          "condition": "Regional initiative exceeds $100k budget threshold",
+          "threshold": "initiative_budget > 100000",
+          "required_outputs": ["executive_sponsor_approval"],
+          "escalation_path": ["regional_medical_director", "global_medical_director", "finance_lead"],
+          "resolution_deadline": "prior_to_initiative_kickoff",
+          "validation_rules": [
+            "Must have business case with ROI projection",
+            "Must show alignment with strategic objectives",
+            "Must have executive sponsor identified and committed"
+          ]
+        }
+      ],
+
+      "governance": {
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2026-01-08",
+        "owner_roles": ["regional_medical_director", "medical_operations_lead"],
+        "compliance_requirements": [
+          "regional_governance_policy",
+          "GDPR_compliance_EU",
+          "local_regulatory_requirements"
+        ],
+        "notes": "Regional accountability with country-level oversight"
+      }
+    },
+
+    {
+      "role_id": "msl",
+      "role_name": "Medical Science Liaison",
+      "scope_level": "local",
+      "reports_to": ["country_medical_director", "regional_medical_director"],
+      "direct_reports": [],
+
+      "strategic_outputs": [
+        {
+          "field_name": "annual_field_engagement_plan",
+          "display_name": "Annual Field Engagement Plan",
+          "output_type": "plan",
+          "output_category": "strategic",
+          "description": "Territory-level engagement strategy for KOLs, HCPs, and payers",
+          "frequency": "annual",
+          "criticality": "mandatory",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "Territory definition, Target KOLs (by tier), HCP segments, Payer stakeholders",
+            "Must include engagement frequency targets",
+            "Must align with country medical objectives",
+            "Must reference compliance requirements"
+          ],
+          "cross_references": ["stakeholder_taxonomy", "kol_taxonomy", "country_medical_objectives"],
+          "data_sources": ["crm_system", "territory_planning"],
+          "approval_chain": ["country_medical_director"],
+          "retention_period": "3_years",
+          "audience": ["msl", "country_md", "compliance"]
+        },
+        {
+          "field_name": "insight_collection_framework",
+          "display_name": "Insight Collection Framework",
+          "output_type": "framework",
+          "output_category": "strategic",
+          "description": "Structured approach to capturing and reporting field insights",
+          "frequency": "annual",
+          "criticality": "mandatory",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "Insight themes/categories, Collection frequency, Reporting process, Quality criteria",
+            "Must define what constitutes 'actionable insight'",
+            "Must specify escalation paths for critical insights"
+          ],
+          "cross_references": ["insight_management_process", "crm_system_configuration"],
+          "data_sources": ["field_best_practices", "insight_taxonomy"],
+          "approval_chain": ["country_medical_director"],
+          "retention_period": "3_years",
+          "audience": ["msl_team", "country_md", "medical_insights_team"]
+        },
+        {
+          "field_name": "stakeholder_segmentation",
+          "display_name": "Stakeholder Segmentation",
+          "output_type": "table",
+          "output_category": "strategic",
+          "description": "Territory stakeholders with tier classification and engagement rationale",
+          "frequency": "annual",
+          "criticality": "mandatory",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "Stakeholder Name, Type, Tier (1-3), Rationale, Engagement Strategy, Compliance Notes",
+            "Must align with stakeholder_taxonomy.json persona definitions",
+            "Must include tiering methodology",
+            "Must show alignment with field engagement plan"
+          ],
+          "cross_references": ["stakeholder_taxonomy", "annual_field_engagement_plan"],
+          "data_sources": ["crm_system", "kol_intelligence"],
+          "approval_chain": ["country_medical_director"],
+          "retention_period": "3_years",
+          "audience": ["msl", "country_md", "compliance"]
+        }
+      ],
+
+      "strategic_dependencies": [
+        {
+          "dependency_id": "new_indication_territory",
+          "trigger_type": "scope_expansion",
+          "condition": "New indication or product launches in MSL territory",
+          "threshold": "new_product_launch_in_territory == true",
+          "required_outputs": [
+            "updated_engagement_plan",
+            "training_completion_log"
+          ],
+          "escalation_path": ["msl", "country_medical_director"],
+          "resolution_deadline": "prior_to_launch_date",
+          "validation_rules": [
+            "Engagement plan must include new indication/product-specific strategies",
+            "Training completion must be 100% before field engagement",
+            "Must update stakeholder segmentation if new targets identified"
+          ]
+        }
+      ],
+
+      "tactical_outputs": [
+        {
+          "field_name": "kol_interaction_log",
+          "display_name": "KOL Interaction Log",
+          "output_type": "log",
+          "output_category": "tactical",
+          "description": "Detailed record of all KOL/HCP interactions with outcomes",
+          "frequency": "continuous",
+          "criticality": "mandatory",
+          "validation_level": "self_review",
+          "format_requirements": [
+            "Date, Stakeholder, Channel (in-person/virtual), Topic, Key Discussion Points, Outcome, Follow-up Required",
+            "Must be logged within 24 hours of interaction",
+            "Must capture insights according to insight_collection_framework",
+            "Must comply with privacy and transparency requirements"
+          ],
+          "cross_references": ["stakeholder_taxonomy", "insight_collection_framework", "privacy_compliance"],
+          "data_sources": ["crm_system", "msl_field_reports"],
+          "approval_chain": ["self"],
+          "retention_period": "7_years",
+          "audience": ["country_md", "compliance", "insights_team"]
+        },
+        {
+          "field_name": "insight_report",
+          "display_name": "Insight Report",
+          "output_type": "report",
+          "output_category": "tactical",
+          "description": "Aggregated field insights with analysis and recommended actions",
+          "frequency": "monthly",
+          "criticality": "mandatory",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "Insight summary, Theme categorization, Action recommendations, Impact assessment",
+            "Must show trend analysis where applicable",
+            "Must prioritize insights by strategic importance",
+            "Must include source validation"
+          ],
+          "cross_references": ["insight_collection_framework", "kol_interaction_log"],
+          "data_sources": ["crm_system", "field_intelligence"],
+          "approval_chain": ["country_medical_director"],
+          "retention_period": "5_years",
+          "audience": ["country_md", "regional_md", "cross_functional_teams"]
+        },
+        {
+          "field_name": "educational_event_tracker",
+          "display_name": "Educational Event Tracker",
+          "output_type": "tracker",
+          "output_category": "tactical",
+          "description": "All educational events delivered with reach and satisfaction metrics",
+          "frequency": "continuous",
+          "criticality": "mandatory",
+          "validation_level": "self_review",
+          "format_requirements": [
+            "Event Name, Date, Format, Audience Count, Topics Covered, Satisfaction Score, Compliance Review Status",
+            "Must capture pre-post knowledge assessments where applicable",
+            "Must link to approved educational materials"
+          ],
+          "cross_references": ["medical_education_materials_library", "compliance_requirements"],
+          "data_sources": ["event_management_system", "feedback_surveys"],
+          "approval_chain": ["country_medical_director"],
+          "retention_period": "7_years",
+          "audience": ["medical_education_manager", "compliance", "country_md"]
+        },
+        {
+          "field_name": "activity_metrics",
+          "display_name": "Activity Metrics",
+          "output_type": "dashboard",
+          "output_category": "tactical",
+          "description": "Quantitative activity tracking across all MSL functions",
+          "frequency": "monthly",
+          "criticality": "mandatory",
+          "validation_level": "manager_approval",
+          "format_requirements": [
+            "Number of visits, Virtual vs In-person %, HCP coverage (% of target list engaged), Tier 1/2/3 engagement distribution",
+            "Must align with annual_field_engagement_plan targets",
+            "Must show trend over time"
+          ],
+          "cross_references": ["annual_field_engagement_plan", "metrics_taxonomy"],
+          "data_sources": ["crm_system", "activity_tracking_tool"],
+          "approval_chain": ["country_medical_director"],
+          "retention_period": "5_years",
+          "audience": ["country_md", "regional_md", "hr"]
+        }
+      ],
+
+      "tactical_dependencies": [
+        {
+          "dependency_id": "negative_hcp_feedback_threshold",
+          "trigger_type": "negative_feedback",
+          "condition": "Negative HCP feedback exceeds 10% in reporting cycle",
+          "threshold": "negative_feedback_percentage > 10",
+          "required_outputs": ["corrective_action_plan"],
+          "escalation_path": ["msl", "country_medical_director", "compliance"],
+          "resolution_deadline": "within_2_weeks",
+          "validation_rules": [
+            "Must identify root cause of negative feedback",
+            "Must have specific corrective actions with owners",
+            "Must include plan for re-engagement where appropriate",
+            "Must assess if training or materials need updating"
+          ]
+        }
+      ],
+
+      "governance": {
+        "review_cadence": "quarterly",
+        "last_reviewed_on": "2026-01-08",
+        "owner_roles": ["msl_lead", "country_medical_director"],
+        "compliance_requirements": [
+          "field_medical_code_of_conduct",
+          "data_privacy_regulations",
+          "promotional_separation_policy",
+          "transparency_reporting_requirements"
+        ],
+        "notes": "Field-facing role with high compliance sensitivity and stakeholder interaction frequency"
+      }
+    }
+  ],
+
+  "cross_role_dependencies": {
+    "description": "Dependencies that span multiple roles requiring coordination",
+    "dependencies": [
+      {
+        "dependency_id": "strategic_cascade_global_to_regional",
+        "trigger_type": "status_change",
+        "condition": "Global medical objectives are updated",
+        "affected_roles": ["regional_medical_director", "country_medical_director"],
+        "required_action": "Update regional/country objectives within 30 days to maintain alignment",
+        "validation_rules": [
+          "Regional objectives must explicitly reference updated global objectives",
+          "Any variance from global direction must be documented and approved"
+        ]
+      },
+      {
+        "dependency_id": "insight_escalation_chain",
+        "trigger_type": "event_occurrence",
+        "condition": "MSL captures critical insight requiring executive visibility",
+        "affected_roles": ["msl", "country_medical_director", "regional_medical_director", "global_medical_director"],
+        "required_action": "Escalate through chain within 48 hours with impact assessment",
+        "validation_rules": [
+          "Must categorize insight by type and urgency",
+          "Must include recommended actions at each level",
+          "Must track insight through resolution"
+        ]
+      }
+    ]
+  },
+
+  "validation_engine_integration": {
+    "description": "How this taxonomy integrates with validation systems",
+    "validation_checks": [
+      {
+        "check_name": "output_completeness",
+        "check_type": "mandatory_field_presence",
+        "description": "Ensures all mandatory outputs for a role are present based on conditions",
+        "frequency": "on_demand"
+      },
+      {
+        "check_name": "dependency_resolution",
+        "check_type": "conditional_requirement_met",
+        "description": "Validates that when dependency triggers activate, required outputs are generated",
+        "frequency": "quarterly"
+      },
+      {
+        "check_name": "cross_reference_integrity",
+        "check_type": "taxonomy_alignment",
+        "description": "Verifies outputs reference valid elements from other taxonomies",
+        "frequency": "on_update"
+      },
+      {
+        "check_name": "approval_chain_completion",
+        "check_type": "workflow_validation",
+        "description": "Confirms outputs have progressed through required approval steps",
+        "frequency": "monthly"
+      }
+    ]
+  },
+
+  "governance": {
+    "schema_owner": "medical_operations_lead",
+    "review_cadence": "biannual",
+    "last_reviewed": "2026-01-08",
+    "next_review_due": "2026-07-08",
+    "change_management_process": "role_taxonomy_change_control_board",
+    "notes": "This taxonomy defines the complete output requirements for medical affairs roles to prevent scope creep and deliverable hallucination. All role additions or modifications must go through change control board approval."
+  }
+}

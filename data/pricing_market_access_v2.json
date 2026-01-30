@@ -1,0 +1,2875 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "last_updated": "2026-01-01",
+    "description": "Pricing & Market Access module aligned to sAÏmone v2 taxonomies; includes Monte Carlo-ready uncertainty models and explicit linkage to pillars/tactics/metrics/stakeholders.",
+    "integration": "Optional module activated via silent UI button - models commercial/pricing dynamics alongside medical affairs strategy",
+    "scope": "Covers pricing strategies, managed entry agreements, tender dynamics, competitive responses, and cross-country dependencies",
+    "sources": [
+      "OECD Health Working Papers - Performance-Based MEAs (2019)",
+      "Value in Health - MEA Policy Analysis European Perspective (2020)",
+      "ISPOR Pricing Strategy Frameworks (2024)",
+      "MTAPS Review of Pricing Policies (2021)",
+      "EFPIA Public Procurement White Paper (2021)",
+      "Health Economics - Impact of MEAs on Prices (2020)"
+    ],
+    "usage_note": "This module models interactions between medical affairs strategy and commercial outcomes - activate only when pricing/access dynamics are critical to strategic planning",
+    "schema_version": "3.5-hybrid",
+    "generated_on": "2026-01-19",
+    "compatibility": {
+      "pillars": "pillars_v2_full.json",
+      "tactics": "tactics_taxonomy_v2_full.json",
+      "metrics": "metrics_v2_full.json",
+      "stakeholders": "stakeholder_taxonomy_v2_full.json"
+    },
+    "simulation_capabilities": {
+      "monte_carlo_ready": true,
+      "correlation_hooks_present": true,
+      "threshold_models_present": true
+    }
+  },
+  "pricing_strategies": {
+    "value_based_pricing": {
+      "description": "Pricing based on demonstrated clinical, economic, or patient-reported value relative to existing therapies",
+      "base_success_probability": {
+        "distribution": "beta",
+        "alpha": 6,
+        "beta": 4,
+        "rationale": "HTA bodies increasingly accept value-based arguments when robustly demonstrated; ~60% success rate for well-documented value propositions",
+        "simulation_ready": true
+      },
+      "prerequisites": {
+        "robust_rwe": {
+          "required": true,
+          "impact_if_absent": -0.4,
+          "description": "Real-world evidence demonstrating outcomes, adherence, or persistence advantages"
+        },
+        "hta_submission": {
+          "required": true,
+          "impact_if_absent": -0.5,
+          "description": "Formal health technology assessment dossier with pharmacoeconomic analysis"
+        },
+        "qaly_icer_evidence": {
+          "required": false,
+          "impact_if_present": 0.2,
+          "description": "Cost-effectiveness analysis showing favorable ICER within payer WTP threshold"
+        },
+        "patient_reported_outcomes": {
+          "required": false,
+          "impact_if_present": 0.15,
+          "description": "PRO data showing quality of life improvements beyond clinical endpoints"
+        }
+      },
+      "regional_modifiers": {
+        "uk_nice": 0.15,
+        "germany_iqwig": 0.1,
+        "france_has": 0.05,
+        "italy_aifa": 0.08,
+        "spain_aemps": 0.03,
+        "portugal_infarmed": 0.05,
+        "nordics": 0.12,
+        "eastern_europe": -0.15,
+        "us_icer": 0.08,
+        "rationale": "UK/Nordics have mature value-based frameworks; Eastern Europe prioritizes budget impact over value"
+      },
+      "lifecycle_modifiers": {
+        "launch": 0.1,
+        "early_lifecycle_1_3_years": 0.05,
+        "established_4_8_years": -0.1,
+        "mature_8_plus_years": -0.25,
+        "rationale": "Payers more receptive to value arguments at launch; skepticism increases with time as generics/biosimilars approach"
+      },
+      "competitive_context": {
+        "first_in_class": 0.25,
+        "best_in_class": 0.15,
+        "me_too_with_differentiation": 0.05,
+        "me_too_commoditized": -0.2,
+        "biosimilar_pressure": -0.3,
+        "rationale": "Payers reward genuine innovation; commoditized markets drive to lowest cost"
+      },
+      "failure_modes": [
+        {
+          "mode": "insufficient_evidence_quality",
+          "probability": 0.25,
+          "impact": "Payer rejects value claim, defaults to reference pricing or lowest comparator",
+          "mitigation": "Pre-engage payers on evidence requirements, conduct gap analysis vs HTA frameworks"
+        },
+        {
+          "mode": "payer_budget_constraints_override",
+          "probability": 0.2,
+          "impact": "Value acknowledged but budget impact forces discount/MEA",
+          "mitigation": "Proactive MEA proposal linking value to volume/outcomes"
+        },
+        {
+          "mode": "clinical_equipoise_with_comparators",
+          "probability": 0.18,
+          "impact": "HTA body finds no significant clinical difference despite statistical significance",
+          "mitigation": "Focus on patient-relevant endpoints, subgroup analyses, adherence advantages"
+        },
+        {
+          "mode": "value_framework_methodological_disputes",
+          "probability": 0.15,
+          "impact": "Disagreement on QALY calculations, discount rates, or time horizons",
+          "mitigation": "Scenario analysis showing value across multiple methodological assumptions"
+        }
+      ],
+      "dependencies": {
+        "medical_affairs_pillars": {
+          "evidence_generation": {
+            "strength": 0.27,
+            "direction": "positive",
+            "description": "Strong RWE publication record directly supports value-based pricing arguments",
+            "notes": [
+              "Auto-remapped from legacy pillar key 'evidence_generation_dissemination'"
+            ]
+          },
+          "publications": {
+            "strength": 0.18,
+            "direction": "positive",
+            "description": "Strong RWE publication record directly supports value-based pricing arguments",
+            "notes": [
+              "Auto-remapped from legacy pillar key 'evidence_generation_dissemination'"
+            ]
+          },
+          "rwe_generation": {
+            "strength": 0.15,
+            "direction": "positive",
+            "description": "Strong RWE publication record directly supports value-based pricing arguments",
+            "notes": [
+              "Auto-remapped from legacy pillar key 'evidence_generation_dissemination'"
+            ]
+          },
+          "market_access_support": {
+            "strength": 0.158,
+            "direction": "positive",
+            "description": "Pre-engaged payers understand value proposition before formal submission",
+            "notes": [
+              "Auto-remapped from legacy pillar key 'stakeholder_engagement'"
+            ]
+          },
+          "patient_advocacy": {
+            "strength": 0.087,
+            "direction": "positive",
+            "description": "Pre-engaged payers understand value proposition before formal submission",
+            "notes": [
+              "Auto-remapped from legacy pillar key 'stakeholder_engagement'"
+            ]
+          },
+          "kol_engagement": {
+            "strength": 0.105,
+            "direction": "positive",
+            "description": "Pre-engaged payers understand value proposition before formal submission",
+            "notes": [
+              "Auto-remapped from legacy pillar key 'stakeholder_engagement'"
+            ]
+          },
+          "hcp_education": {
+            "strength": 0.2,
+            "direction": "positive",
+            "description": "HCP advocacy for value can influence payer perception"
+          }
+        }
+      },
+      "linkage": {
+        "linked_pillar_ids": [
+          "evidence_generation",
+          "kol_engagement",
+          "market_access_support",
+          "patient_advocacy",
+          "publications",
+          "rwe_generation"
+        ],
+        "linked_tactic_ids": [
+          "rwe_registry"
+        ],
+        "linked_metric_ids": [],
+        "linked_stakeholder_category_keys": [
+          "external_experts",
+          "healthcare_professionals",
+          "market_access_payers",
+          "patients_carers"
+        ]
+      }
+    },
+    "external_reference_pricing": {
+      "description": "Pricing referenced to basket of comparator countries; creates cross-border dependencies and sequential launch pressures",
+      "applicability_by_region": {
+        "europe_widespread": 0.85,
+        "asia_pacific_growing": 0.6,
+        "latin_america_common": 0.7,
+        "us_minimal": 0.05,
+        "rationale": "Europe heavily uses ERP; US largely free pricing; emerging markets increasingly adopt ERP"
+      },
+      "cascade_risk_modeling": {
+        "base_cascade_probability": {
+          "distribution": "beta",
+          "alpha": 7,
+          "beta": 3,
+          "rationale": "~70% probability that low price in one reference country forces reductions elsewhere",
+          "simulation_ready": true
+        },
+        "time_to_cascade": {
+          "distribution": "normal",
+          "mean_months": 9,
+          "sd_months": 4,
+          "rationale": "Average 6-12 months from reference country price to adjustment in dependent markets",
+          "mean": 9,
+          "unit": "months",
+          "sd": 4,
+          "simulation_ready": true
+        },
+        "magnitude_of_reduction": {
+          "distribution": "beta",
+          "alpha": 4,
+          "beta": 6,
+          "rationale": "Typical reductions 20-40% when reference country sets low benchmark",
+          "simulation_ready": true
+        }
+      },
+      "launch_sequencing_strategy": {
+        "high_price_first": {
+          "typical_sequence": [
+            "Germany",
+            "UK",
+            "Netherlands",
+            "Nordics",
+            "Switzerland"
+          ],
+          "advantage": "Establish high reference prices for dependent markets",
+          "risk_delay_factor": {
+            "distribution": "uniform",
+            "min_months": 6,
+            "max_months": 18,
+            "rationale": "Delaying low-price markets can extend timeline 6-18 months",
+            "simulation_ready": true
+          }
+        },
+        "low_price_markets_delayed": {
+          "typical_delayed": [
+            "Eastern Europe",
+            "Portugal",
+            "Greece",
+            "Spain"
+          ],
+          "access_vs_price_tradeoff": "Patients in delayed markets face 12-24 month access delays",
+          "ethical_commercial_tension": 0.75
+        }
+      },
+      "confidential_discounts_modeling": {
+        "list_vs_net_gap": {
+          "distribution": "beta",
+          "alpha": 3,
+          "beta": 2,
+          "rationale": "Net prices typically 20-60% below list due to confidential MEAs",
+          "simulation_ready": true
+        },
+        "transparency_pressure": {
+          "base_probability": 0.3,
+          "trend": "increasing",
+          "impact_if_disclosed": -0.5,
+          "description": "30% probability confidential prices leak; if disclosed, forces reductions across reference basket"
+        }
+      },
+      "failure_modes": [
+        {
+          "mode": "reference_country_tender_collapse",
+          "probability": 0.15,
+          "impact": "Ultra-low tender price in reference country (e.g., Italy, Spain) cascades internationally",
+          "mitigation": "Negotiate confidential MEAs, lobby for reference basket methodology changes"
+        },
+        {
+          "mode": "launch_delay_market_share_erosion",
+          "probability": 0.2,
+          "impact": "Delaying low-price markets to protect reference loses volume in those markets long-term",
+          "mitigation": "Early access programs, compassionate use to maintain presence"
+        },
+        {
+          "mode": "parallel_trade_arbitrage",
+          "probability": 0.12,
+          "impact": "Products purchased in low-price markets, resold in high-price markets",
+          "mitigation": "Supply chain controls, serialization, country-specific packaging"
+        }
+      ],
+      "dependencies": {
+        "medical_affairs_strategy": {
+          "publication_timing": {
+            "strength": 0.25,
+            "description": "Early high-profile publications in premium markets justify higher initial pricing"
+          },
+          "kol_advocacy_geographic": {
+            "strength": 0.3,
+            "description": "KOL support in high-price reference countries strengthens pricing position"
+          }
+        }
+      },
+      "linkage": {
+        "linked_pillar_ids": [
+          "compliance_governance",
+          "internal_alignment",
+          "market_access_support"
+        ],
+        "linked_tactic_ids": [],
+        "linked_metric_ids": [],
+        "linked_stakeholder_category_keys": [
+          "internal_pharma",
+          "market_access_payers",
+          "regulators"
+        ]
+      }
+    },
+    "tender_based_pricing": {
+      "description": "Competitive bidding for hospital/public sector volume; winner-take-all or multi-award dynamics",
+      "tender_types": {
+        "winner_take_all": {
+          "prevalence": 0.4,
+          "price_pressure": {
+            "distribution": "beta",
+            "alpha": 2,
+            "beta": 3,
+            "rationale": "Extreme price pressure; discounts of 40-80% common in single-winner tenders",
+            "simulation_ready": true
+          },
+          "volume_certainty": 0.95,
+          "rationale": "Winner gains near-complete market share in tendered segment"
+        },
+        "multi_award_framework": {
+          "prevalence": 0.35,
+          "price_pressure": {
+            "distribution": "beta",
+            "alpha": 4,
+            "beta": 4,
+            "rationale": "Moderate pressure; 20-50% discounts typical with volume guarantees",
+            "simulation_ready": true
+          },
+          "volume_certainty": 0.6,
+          "rationale": "Share market with 2-3 suppliers; actual volume depends on prescriber preference"
+        },
+        "reference_pricing_with_freedom": {
+          "prevalence": 0.25,
+          "price_pressure": {
+            "distribution": "beta",
+            "alpha": 6,
+            "beta": 4,
+            "rationale": "Modest pressure; reimbursed at reference level, patients can pay difference",
+            "simulation_ready": true
+          },
+          "volume_certainty": 0.4,
+          "rationale": "Volume depends on patient willingness to co-pay and HCP recommendation"
+        }
+      },
+      "competitive_response_scenarios": {
+        "biosimilar_entry": {
+          "first_biosimilar_discount": {
+            "distribution": "beta",
+            "alpha": 3,
+            "beta": 2,
+            "rationale": "First biosimilar typically 20-60% below originator list price",
+            "simulation_ready": true
+          },
+          "originator_response_options": {
+            "match_biosimilar_price": {
+              "probability": 0.25,
+              "volume_retention": 0.7,
+              "margin_impact": -0.55
+            },
+            "partial_discount_with_services": {
+              "probability": 0.45,
+              "volume_retention": 0.5,
+              "margin_impact": -0.3
+            },
+            "maintain_premium_accept_share_loss": {
+              "probability": 0.3,
+              "volume_retention": 0.25,
+              "margin_impact": -0.05
+            }
+          },
+          "time_to_erosion": {
+            "distribution": "normal",
+            "mean_months": 18,
+            "sd_months": 8,
+            "rationale": "Originator share erodes to equilibrium over 12-30 months post-biosimilar launch",
+            "mean": 18,
+            "unit": "months",
+            "sd": 8,
+            "simulation_ready": true
+          }
+        },
+        "generic_competition": {
+          "price_collapse_trajectory": {
+            "distribution": "beta",
+            "alpha": 2,
+            "beta": 8,
+            "rationale": "Generic entry typically causes 70-95% price reduction over 2-3 years",
+            "simulation_ready": true
+          },
+          "branded_exit_probability": 0.6,
+          "rationale": "60% of originators exit market within 3 years of multi-generic competition"
+        }
+      },
+      "tender_strategy_modeling": {
+        "aggressive_bid": {
+          "win_probability": {
+            "distribution": "beta",
+            "alpha": 8,
+            "beta": 2,
+            "rationale": "Aggressive pricing (40%+ discount) wins 75-85% of tenders",
+            "simulation_ready": true
+          },
+          "margin_impact": -0.65,
+          "strategic_rationale": "Defend volume, maintain market presence, leverage medical affairs investment"
+        },
+        "mid_range_bid": {
+          "win_probability": {
+            "distribution": "beta",
+            "alpha": 5,
+            "beta": 5,
+            "rationale": "Moderate pricing (20-40% discount) wins 40-60% depending on value differentiation",
+            "simulation_ready": true
+          },
+          "margin_impact": -0.35,
+          "strategic_rationale": "Balance profitability with volume; requires strong medical affairs support"
+        },
+        "premium_bid_with_services": {
+          "win_probability": {
+            "distribution": "beta",
+            "alpha": 3,
+            "beta": 7,
+            "rationale": "Premium pricing with patient support programs wins 20-40% in value-focused tenders",
+            "simulation_ready": true
+          },
+          "margin_impact": -0.1,
+          "strategic_rationale": "Requires exceptional medical affairs execution, adherence data, outcomes evidence"
+        },
+        "no_bid_strategic_exit": {
+          "probability": 0.15,
+          "rationale": "15% of tenders deemed unwinnable or margin-destroying; strategic exit to protect reference prices"
+        }
+      },
+      "failure_modes": [
+        {
+          "mode": "race_to_bottom_unsustainable",
+          "probability": 0.25,
+          "impact": "Multiple suppliers bid below cost to maintain volume; supply shortages follow",
+          "mitigation": "Multi-year agreements with minimum volume guarantees; tiered pricing by indication"
+        },
+        {
+          "mode": "confidentiality_breach_cascade",
+          "probability": 0.18,
+          "impact": "Tender price disclosed publicly, becomes reference for other markets",
+          "mitigation": "Legal agreements with penalties; segmented pricing by indication; patient access programs"
+        },
+        {
+          "mode": "winner_supply_failure",
+          "probability": 0.12,
+          "impact": "Winner cannot deliver contracted volume; market disruption and re-tender",
+          "mitigation": "Maintain multi-award frameworks; supply chain resilience investments"
+        }
+      ],
+      "dependencies": {
+        "medical_affairs_strategy": {
+          "hcp_loyalty": {
+            "strength": 0.45,
+            "description": "Strong HCP preference can influence multi-award tender outcomes or drive patient co-pay acceptance"
+          },
+          "real_world_evidence": {
+            "strength": 0.35,
+            "description": "Adherence/persistence advantages justify premium bids in value-focused tenders"
+          },
+          "patient_support_programs": {
+            "strength": 0.25,
+            "description": "Non-price value (adherence apps, nurse support) differentiates premium bids"
+          }
+        }
+      }
+    },
+    "indication_based_pricing": {
+      "description": "Different prices for different indications/patient populations based on value variation",
+      "feasibility_by_region": {
+        "us": 0.75,
+        "uk": 0.4,
+        "germany": 0.35,
+        "italy": 0.6,
+        "france": 0.3,
+        "emerging_markets": 0.2,
+        "rationale": "US most flexible; European payers increasingly interested but implementation complex"
+      },
+      "implementation_complexity": {
+        "distribution": "beta",
+        "alpha": 3,
+        "beta": 7,
+        "rationale": "High complexity (30-40% success rate) due to: pharmacy systems, tracking, arbitrage risks",
+        "simulation_ready": true
+      },
+      "value_optimization_potential": {
+        "revenue_uplift": {
+          "distribution": "beta",
+          "alpha": 5,
+          "beta": 5,
+          "rationale": "When successful, 10-50% revenue uplift by charging premium for high-value indications",
+          "simulation_ready": true
+        },
+        "access_improvement": {
+          "distribution": "beta",
+          "alpha": 6,
+          "beta": 4,
+          "rationale": "Lower price for broader indications improves access 30-70% in price-sensitive segments",
+          "simulation_ready": true
+        }
+      },
+      "prerequisites": {
+        "clear_indication_separation": {
+          "required": true,
+          "description": "Clinically and administratively distinct patient populations"
+        },
+        "differential_value_evidence": {
+          "required": true,
+          "description": "QALY/ICER varies significantly across indications (>2x difference)"
+        },
+        "pharmacy_tracking_capability": {
+          "required": true,
+          "description": "Systems to prevent arbitrage between high-price and low-price indications"
+        }
+      },
+      "failure_modes": [
+        {
+          "mode": "arbitrage_leakage",
+          "probability": 0.35,
+          "impact": "High-price indication product diverted to low-price indication; revenue erosion",
+          "mitigation": "Prior authorization, closed distribution, indication-specific formulations"
+        },
+        {
+          "mode": "payer_administrative_burden",
+          "probability": 0.3,
+          "impact": "Payer rejects complexity, defaults to single lowest price across all indications",
+          "mitigation": "Provide payer-ready tracking systems, simplify claims processing"
+        }
+      ]
+    }
+  },
+  "managed_entry_agreements": {
+    "financial_based_meas": {
+      "description": "Risk-sharing focused on financial/budget impact rather than clinical outcomes",
+      "simple_discount_schemes": {
+        "success_probability": {
+          "distribution": "beta",
+          "alpha": 8,
+          "beta": 2,
+          "rationale": "80-90% implementation success; administratively simple",
+          "simulation_ready": true
+        },
+        "types": {
+          "volume_price_tiering": {
+            "description": "Price decreases as cumulative volume thresholds reached",
+            "example": "100% price for first 1000 units, 85% for next 2000, 70% thereafter",
+            "administrative_burden": "low",
+            "payer_preference": 0.7
+          },
+          "budget_cap_rebate": {
+            "description": "Manufacturer rebates if total spend exceeds agreed annual budget",
+            "example": "€10M budget cap; manufacturer refunds 100% of overage",
+            "administrative_burden": "moderate",
+            "payer_preference": 0.8
+          },
+          "price_volume_agreement": {
+            "description": "Guaranteed volume at negotiated price; excess volume at marginal cost",
+            "example": "5000 patients guaranteed at €5000/year; additional patients at €2000",
+            "administrative_burden": "moderate",
+            "payer_preference": 0.6
+          }
+        },
+        "duration_typical": {
+          "distribution": "normal",
+          "mean_years": 2.5,
+          "sd_years": 1.0,
+          "rationale": "Most financial MEAs 1-4 years; renegotiated at renewal",
+          "simulation_ready": true
+        },
+        "confidentiality_requirement": 0.95,
+        "rationale": "Near-universal requirement for confidential net prices to protect reference pricing"
+      },
+      "free_goods_schemes": {
+        "success_probability": {
+          "distribution": "beta",
+          "alpha": 7,
+          "beta": 3,
+          "rationale": "70-80% acceptance; less transparent than direct discounts",
+          "simulation_ready": true
+        },
+        "typical_structures": {
+          "initiation_free": "First X months free to establish adherence/response",
+          "responder_only": "Free for non-responders identified after trial period",
+          "wastage_coverage": "Replacement for expired/damaged product"
+        },
+        "administrative_burden": "high",
+        "rationale": "Requires tracking individual patients, responses, and product usage"
+      },
+      "risk_sharing_financial": {
+        "success_probability": {
+          "distribution": "beta",
+          "alpha": 6,
+          "beta": 4,
+          "rationale": "60-70% success when financial risk clearly defined and measurable",
+          "simulation_ready": true
+        },
+        "manufacturer_risk": "Budget overrun beyond forecast",
+        "payer_risk": "Underutilization leaves budget capacity unused",
+        "typical_structure": "Shared savings if spend below forecast; shared cost if above",
+        "complexity_barrier": 0.65,
+        "rationale": "Requires agreement on baseline forecast, monitoring systems, and risk allocation formula"
+      }
+    },
+    "outcome_based_meas": {
+      "description": "Payment linked to real-world clinical or economic outcomes",
+      "coverage_with_evidence_development": {
+        "success_probability": {
+          "distribution": "beta",
+          "alpha": 5,
+          "beta": 5,
+          "rationale": "50% success rate; high theoretical appeal but implementation challenges",
+          "simulation_ready": true
+        },
+        "typical_structure": {
+          "initial_coverage": "Conditional approval at provisional price",
+          "evidence_generation_period": {
+            "distribution": "normal",
+            "mean_years": 3,
+            "sd_years": 1,
+            "rationale": "2-5 years to generate sufficient real-world outcomes data",
+            "simulation_ready": true
+          },
+          "post_evidence_decision": "Confirm/revise price, expand/restrict coverage, or delist"
+        },
+        "stakeholder_challenges": {
+          "payer_risk": "Pay full price during evidence generation; may not be recoverable if evidence disappointing",
+          "manufacturer_risk": "Investment in evidence with uncertain outcome; delisting possibility",
+          "patient_risk": "May lose access if post-CED decision negative"
+        },
+        "successful_examples": [
+          "Duodopa (Sweden) - TLV delisted then reinstated post-evidence",
+          "Risperdal Consta (France) - Escrow agreement pending outcomes"
+        ],
+        "failure_modes": [
+          {
+            "mode": "evidence_generation_failure",
+            "probability": 0.4,
+            "impact": "Data collection incomplete, inconsistent, or inconclusive; no clear decision basis",
+            "mitigation": "Pre-agree detailed protocol, endpoints, data collection methods; dedicated registries"
+          },
+          {
+            "mode": "stakeholder_fatigue",
+            "probability": 0.3,
+            "impact": "Process too lengthy/costly; payer or manufacturer abandons agreement",
+            "mitigation": "Realistic timelines, interim decision points, adequate resourcing"
+          }
+        ],
+        "administrative_burden": "very high",
+        "prerequisites": {
+          "registry_infrastructure": {
+            "required": true,
+            "description": "National or regional registry to capture patient-level outcomes"
+          },
+          "clear_endpoints": {
+            "required": true,
+            "description": "Pre-specified, measurable outcomes agreed by all parties"
+          },
+          "adequate_sample_size": {
+            "required": true,
+            "description": "Sufficient patients to generate statistically robust evidence"
+          }
+        }
+      },
+      "performance_linked_reimbursement": {
+        "success_probability": {
+          "distribution": "beta",
+          "alpha": 4,
+          "beta": 6,
+          "rationale": "40% success; conceptually attractive but tracking individual patient outcomes difficult",
+          "simulation_ready": true
+        },
+        "typical_structures": {
+          "money_back_guarantee": {
+            "description": "Refund if individual patient does not respond within defined timeframe",
+            "example": "Full refund if tumor progression within 6 months",
+            "tracking_burden": "very high",
+            "success_rate": 0.35
+          },
+          "dose_response_payment": {
+            "description": "Payment proportional to response level achieved",
+            "example": "100% price for complete response, 50% for partial, 0% for non-response",
+            "tracking_burden": "very high",
+            "success_rate": 0.3
+          },
+          "outcomes_guarantee": {
+            "description": "Aggregate outcomes target; rebate if population fails to achieve",
+            "example": "Rebate if <70% of patients achieve HbA1c target within 12 months",
+            "tracking_burden": "moderate",
+            "success_rate": 0.5
+          }
+        },
+        "therapeutic_area_suitability": {
+          "oncology": 0.7,
+          "rare_diseases": 0.65,
+          "diabetes": 0.55,
+          "cardiovascular": 0.45,
+          "mental_health": 0.25,
+          "rationale": "Works best with clear, measurable, near-term outcomes; struggles with long-term or subjective endpoints"
+        },
+        "failure_modes": [
+          {
+            "mode": "attribution_ambiguity",
+            "probability": 0.45,
+            "impact": "Cannot isolate drug effect from other interventions, patient behavior, disease progression",
+            "mitigation": "Focus on proximal outcomes, use comparator-adjusted targets, accept uncertainty"
+          },
+          {
+            "mode": "data_quality_heterogeneity",
+            "probability": 0.35,
+            "impact": "Inconsistent measurement, missing data, varied definitions across sites",
+            "mitigation": "Standardized protocols, central adjudication, quality audits"
+          },
+          {
+            "mode": "moral_hazard",
+            "probability": 0.2,
+            "impact": "Providers avoid high-risk patients to improve outcome metrics; cherry-picking",
+            "mitigation": "Risk-adjusted targets, mandatory inclusion criteria, external monitoring"
+          }
+        ]
+      },
+      "outcomes_based_risk_sharing": {
+        "description": "Manufacturer and payer share financial risk based on real-world outcomes vs. expectations",
+        "success_probability": {
+          "distribution": "beta",
+          "alpha": 5,
+          "beta": 5,
+          "rationale": "50% success when outcomes are clear and both parties have aligned incentives",
+          "simulation_ready": true
+        },
+        "typical_structure": {
+          "baseline_agreement": "Expected outcome rate (e.g., 60% response) at agreed price",
+          "upside_scenario": "If outcomes exceed expectations (e.g., 75% response), price increases or payer pays bonus",
+          "downside_scenario": "If outcomes below expectations (e.g., 45% response), manufacturer rebates or reduces price",
+          "risk_allocation": {
+            "distribution": "uniform",
+            "min_percent": 40,
+            "max_percent": 60,
+            "rationale": "Typically 40-60% of variance borne by manufacturer, remainder by payer",
+            "simulation_ready": true
+          }
+        },
+        "prerequisites": {
+          "outcomes_measurement_capability": {
+            "required": true,
+            "description": "Real-time or near-real-time outcomes tracking across patient population"
+          },
+          "baseline_forecasting_agreement": {
+            "required": true,
+            "description": "Both parties agree on expected outcome rates; contentious if expectations diverge"
+          }
+        },
+        "failure_modes": [
+          {
+            "mode": "baseline_disputes",
+            "probability": 0.4,
+            "impact": "Cannot agree on expected outcomes; manufacturer optimistic, payer conservative",
+            "mitigation": "Independent third-party forecast, anchoring to published literature or registry data"
+          },
+          {
+            "mode": "outcomes_gaming",
+            "probability": 0.25,
+            "impact": "Perverse incentives to manipulate outcome measurement or patient selection",
+            "mitigation": "Independent outcome adjudication, audits, broad inclusion criteria"
+          }
+        ]
+      }
+    },
+    "mea_strategic_considerations": {
+      "when_to_propose_mea": {
+        "uncertainty_high": {
+          "score": 0.8,
+          "description": "Immature evidence, new mechanism, limited real-world data - MEA bridges gap"
+        },
+        "budget_impact_high": {
+          "score": 0.75,
+          "description": "Large patient population or high per-patient cost; payer needs risk mitigation"
+        },
+        "value_differentiation_unclear": {
+          "score": 0.7,
+          "description": "Clinical equipoise with comparators; MEA allows market entry while evidence matures"
+        },
+        "competitive_pressure": {
+          "score": 0.65,
+          "description": "Competitors have MEAs; necessary to match market access"
+        }
+      },
+      "mea_type_selection_framework": {
+        "if_budget_impact_primary_concern": "Financial-based MEA (discount, cap, volume-price)",
+        "if_outcomes_uncertainty_primary_concern": "Outcome-based MEA (CED, performance-linked)",
+        "if_both_concerns": "Hybrid MEA combining budget protection with outcomes monitoring",
+        "if_administrative_capacity_low": "Simple discount or free goods; avoid complex outcome tracking"
+      },
+      "mea_negotiation_leverage": {
+        "strong_medical_affairs_foundation": {
+          "impact": 0.3,
+          "description": "Published RWE, KOL support, HCP education in place - reduces outcome uncertainty, improves MEA terms"
+        },
+        "first_in_class_innovation": {
+          "impact": 0.4,
+          "description": "No alternatives; payer more willing to accept manufacturer-favorable MEA"
+        },
+        "biosimilar_or_generic_threat": {
+          "impact": -0.35,
+          "description": "Imminent competition reduces leverage; payer can wait or demand aggressive MEA"
+        }
+      },
+      "mea_sunset_dynamics": {
+        "typical_duration": {
+          "distribution": "normal",
+          "mean_years": 3,
+          "sd_years": 1.5,
+          "rationale": "Most MEAs 1-5 years; renegotiated or sunset when uncertainty resolved",
+          "simulation_ready": true
+        },
+        "transition_scenarios": {
+          "evidence_supports_value": "Transition to standard reimbursement at higher price; MEA discontinued",
+          "evidence_equivocal": "Extend MEA with revised terms; continue monitoring",
+          "evidence_negative": "Price reduction, coverage restriction, or delisting",
+          "payer_fatigue": "Transition to simple discount regardless of evidence to reduce admin burden"
+        },
+        "renegotiation_probability": {
+          "distribution": "beta",
+          "alpha": 7,
+          "beta": 3,
+          "rationale": "70-80% of MEAs renegotiated rather than terminated at expiry",
+          "simulation_ready": true
+        }
+      }
+    }
+  },
+  "competitive_dynamics": {
+    "biosimilar_defense_strategies": {
+      "description": "Strategic responses to biosimilar competition; medical affairs plays critical role",
+      "maintain_premium_with_differentiation": {
+        "success_probability": {
+          "distribution": "beta",
+          "alpha": 4,
+          "beta": 6,
+          "rationale": "40% success rate; requires exceptional medical affairs execution and payer sophistication",
+          "simulation_ready": true
+        },
+        "prerequisites": {
+          "device_differentiation": {
+            "impact": 0.25,
+            "description": "Demonstrably superior adherence, ease-of-use, or reduced injection site reactions"
+          },
+          "switching_risk_evidence": {
+            "impact": 0.3,
+            "description": "Published data showing risks of non-medical switching; immunogenicity concerns"
+          },
+          "patient_support_programs": {
+            "impact": 0.2,
+            "description": "Nurse support, adherence apps, patient education not offered by biosimilars"
+          },
+          "hcp_loyalty": {
+            "impact": 0.35,
+            "description": "Strong HCP preference based on familiarity, trust, or outcomes experience"
+          }
+        },
+        "expected_premium": {
+          "distribution": "beta",
+          "alpha": 3,
+          "beta": 7,
+          "rationale": "Premium of 10-40% maintainable if differentiation robust; higher premiums unsustainable",
+          "simulation_ready": true
+        },
+        "volume_retention": {
+          "distribution": "beta",
+          "alpha": 4,
+          "beta": 6,
+          "rationale": "Expect to retain 30-50% of volume with premium strategy; loses share but maintains margin",
+          "simulation_ready": true
+        }
+      },
+      "partial_discount_with_services": {
+        "success_probability": {
+          "distribution": "beta",
+          "alpha": 6,
+          "beta": 4,
+          "rationale": "60-70% success; middle-ground strategy balancing price and value",
+          "simulation_ready": true
+        },
+        "typical_structure": {
+          "price_discount": "20-40% below pre-biosimilar price",
+          "value_added_services": "Patient support, adherence monitoring, outcomes tracking",
+          "mea_component": "Outcomes-based rebate or volume discount"
+        },
+        "volume_retention": {
+          "distribution": "beta",
+          "alpha": 5,
+          "beta": 5,
+          "rationale": "50-60% volume retention; competitive on both price and service",
+          "simulation_ready": true
+        },
+        "margin_impact": -0.3
+      },
+      "aggressive_price_match": {
+        "success_probability": {
+          "distribution": "beta",
+          "alpha": 7,
+          "beta": 3,
+          "rationale": "70-80% success in retaining volume; financially painful",
+          "simulation_ready": true
+        },
+        "volume_retention": {
+          "distribution": "beta",
+          "alpha": 7,
+          "beta": 3,
+          "rationale": "65-80% volume retention when matching biosimilar price with brand trust advantage",
+          "simulation_ready": true
+        },
+        "margin_impact": -0.6,
+        "strategic_rationale": "Defend patient share for long-term franchise value; leverage existing medical affairs investment"
+      },
+      "biosimilar_timing_factors": {
+        "time_since_biosimilar_launch": {
+          "months_0_6": "Originator maintains 70-85% share; wait-and-see from payers/HCPs",
+          "months_6_18": "Rapid erosion phase; 40-60% share if no response",
+          "months_18_plus": "New equilibrium; 20-40% share typical without aggressive defense"
+        },
+        "number_of_biosimilars": {
+          "first_biosimilar_only": "Moderate pressure; 20-40% discount from originator often sufficient",
+          "two_biosimilars": "Increased pressure; 30-50% discount typical",
+          "three_plus_biosimilars": "Severe pressure; 40-70% discount or strategic exit"
+        }
+      },
+      "medical_affairs_defensive_role": {
+        "switching_studies_publication": {
+          "impact": 0.4,
+          "timeline_months": 12,
+          "description": "Publish RWE showing switching risks; influences payer and HCP switching policies"
+        },
+        "device_usability_evidence": {
+          "impact": 0.25,
+          "timeline_months": 6,
+          "description": "Human factors studies, adherence data showing originator device advantages"
+        },
+        "outcomes_registries": {
+          "impact": 0.35,
+          "timeline_months": 24,
+          "description": "Long-term safety/efficacy data on originator vs biosimilar; subtle differentiation"
+        }
+      }
+    },
+    "patent_cliff_lifecycle_management": {
+      "description": "Strategic responses as LOE approaches; commercial and medical affairs coordination critical",
+      "pre_loe_strategies": {
+        "indication_expansion": {
+          "timeline": "3-5 years before LOE",
+          "success_probability": 0.45,
+          "description": "Seek new indications with extended exclusivity",
+          "dependencies": {
+            "medical_affairs_evidence_generation": 0.7,
+            "description": "Clinical trials and RWE for new populations"
+          }
+        },
+        "formulation_lifecycle_extension": {
+          "timeline": "2-4 years before LOE",
+          "success_probability": 0.35,
+          "description": "Long-acting, fixed-dose combo, new delivery device with patent protection",
+          "challenges": "Payers skeptical of 'evergreening'; requires genuine clinical value"
+        },
+        "authorized_generic_strategy": {
+          "timeline": "1-2 years before LOE",
+          "success_probability": 0.6,
+          "description": "Launch own generic pre-emptively to capture generic share",
+          "volume_cannibalization": 0.4,
+          "margin_protection": 0.25
+        }
+      },
+      "post_loe_brand_survival": {
+        "branded_exit_probability": {
+          "small_molecules": 0.75,
+          "biologics_without_differentiation": 0.5,
+          "biologics_with_strong_differentiation": 0.25,
+          "rationale": "Most small molecules exit; biologics with device/service differentiation may survive"
+        },
+        "residual_brand_share_if_maintained": {
+          "distribution": "beta",
+          "alpha": 2,
+          "beta": 8,
+          "rationale": "5-25% branded share sustainable post-LOE with strong medical affairs support and loyal HCP base",
+          "simulation_ready": true
+        }
+      }
+    },
+    "multi_product_portfolio_interactions": {
+      "description": "How pricing/access decisions for one product affect portfolio",
+      "cross_subsidization": {
+        "description": "Use profitable products to subsidize strategic products with poor margins",
+        "internal_tension": "Tension between maximizing individual product P&L vs portfolio strategy"
+      },
+      "bundling_strategies": {
+        "success_probability": {
+          "distribution": "beta",
+          "alpha": 4,
+          "beta": 6,
+          "rationale": "40% success; payers resistant to bundling but may accept for administrative simplicity",
+          "simulation_ready": true
+        },
+        "typical_structure": "Discount on portfolio basket if payer commits to volume across multiple products",
+        "regulatory_risk": 0.35,
+        "description": "Competition authorities may challenge bundling as anti-competitive"
+      },
+      "therapeutic_area_dominance": {
+        "description": "Strong presence in therapy area creates leverage for new launches",
+        "impact_on_new_product_access": 0.3,
+        "rationale": "Payers more willing to accept new product from trusted partner in therapeutic area"
+      }
+    }
+  },
+  "cross_country_dependencies": {
+    "reference_pricing_cascades": {
+      "description": "How pricing decisions in one country trigger changes in others; critical for launch sequencing",
+      "high_influence_reference_countries": {
+        "germany": {
+          "influence_score": 0.9,
+          "referenced_by": [
+            "Eastern Europe",
+            "Balkans",
+            "Middle East",
+            "Asia"
+          ],
+          "free_pricing_window": "First 12 months",
+          "post_window": "AMNOG assessment; 30-50% discounts common for no/minor added benefit"
+        },
+        "uk": {
+          "influence_score": 0.8,
+          "referenced_by": [
+            "Ireland",
+            "Nordic",
+            "some Eastern Europe"
+          ],
+          "nice_impact": "NICE rejection cascades to markets using UK as reference"
+        },
+        "france": {
+          "influence_score": 0.75,
+          "referenced_by": [
+            "francophone Africa",
+            "Southern Europe",
+            "Latin America"
+          ],
+          "price_setting": "Negotiated; ~30% below Germany typical"
+        },
+        "spain_italy": {
+          "influence_score": 0.6,
+          "referenced_by": [
+            "Latin America",
+            "some Eastern Europe"
+          ],
+          "tender_risk": "Very low tender prices can distort international references"
+        }
+      },
+      "launch_sequence_optimization": {
+        "optimal_sequence_premium_protection": [
+          "Germany (free pricing 12mo)",
+          "UK (NICE assessment parallel)",
+          "Nordics (accept premium for innovation)",
+          "Netherlands/Belgium/Austria",
+          "France (negotiate from high references)",
+          "Wait 12-18 months",
+          "Spain/Italy/Portugal (managed with MEAs)",
+          "Eastern Europe (after Western references set)"
+        ],
+        "delay_cost_modeling": {
+          "revenue_foregone_per_month_delay": {
+            "distribution": "normal",
+            "mean_percent": 0.08,
+            "sd_percent": 0.03,
+            "rationale": "Each month delayed in low-price market = ~8% monthly revenue foregone, but protects reference prices worth 20-40% revenue long-term",
+            "simulation_ready": true
+          },
+          "patient_access_ethics": "Delaying markets harms patients in those markets; tension between commercial optimization and ethics"
+        }
+      },
+      "confidential_mea_leakage_risk": {
+        "base_leakage_probability": {
+          "distribution": "beta",
+          "alpha": 3,
+          "beta": 7,
+          "rationale": "20-40% probability net prices leak over 5-year period through various channels",
+          "simulation_ready": true
+        },
+        "leakage_channels": {
+          "tender_transparency_laws": 0.4,
+          "freedom_of_information_requests": 0.25,
+          "hta_body_disclosures": 0.2,
+          "pharmacy_system_data_mining": 0.15
+        },
+        "impact_of_disclosure": {
+          "immediate_price_pressure_other_markets": 0.8,
+          "magnitude_of_reduction": {
+            "distribution": "beta",
+            "alpha": 4,
+            "beta": 6,
+            "rationale": "Disclosed prices typically force 20-50% reductions in reference markets",
+            "simulation_ready": true
+          }
+        },
+        "mitigation_strategies": {
+          "legal_confidentiality_agreements": "Limited effectiveness; FOI laws often override",
+          "indication_specific_pricing": "Separate prices by indication reduces leakage impact",
+          "patient_access_schemes_outside_list_price": "Non-price concessions don't leak as easily"
+        }
+      }
+    },
+    "parallel_trade_arbitrage": {
+      "description": "Product bought in low-price markets, resold in high-price markets; erodes revenue",
+      "parallel_trade_probability": {
+        "within_eu": {
+          "distribution": "beta",
+          "alpha": 5,
+          "beta": 5,
+          "rationale": "~50% of products experience some parallel trade within EU; legal under free movement",
+          "simulation_ready": true
+        },
+        "outside_eu": {
+          "distribution": "beta",
+          "alpha": 3,
+          "beta": 7,
+          "rationale": "20-40% probability; requires more complex logistics and gray-market channels",
+          "simulation_ready": true
+        }
+      },
+      "revenue_leakage": {
+        "distribution": "beta",
+        "alpha": 2,
+        "beta": 8,
+        "rationale": "Parallel trade typically leaks 5-25% of high-price market revenue",
+        "simulation_ready": true
+      },
+      "mitigation_strategies": {
+        "supply_chain_controls": {
+          "effectiveness": 0.4,
+          "description": "Limit supply to low-price markets to match local demand; quotas"
+        },
+        "product_serialization": {
+          "effectiveness": 0.35,
+          "description": "Track-and-trace to identify parallel trade sources; legal complexity"
+        },
+        "country_specific_packaging": {
+          "effectiveness": 0.5,
+          "description": "Different packaging/labeling by market; increases cost but reduces arbitrage"
+        },
+        "pricing_harmonization": {
+          "effectiveness": 0.7,
+          "description": "Reduce price differentials across markets; eliminates arbitrage incentive but reduces revenue"
+        }
+      }
+    },
+    "global_launch_coordination": {
+      "description": "Balancing speed-to-market vs price protection across geographies",
+      "simultaneous_global_launch": {
+        "advantages": [
+          "Maximizes patient access",
+          "Avoids criticism of delayed access in certain markets",
+          "Simplifies operations and messaging"
+        ],
+        "disadvantages": [
+          "Cannot optimize launch sequence for price protection",
+          "Forces lower prices globally to meet all market constraints",
+          "May leave revenue on table in premium markets"
+        ],
+        "revenue_impact": {
+          "distribution": "beta",
+          "alpha": 3,
+          "beta": 7,
+          "rationale": "Simultaneous launch typically costs 15-35% revenue vs optimized sequence",
+          "simulation_ready": true
+        }
+      },
+      "sequential_optimized_launch": {
+        "advantages": [
+          "Maximizes revenue by establishing high reference prices first",
+          "Allows market-specific strategies to mature",
+          "Medical affairs can build evidence base in early markets"
+        ],
+        "disadvantages": [
+          "Delays access in some markets by 1-3 years",
+          "Ethical concerns about health inequity",
+          "Parallel import risk between early/late markets"
+        ],
+        "revenue_uplift": {
+          "distribution": "beta",
+          "alpha": 6,
+          "beta": 4,
+          "rationale": "Optimized sequence yields 20-60% revenue uplift vs simultaneous launch",
+          "simulation_ready": true
+        },
+        "reputational_risk": 0.45,
+        "description": "Patient advocacy groups, media, politicians criticize delayed access as profit over patients"
+      }
+    }
+  },
+  "integration_with_medical_affairs": {
+    "description": "How pricing/access strategy interacts with medical affairs pillars from core sAÏmone framework",
+    "evidence_generation_pricing_synergy": {
+      "strength": 0.7,
+      "mechanisms": {
+        "rwe_supports_value_pricing": "Published real-world outcomes enable premium pricing and resist discounting pressure",
+        "adherence_data_defends_premium": "Device/formulation adherence advantages justify price premium vs biosimilars/generics",
+        "switching_studies_slow_erosion": "Non-medical switching risk evidence slows payer-mandated substitution"
+      },
+      "timing_dependencies": {
+        "early_publication_critical": "RWE published 12-24 months pre-biosimilar enables defensive positioning",
+        "late_publication_limited_impact": "Evidence published post-biosimilar launch has minimal pricing impact"
+      }
+    },
+    "stakeholder_engagement_pricing_leverage": {
+      "strength": 0.55,
+      "mechanisms": {
+        "kol_payer_influence": "KOL advocacy to payers can swing value-based pricing decisions",
+        "patient_advocacy_access": "Patient groups lobbying for access can overcome budget constraints",
+        "hcp_loyalty_premium_sustainability": "Strong HCP preference allows premium pricing vs biosimilars"
+      },
+      "limitations": "Stakeholder advocacy cannot overcome overwhelming budget pressure or lack of clinical differentiation"
+    },
+    "hcp_education_commercial_translation": {
+      "strength": 0.4,
+      "mechanisms": {
+        "informed_hcps_resist_switching": "HCPs educated on switching risks less likely to accept payer switching mandates",
+        "device_training_adherence": "HCP/patient training on optimal device use improves real-world outcomes, supporting value pricing"
+      },
+      "time_lag": "18-36 months from education to measurable commercial impact via payer negotiations"
+    },
+    "competitive_differentiation_pricing_power": {
+      "strength": 0.65,
+      "mechanisms": {
+        "outcomes_data_price_premium": "Head-to-head outcomes studies showing superiority enable 20-40% premium",
+        "safety_advantage_tender_wins": "Superior safety profile wins value-based tenders despite higher price",
+        "patient_support_services": "Non-price differentiation (apps, nurses) justifies premium in multi-award tenders"
+      }
+    },
+    "resource_allocation_guidance": {
+      "when_pricing_pressure_high": {
+        "increase_evidence_generation": "Invest 30-40% more in RWE to build value case",
+        "focus_stakeholder_engagement_payers": "Shift engagement resources from HCPs to payers/HTA bodies",
+        "accelerate_differentiation_studies": "Fast-track head-to-head or adherence studies"
+      },
+      "when_biosimilar_imminent": {
+        "front_load_switching_evidence": "Publish switching risk data 18-24 months pre-biosimilar",
+        "intensify_hcp_loyalty_programs": "Increase HCP education and support services",
+        "prepare_mea_proposals": "Develop outcome-based MEA offers to preempt payer mandates"
+      },
+      "when_tender_dominant_market": {
+        "de_prioritize_publication_strategy": "Academic publications less influential in tender-driven markets",
+        "focus_on_patient_support_differentiation": "Non-price value critical in multi-award tenders",
+        "build_pharmacist_relationships": "Hospital pharmacists key decision-makers in tender process"
+      }
+    }
+  },
+  "stakeholder_cascade_dynamics": {
+    "description": "Models how stakeholder decisions and opinions cascade through networks creating multiplier effects - critical for understanding why isolated interventions fail or succeed beyond direct impact",
+    "within_country_cascades": {
+      "lead_institution_influence": {
+        "description": "Major teaching/reference hospitals set precedents that cascade to regional/community hospitals",
+        "teaching_hospital_to_regional": {
+          "cascade_probability": {
+            "distribution": "beta",
+            "alpha": 7,
+            "beta": 3,
+            "rationale": "70-80% probability regional hospitals follow teaching hospital formulary decisions within 12 months",
+            "simulation_ready": true
+          },
+          "time_to_cascade": {
+            "distribution": "normal",
+            "mean_months": 6,
+            "sd_months": 3,
+            "rationale": "Average 3-9 months for regional hospitals to align with lead institution",
+            "mean": 6,
+            "unit": "months",
+            "sd": 3,
+            "simulation_ready": true
+          },
+          "influence_decay_factors": {
+            "geographic_distance": {
+              "half_life_km": 150,
+              "description": "Influence halves every 150km from lead institution; hospitals >300km largely independent"
+            },
+            "institutional_prestige_differential": {
+              "coefficient": 0.4,
+              "description": "Each tier of prestige difference (e.g., national reference → regional → district) reduces cascade probability 40%"
+            },
+            "therapeutic_area_overlap": {
+              "high_overlap": 0.75,
+              "moderate_overlap": 0.45,
+              "low_overlap": 0.15,
+              "description": "Cascade stronger when follower hospital has similar patient population/expertise"
+            }
+          },
+          "amplification_factors": {
+            "public_endorsement": {
+              "impact": 0.35,
+              "description": "Lead hospital publicly presents decision at congress → cascade accelerates 35%"
+            },
+            "joint_procurement_network": {
+              "impact": 0.5,
+              "description": "Formal procurement coordination amplifies cascade; near-certain adoption"
+            },
+            "shared_medical_director": {
+              "impact": 0.6,
+              "description": "Same clinical leadership across institutions ensures policy alignment"
+            }
+          },
+          "resistance_factors": {
+            "budget_autonomy": -0.3,
+            "competitive_rivalry": -0.4,
+            "local_kol_dissent": -0.45,
+            "description": "Factors that prevent cascade even when lead institution makes decision"
+          }
+        },
+        "regional_to_national_reverse_cascade": {
+          "probability": {
+            "distribution": "beta",
+            "alpha": 3,
+            "beta": 7,
+            "rationale": "20-40% probability regional innovations cascade upward to national policy",
+            "simulation_ready": true
+          },
+          "prerequisites": {
+            "regional_outcomes_data": {
+              "required": true,
+              "description": "Regional pilot must generate measurable outcomes data to influence national policy"
+            },
+            "multiple_regions_adopt": {
+              "threshold": 3,
+              "description": "Need 3+ regions with consistent outcomes to trigger national attention"
+            },
+            "payer_budget_pressure": {
+              "required": true,
+              "description": "National payers only adopt regional cost-saving innovations; revenue-neutral ignored"
+            }
+          },
+          "time_to_national_cascade": {
+            "distribution": "normal",
+            "mean_months": 24,
+            "sd_months": 12,
+            "rationale": "Regional pilot to national policy typically 12-36 months if successful",
+            "mean": 24,
+            "unit": "months",
+            "sd": 12,
+            "simulation_ready": true
+          }
+        }
+      },
+      "kol_opinion_diffusion": {
+        "description": "How KOL opinions cascade through professional networks influencing peers, then trainees, then general practitioners",
+        "peer_kol_cascade": {
+          "first_degree_influence": {
+            "probability": {
+              "distribution": "beta",
+              "alpha": 6,
+              "beta": 4,
+              "rationale": "60-70% of peers influenced by lead KOL within same specialty",
+              "simulation_ready": true
+            },
+            "mechanisms": [
+              "Conference presentations",
+              "Guideline committee membership",
+              "Co-authorship networks",
+              "Informal consultation"
+            ],
+            "time_to_influence": {
+              "distribution": "normal",
+              "mean_months": 8,
+              "sd_months": 4,
+              "rationale": "KOL opinion diffuses to close peers over 4-12 months via conferences/publications",
+              "mean": 8,
+              "unit": "months",
+              "sd": 4,
+              "simulation_ready": true
+            }
+          },
+          "second_degree_influence": {
+            "probability": {
+              "distribution": "beta",
+              "alpha": 4,
+              "beta": 6,
+              "rationale": "30-50% of second-degree network influenced; attenuated signal",
+              "simulation_ready": true
+            },
+            "time_delay_additional_months": {
+              "distribution": "normal",
+              "mean": 6,
+              "sd": 3,
+              "rationale": "Each degree of separation adds 3-9 months delay",
+              "simulation_ready": true
+            }
+          },
+          "cascade_saturation": {
+            "maximum_reach_percent": {
+              "distribution": "beta",
+              "alpha": 5,
+              "beta": 5,
+              "rationale": "Single KOL opinion reaches 40-60% of specialty at saturation; plateau effect",
+              "simulation_ready": true
+            },
+            "time_to_saturation": {
+              "distribution": "normal",
+              "mean_months": 24,
+              "sd_months": 8,
+              "rationale": "Opinion diffusion saturates over 16-32 months",
+              "mean": 24,
+              "unit": "months",
+              "sd": 8,
+              "simulation_ready": true
+            }
+          }
+        },
+        "kol_to_trainee_cascade": {
+          "probability": {
+            "distribution": "beta",
+            "alpha": 8,
+            "beta": 2,
+            "rationale": "80-90% of trainees adopt mentor KOL opinions; hierarchical transmission",
+            "simulation_ready": true
+          },
+          "persistence": {
+            "half_life_years": 8,
+            "description": "Trainee opinions persist ~8 years post-training unless contradicted by new evidence"
+          },
+          "geographic_propagation": {
+            "description": "Trainees disperse to multiple institutions carrying KOL opinion; geographic amplification",
+            "reach_multiplier": 4,
+            "rationale": "Single KOL influences 4x more institutions through trainee dispersion vs direct contact"
+          }
+        },
+        "specialist_to_gp_cascade": {
+          "probability": {
+            "distribution": "beta",
+            "alpha": 5,
+            "beta": 5,
+            "rationale": "50-60% of GPs follow specialist recommendations for complex cases",
+            "simulation_ready": true
+          },
+          "conditions_for_cascade": {
+            "clear_specialist_consensus": 0.7,
+            "guideline_alignment": 0.65,
+            "simple_actionable_recommendation": 0.55,
+            "formulary_availability": 0.8,
+            "description": "GP adoption requires clear, actionable, supported recommendations"
+          },
+          "failure_modes": [
+            {
+              "mode": "specialist_disagreement",
+              "probability": 0.35,
+              "impact": "Conflicting specialist opinions → GPs default to conservative/cheapest option",
+              "mitigation": "Ensure KOL consensus before GP-facing communication"
+            },
+            {
+              "mode": "formulary_misalignment",
+              "probability": 0.25,
+              "impact": "Specialists recommend product not on GP formulary → adoption fails",
+              "mitigation": "Coordinate formulary access before specialist advocacy"
+            }
+          ]
+        },
+        "counter_opinion_dynamics": {
+          "description": "Resistance to cascade when counter-KOLs oppose dominant opinion",
+          "polarization_threshold": {
+            "opinion_split_percent": 40,
+            "description": "When >40% of KOLs hold contrary opinion, cascade stalls in polarization"
+          },
+          "resolution_mechanisms": {
+            "new_evidence_decisive": {
+              "probability": 0.6,
+              "time_months": {
+                "distribution": "normal",
+                "mean": 18,
+                "sd": 9,
+                "simulation_ready": true
+              },
+              "description": "High-quality RCT or RWE resolves polarization 60% of time over 9-27 months"
+            },
+            "guideline_committee_decision": {
+              "probability": 0.75,
+              "description": "National society guideline endorsement resolves 75% of polarized debates"
+            },
+            "payer_mandate_override": {
+              "probability": 0.9,
+              "description": "Payer formulary decision forces resolution regardless of KOL disagreement"
+            }
+          }
+        }
+      },
+      "payer_coordination_cascade": {
+        "description": "How payer decisions cascade through regional/national networks and coordinating bodies",
+        "regional_payer_alignment": {
+          "spontaneous_coordination": {
+            "probability": {
+              "distribution": "beta",
+              "alpha": 6,
+              "beta": 4,
+              "rationale": "60-70% probability regional payers align on major decisions without formal coordination",
+              "simulation_ready": true
+            },
+            "mechanisms": [
+              "Informal information sharing",
+              "Fear of reference price cascade",
+              "Shared HTA consultants",
+              "Political pressure for equity"
+            ]
+          },
+          "formal_consortia_coordination": {
+            "probability": {
+              "distribution": "beta",
+              "alpha": 9,
+              "beta": 1,
+              "rationale": "90-95% coordination probability within formal procurement consortia (e.g., Portuguese regional health authorities)",
+              "simulation_ready": true
+            },
+            "decision_velocity": {
+              "distribution": "normal",
+              "mean_days": 45,
+              "sd_days": 20,
+              "rationale": "Consortium decisions take 25-65 days; slower than individual payer but coordinated outcome",
+              "simulation_ready": true
+            }
+          }
+        },
+        "lead_payer_to_follower_cascade": {
+          "description": "Large/sophisticated payers (e.g., NHS England, INFARMED) set precedents for smaller payers",
+          "cascade_probability": {
+            "distribution": "beta",
+            "alpha": 7,
+            "beta": 3,
+            "rationale": "70-80% probability smaller payers follow major payer HTA decisions",
+            "simulation_ready": true
+          },
+          "time_to_cascade": {
+            "distribution": "normal",
+            "mean_months": 9,
+            "sd_months": 5,
+            "rationale": "Follower payers adopt lead payer decisions over 4-14 months",
+            "mean": 9,
+            "unit": "months",
+            "sd": 5,
+            "simulation_ready": true
+          },
+          "divergence_factors": {
+            "local_budget_crisis": {
+              "impact": -0.5,
+              "description": "Acute budget pressure forces stricter decisions than lead payer"
+            },
+            "political_independence": {
+              "impact": -0.35,
+              "description": "Politically motivated divergence to demonstrate autonomy"
+            },
+            "differential_disease_burden": {
+              "impact": -0.25,
+              "description": "Local epidemiology differs substantially from lead payer context"
+            }
+          }
+        }
+      },
+      "patient_advocacy_cascade": {
+        "description": "How patient advocacy positions cascade from lead organizations to chapters and individual patients",
+        "national_to_local_chapter_cascade": {
+          "probability": {
+            "distribution": "beta",
+            "alpha": 8,
+            "beta": 2,
+            "rationale": "80-90% local chapters adopt national organization positions",
+            "simulation_ready": true
+          },
+          "time_to_alignment": {
+            "distribution": "normal",
+            "mean_weeks": 4,
+            "sd_weeks": 2,
+            "rationale": "Local chapters align within 2-6 weeks of national position",
+            "simulation_ready": true
+          }
+        },
+        "advocacy_to_patient_behavior_cascade": {
+          "probability": {
+            "distribution": "beta",
+            "alpha": 5,
+            "beta": 5,
+            "rationale": "50-60% of engaged patients follow advocacy organization recommendations",
+            "simulation_ready": true
+          },
+          "engagement_dependency": {
+            "highly_engaged_patients": 0.8,
+            "moderately_engaged": 0.5,
+            "low_engagement": 0.2,
+            "description": "Cascade effectiveness depends on patient engagement level with advocacy organization"
+          }
+        },
+        "advocacy_to_payer_pressure_cascade": {
+          "probability": {
+            "distribution": "beta",
+            "alpha": 4,
+            "beta": 6,
+            "rationale": "30-50% probability sustained advocacy pressure influences payer decisions",
+            "simulation_ready": true
+          },
+          "conditions_for_success": {
+            "media_amplification": 0.65,
+            "political_sensitivity": 0.7,
+            "clear_unmet_need": 0.6,
+            "patient_testimonials": 0.45
+          },
+          "time_to_impact": {
+            "distribution": "normal",
+            "mean_months": 18,
+            "sd_months": 10,
+            "rationale": "Advocacy campaigns take 8-28 months to influence major payer decisions",
+            "mean": 18,
+            "unit": "months",
+            "sd": 10,
+            "simulation_ready": true
+          }
+        }
+      }
+    },
+    "cross_border_cascades": {
+      "hta_methodology_convergence": {
+        "description": "How HTA decisions and methodologies cascade across national borders influencing other HTA bodies",
+        "nice_to_european_hta_cascade": {
+          "probability": {
+            "distribution": "beta",
+            "alpha": 6,
+            "beta": 4,
+            "rationale": "60-70% probability European HTA bodies reference NICE decisions in own assessments",
+            "simulation_ready": true
+          },
+          "influence_strength_by_country": {
+            "ireland": 0.85,
+            "nordics": 0.7,
+            "portugal_spain_italy": 0.5,
+            "eastern_europe": 0.6,
+            "germany_france": 0.3,
+            "rationale": "Smaller/newer HTA systems rely heavily on NICE; mature systems (Germany, France) more independent"
+          },
+          "rejection_cascade": {
+            "probability": 0.55,
+            "impact": "NICE rejection triggers skepticism in other HTA bodies; burden of proof shifts to manufacturer",
+            "mitigation": "Preempt with country-specific evidence highlighting methodological differences"
+          }
+        },
+        "ema_to_national_regulator_cascade": {
+          "probability": {
+            "distribution": "beta",
+            "alpha": 9,
+            "beta": 1,
+            "rationale": "90-95% alignment between EMA and national EU regulators; near-automatic cascade",
+            "simulation_ready": true
+          },
+          "safety_signal_amplification": {
+            "probability": 0.95,
+            "time_to_cascade_days": {
+              "distribution": "normal",
+              "mean": 14,
+              "sd": 7,
+              "simulation_ready": true
+            },
+            "description": "EMA safety signals cascade to all EU member states within 1-3 weeks; near-instantaneous"
+          },
+          "cascade_to_hta_decisions": {
+            "probability": 0.75,
+            "description": "75% probability EMA regulatory restrictions trigger HTA reimbursement restrictions"
+          }
+        },
+        "us_fda_to_global_cascade": {
+          "probability": {
+            "distribution": "beta",
+            "alpha": 5,
+            "beta": 5,
+            "rationale": "50-60% probability FDA decisions influence global regulatory/HTA landscape",
+            "simulation_ready": true
+          },
+          "approval_cascade": {
+            "description": "FDA approval often accelerates EMA/other regulatory approvals; signals confidence",
+            "time_acceleration_months": {
+              "distribution": "normal",
+              "mean": 4,
+              "sd": 3,
+              "simulation_ready": true
+            }
+          },
+          "rejection_cascade": {
+            "description": "FDA rejection creates global skepticism; harder approvals elsewhere",
+            "probability_tightening": 0.65
+          }
+        }
+      },
+      "kol_transnational_networks": {
+        "description": "International KOL networks coordinate opinions across borders; particularly strong in EU",
+        "european_society_guideline_cascade": {
+          "probability": {
+            "distribution": "beta",
+            "alpha": 7,
+            "beta": 3,
+            "rationale": "70-80% national societies align with European society guidelines (ESC, ERS, ESMO)",
+            "simulation_ready": true
+          },
+          "time_to_national_alignment": {
+            "distribution": "normal",
+            "mean_months": 12,
+            "sd_months": 6,
+            "rationale": "National guidelines updated 6-18 months post-European guideline release",
+            "mean": 12,
+            "unit": "months",
+            "sd": 6,
+            "simulation_ready": true
+          },
+          "dissent_probability": {
+            "distribution": "beta",
+            "alpha": 2,
+            "beta": 8,
+            "rationale": "10-30% probability national society diverges on controversial recommendations",
+            "simulation_ready": true
+          }
+        },
+        "international_congress_opinion_formation": {
+          "description": "Major congresses (ESC, ERS, ESMO, ASH) create coordinated KOL opinion shifts",
+          "late_breaking_trial_cascade": {
+            "probability": {
+              "distribution": "beta",
+              "alpha": 8,
+              "beta": 2,
+              "rationale": "80-90% probability practice-changing congress presentation cascades globally within 12 months",
+              "simulation_ready": true
+            },
+            "velocity": {
+              "academic_centers_months": {
+                "distribution": "normal",
+                "mean": 3,
+                "sd": 2,
+                "simulation_ready": true
+              },
+              "community_practice_months": {
+                "distribution": "normal",
+                "mean": 12,
+                "sd": 6,
+                "simulation_ready": true
+              },
+              "description": "Academic centers adopt within 1-5 months; community practice lags 6-18 months"
+            }
+          },
+          "controversial_data_polarization": {
+            "probability": 0.35,
+            "description": "35% probability congress data triggers international KOL polarization rather than consensus"
+          }
+        }
+      },
+      "procurement_consortium_cascade": {
+        "description": "Joint procurement initiatives (e.g., Beneluxa, Valletta Declaration) create coordinated negotiation positions",
+        "beneluxa_coordination": {
+          "members": [
+            "Belgium",
+            "Netherlands",
+            "Luxembourg",
+            "Austria",
+            "Ireland"
+          ],
+          "joint_negotiation_probability": {
+            "distribution": "beta",
+            "alpha": 6,
+            "beta": 4,
+            "rationale": "60-70% probability Beneluxa members coordinate on high-cost specialty medicines",
+            "simulation_ready": true
+          },
+          "pricing_convergence": {
+            "coefficient": 0.75,
+            "description": "Prices across Beneluxa members converge within 25% of each other when coordinating"
+          },
+          "negotiation_leverage": {
+            "impact": 0.4,
+            "description": "Consortium bargaining power increases 40% vs individual country negotiations"
+          }
+        },
+        "valletta_declaration_cascade": {
+          "description": "Southern EU procurement cooperation (Italy, Spain, Portugal, Greece, Cyprus, Malta, Croatia, Slovenia, Romania)",
+          "information_sharing_probability": {
+            "distribution": "beta",
+            "alpha": 7,
+            "beta": 3,
+            "rationale": "70-80% probability members share tender prices and MEA terms despite confidentiality",
+            "simulation_ready": true
+          },
+          "cascading_expectations": {
+            "description": "Low price in one Valletta member creates expectation of similar prices in others",
+            "pressure_coefficient": 0.6
+          }
+        }
+      },
+      "evidence_triggered_cross_border_cascades": {
+        "guideline_to_payer_international": {
+          "description": "International guidelines (NICE, ESMO, NCCN) trigger payer reassessments across multiple countries",
+          "guideline_upgrade_cascade": {
+            "probability": {
+              "distribution": "beta",
+              "alpha": 7,
+              "beta": 3,
+              "rationale": "70-80% probability guideline upgrade (e.g., off-label to on-label recommendation) triggers multi-country payer reviews",
+              "simulation_ready": true
+            },
+            "time_to_payer_reassessment": {
+              "distribution": "normal",
+              "mean_months": 9,
+              "sd_months": 6,
+              "rationale": "Payers reassess 3-15 months post-guideline change",
+              "mean": 9,
+              "unit": "months",
+              "sd": 6,
+              "simulation_ready": true
+            },
+            "approval_probability": {
+              "distribution": "beta",
+              "alpha": 6,
+              "beta": 4,
+              "rationale": "60-70% probability guideline upgrade leads to favorable payer reassessment",
+              "simulation_ready": true
+            }
+          },
+          "guideline_downgrade_cascade": {
+            "probability": 0.85,
+            "impact": "Guideline downgrade triggers payer restrictions/delisting across multiple countries rapidly",
+            "time_to_cascade_months": {
+              "distribution": "normal",
+              "mean": 4,
+              "sd": 3,
+              "simulation_ready": true
+            }
+          }
+        },
+        "major_publication_to_hta_cascade": {
+          "description": "High-impact publication (Lancet, NEJM, JAMA) triggers coordinated HTA reassessments",
+          "positive_evidence_cascade": {
+            "probability": {
+              "distribution": "beta",
+              "alpha": 5,
+              "beta": 5,
+              "rationale": "50-60% probability major positive RCT triggers multi-country HTA upgrades",
+              "simulation_ready": true
+            },
+            "countries_affected": {
+              "distribution": "normal",
+              "mean": 4,
+              "sd": 2,
+              "rationale": "Typically 2-6 countries reassess simultaneously post-major publication",
+              "simulation_ready": true
+            }
+          },
+          "negative_evidence_cascade": {
+            "probability": 0.75,
+            "impact": "Negative safety/efficacy data triggers rapid multi-country restrictions",
+            "velocity_weeks": {
+              "distribution": "normal",
+              "mean": 6,
+              "sd": 3,
+              "simulation_ready": true
+            }
+          }
+        }
+      }
+    },
+    "cascade_amplification_mechanisms": {
+      "description": "Factors that amplify or dampen cascade effects across networks",
+      "social_proof_amplification": {
+        "threshold_adoption_rate": 0.25,
+        "description": "Once 25% of network adopts, cascade accelerates via social proof mechanism",
+        "acceleration_factor": 2.5,
+        "rationale": "Post-threshold, adoption rate increases 2.5x via bandwagon effect"
+      },
+      "homophily_clustering": {
+        "description": "Similar stakeholders cluster; cascades faster within clusters, slower between clusters",
+        "within_cluster_coefficient": 0.8,
+        "between_cluster_coefficient": 0.3,
+        "bridge_stakeholder_importance": "Stakeholders spanning clusters (e.g., KOL active in both academia and payer advisory) critical for cross-cluster cascade"
+      },
+      "information_quality_decay": {
+        "description": "Each transmission step degrades information quality; 'telephone game' effect",
+        "quality_decay_per_step": 0.15,
+        "mitigation": "Direct dissemination (publications, webcasts) maintains signal quality vs indirect cascade"
+      }
+    },
+    "strategic_cascade_leverage_points": {
+      "description": "Where to intervene to maximize cascade effects with minimal resources",
+      "identify_lead_institutions": {
+        "priority": "critical",
+        "roi_multiplier": 6,
+        "description": "Winning lead teaching hospital cascades to 4-8 regional hospitals; 6x leverage vs individual hospital approach"
+      },
+      "target_bridge_kols": {
+        "priority": "high",
+        "roi_multiplier": 4,
+        "description": "KOLs spanning multiple networks (e.g., clinical + payer advisory + guideline committee) amplify cascade across domains"
+      },
+      "align_with_european_society_guidelines": {
+        "priority": "high",
+        "roi_multiplier": 12,
+        "description": "European society guideline inclusion cascades to 10-15 national societies; massive leverage"
+      },
+      "preempt_counter_cascades": {
+        "priority": "critical",
+        "description": "Identify and address counter-opinion leaders before polarization solidifies; much harder to reverse post-polarization"
+      }
+    }
+  },
+  "competitor_strategic_response": {
+    "description": "Models competitor reactions to pricing/market access moves as strategic game rather than passive market - CRITICAL blind spot in most simulations",
+    "game_theoretic_framework": {
+      "description": "Pricing decisions trigger strategic responses; must model as multi-player game not isolated optimization",
+      "response_velocity_by_competitor_type": {
+        "multinational_originator": {
+          "decision_time": {
+            "distribution": "normal",
+            "mean_months": 4,
+            "sd_months": 2,
+            "rationale": "Large pharma 2-6 months to formulate and execute strategic response",
+            "mean": 4,
+            "unit": "months",
+            "sd": 2,
+            "simulation_ready": true
+          },
+          "response_magnitude": {
+            "distribution": "beta",
+            "alpha": 5,
+            "beta": 5,
+            "rationale": "Moderate response; balances global portfolio vs local market",
+            "simulation_ready": true
+          }
+        },
+        "biosimilar_specialist": {
+          "decision_time": {
+            "distribution": "normal",
+            "mean_months": 1.5,
+            "sd_months": 1,
+            "rationale": "Biosimilar players respond rapidly; 0.5-2.5 months",
+            "mean": 1.5,
+            "unit": "months",
+            "sd": 1,
+            "simulation_ready": true
+          },
+          "response_magnitude": {
+            "distribution": "beta",
+            "alpha": 7,
+            "beta": 3,
+            "rationale": "Aggressive response; lower fixed costs enable rapid price cuts",
+            "simulation_ready": true
+          }
+        },
+        "generic_manufacturers": {
+          "decision_time": {
+            "distribution": "normal",
+            "mean_weeks": 3,
+            "sd_weeks": 2,
+            "rationale": "Generics respond within weeks; automated pricing algorithms",
+            "simulation_ready": true
+          },
+          "response_magnitude": {
+            "distribution": "beta",
+            "alpha": 8,
+            "beta": 2,
+            "rationale": "Extreme response; commoditized market, minimal differentiation",
+            "simulation_ready": true
+          }
+        }
+      },
+      "response_strategy_matrix": {
+        "if_we_discount_aggressively": {
+          "competitor_matches": {
+            "probability": {
+              "biosimilar_market": 0.85,
+              "differentiated_biologic_market": 0.45,
+              "rationale": "Biosimilars almost always match; differentiated biologics ~50/50"
+            },
+            "matching_intensity": {
+              "distribution": "beta",
+              "alpha": 6,
+              "beta": 4,
+              "rationale": "Competitors match 50-80% of our discount; rarely exceed",
+              "simulation_ready": true
+            }
+          },
+          "competitor_holds_premium": {
+            "probability": 0.35,
+            "conditions": "Strong differentiation, loyal prescriber base, confident in value proposition",
+            "volume_loss": {
+              "distribution": "beta",
+              "alpha": 6,
+              "beta": 4,
+              "rationale": "Lose 40-70% volume if competitor holds premium position",
+              "simulation_ready": true
+            }
+          },
+          "competitor_exits": {
+            "probability": 0.1,
+            "conditions": "Marginal competitor with weak position; our discount makes market unprofitable",
+            "time_to_exit_months": {
+              "distribution": "normal",
+              "mean": 9,
+              "sd": 6,
+              "simulation_ready": true
+            }
+          }
+        },
+        "if_we_hold_premium": {
+          "competitor_undercuts": {
+            "probability": 0.75,
+            "discount_below_us": {
+              "distribution": "beta",
+              "alpha": 4,
+              "beta": 6,
+              "rationale": "Competitor discounts 15-45% below our price to capture share",
+              "simulation_ready": true
+            },
+            "our_volume_erosion": {
+              "distribution": "beta",
+              "alpha": 5,
+              "beta": 5,
+              "rationale": "Lose 30-70% volume depending on differentiation strength",
+              "simulation_ready": true
+            }
+          },
+          "competitor_matches_premium": {
+            "probability": 0.2,
+            "conditions": "Oligopoly with implicit coordination; both maintain margins",
+            "stability_duration_months": {
+              "distribution": "normal",
+              "mean": 18,
+              "sd": 12,
+              "rationale": "Tacit coordination stable 6-30 months until new entrant disrupts",
+              "simulation_ready": true
+            }
+          }
+        },
+        "if_we_launch_mea": {
+          "competitor_copies_mea": {
+            "probability": {
+              "distribution": "beta",
+              "alpha": 6,
+              "beta": 4,
+              "rationale": "60-70% probability competitor proposes similar MEA within 6 months",
+              "simulation_ready": true
+            },
+            "mea_terms_escalation": {
+              "description": "Competitive MEA terms become progressively more generous to payers",
+              "escalation_rate": 0.25,
+              "rationale": "Each competitor MEA ~25% more favorable to payer than prior; race to bottom"
+            }
+          },
+          "competitor_rejects_mea_strategy": {
+            "probability": 0.3,
+            "rationale": "Competitor confident in differentiation or unwilling to accept MEA admin burden",
+            "market_segmentation": "Market splits: MEA-averse payers choose us; MEA-skeptical payers choose competitor"
+          }
+        }
+      },
+      "irrational_competition_scenarios": {
+        "description": "Competitors making economically irrational moves for strategic reasons - common and disruptive",
+        "market_share_desperation": {
+          "probability": 0.25,
+          "description": "Competitor prices below cost to gain/defend share; unsustainable but disruptive",
+          "trigger_conditions": {
+            "share_below_viability_threshold": 0.15,
+            "parent_company_pressure": 0.7,
+            "pipeline_drought": 0.6
+          },
+          "duration": {
+            "distribution": "normal",
+            "mean_quarters": 4,
+            "sd_quarters": 2,
+            "rationale": "Below-cost pricing typically sustained 2-6 quarters before correction or exit",
+            "simulation_ready": true
+          },
+          "impact_on_our_strategy": "Forces response pricing or accept major volume loss; no good options"
+        },
+        "portfolio_cross_subsidization": {
+          "probability": 0.35,
+          "description": "Competitor subsidizes unprofitable product from profitable portfolio products for strategic reasons",
+          "rationale": [
+            "Maintain complete portfolio for key accounts",
+            "Prevent market exit perception weakness",
+            "Keep manufacturing capacity utilized",
+            "Block market space from new entrants"
+          ],
+          "sustainability": "Can persist indefinitely if cross-subsidy sources remain profitable"
+        },
+        "new_entrant_land_grab": {
+          "probability": 0.4,
+          "description": "New biosimilar/generic entrant prices aggressively below economic rationality to establish presence",
+          "typical_discount_vs_rational": {
+            "distribution": "beta",
+            "alpha": 3,
+            "beta": 7,
+            "rationale": "New entrant often 20-50% below economically rational price for first 12-18 months",
+            "simulation_ready": true
+          },
+          "correction_trajectory": {
+            "time_to_rationalization_months": {
+              "distribution": "normal",
+              "mean": 18,
+              "sd": 9,
+              "simulation_ready": true
+            },
+            "final_price_level": "Prices typically rise to rational levels after market position established"
+          }
+        }
+      },
+      "preemptive_competitor_moves": {
+        "description": "Competitor acts before our expected move; first-mover advantage scenarios",
+        "preemptive_authorized_generic": {
+          "probability": 0.3,
+          "description": "Competitor launches authorized generic 6-12 months before our biosimilar expected",
+          "impact": {
+            "our_biosimilar_uptake_reduced": 0.45,
+            "market_price_preemptively_collapsed": 0.6
+          },
+          "early_warning_signals": [
+            "Regulatory filings for AG",
+            "Supply chain expansion in generics division",
+            "Pricing discussions with major payers"
+          ]
+        },
+        "preemptive_mea_saturation": {
+          "probability": 0.25,
+          "description": "Competitor locks in major payers with long-term MEAs before our launch",
+          "lock_in_duration_years": {
+            "distribution": "normal",
+            "mean": 3,
+            "sd": 1,
+            "simulation_ready": true
+          },
+          "impact": "Accessible market reduced by 40-70% for duration of competitor MEAs"
+        },
+        "preemptive_kol_capture": {
+          "probability": 0.4,
+          "description": "Competitor establishes KOL relationships and advisory boards before our market entry",
+          "impact_on_our_kol_recruitment": -0.5,
+          "mitigation_cost_increase": 0.65,
+          "rationale": "Must pay 65% premium to recruit KOLs already engaged with competitor"
+        }
+      },
+      "information_warfare": {
+        "description": "Competitors spread FUD (fear, uncertainty, doubt) or selectively disclose information to influence market",
+        "switching_risk_fud": {
+          "probability": 0.45,
+          "description": "Originator promotes non-medical switching risks when biosimilar launches",
+          "mechanisms": [
+            "Selective publication of switching adverse events",
+            "KOL presentations emphasizing immunogenicity risks",
+            "Patient advocacy group funding to resist switching",
+            "Direct communication to prescribers about 'unknown risks'"
+          ],
+          "effectiveness": {
+            "distribution": "beta",
+            "alpha": 5,
+            "beta": 5,
+            "rationale": "FUD campaigns delay biosimilar uptake 30-60% vs uncontested launch",
+            "simulation_ready": true
+          },
+          "counter_strategy_effectiveness": {
+            "pre_publication_switching_data": 0.7,
+            "regulatory_statement_biosimilar_equivalence": 0.6,
+            "payer_education_on_economic_impact": 0.5
+          }
+        },
+        "selective_data_disclosure": {
+          "probability": 0.35,
+          "description": "Competitor releases favorable sub-analyses or registry data to influence perception",
+          "timing_strategic": "Timed to major congresses or immediately pre-tender to maximize impact",
+          "counter_required": "Must have equivalent or superior data ready to release reactively"
+        },
+        "confidential_price_leaking": {
+          "probability": 0.2,
+          "description": "Competitor deliberately leaks our confidential tender/MEA prices to create reference cascade",
+          "impact": "Forces price reductions in 60-80% of markets using leaked market as reference",
+          "attribution_difficulty": "Very hard to prove competitor was leak source vs payer indiscretion"
+        }
+      }
+    },
+    "oligopoly_dynamics": {
+      "description": "When few competitors dominate, pricing becomes game of tacit coordination or defection",
+      "tacit_collusion_probability": {
+        "duopoly": {
+          "distribution": "beta",
+          "alpha": 6,
+          "beta": 4,
+          "rationale": "60-70% probability tacit coordination maintains premium pricing in duopoly",
+          "simulation_ready": true
+        },
+        "three_players": {
+          "distribution": "beta",
+          "alpha": 4,
+          "beta": 6,
+          "rationale": "30-50% probability; coordination harder with third player",
+          "simulation_ready": true
+        },
+        "four_plus_players": {
+          "distribution": "beta",
+          "alpha": 2,
+          "beta": 8,
+          "rationale": "10-30% probability; typically devolves to competitive pricing",
+          "simulation_ready": true
+        }
+      },
+      "defection_triggers": {
+        "capacity_utilization_below_threshold": {
+          "threshold": 0.6,
+          "probability_defect": 0.75,
+          "description": "When capacity utilization <60%, high probability competitor defects from tacit coordination to fill capacity"
+        },
+        "market_share_loss_threshold": {
+          "threshold": 0.15,
+          "probability_defect": 0.65,
+          "description": "Losing >15pp market share triggers aggressive pricing to defend"
+        },
+        "new_entrant_threat": {
+          "probability_preemptive_defection": 0.55,
+          "description": "Expected new entrant triggers preemptive price cuts to deter entry"
+        }
+      },
+      "punishment_mechanisms": {
+        "tit_for_tat": {
+          "probability": 0.7,
+          "description": "Defection from coordination triggers matching aggressive pricing; 70% probability",
+          "duration_months": {
+            "distribution": "normal",
+            "mean": 9,
+            "sd": 6,
+            "simulation_ready": true
+          }
+        },
+        "grim_trigger": {
+          "probability": 0.2,
+          "description": "Defection triggers permanent competitive pricing; coordination never restored",
+          "irreversibility": 0.85
+        }
+      }
+    },
+    "strategic_response_modeling_parameters": {
+      "description": "How to integrate competitor response into MC simulation",
+      "response_function_specification": {
+        "our_price_action": "Independent variable",
+        "competitor_price_response": "Dependent variable modeled as probability distribution conditional on our action",
+        "market_share_outcome": "Function of our price, competitor response, differentiation strength, and switching costs"
+      },
+      "multi_round_game": {
+        "description": "Pricing is not one-shot game; model as repeated interaction over product lifecycle",
+        "rounds_per_year": 2,
+        "rationale": "Major pricing decisions (tenders, MEA renewals) occur biannually; model 2 strategic rounds/year",
+        "learning": "Competitor strategies evolve based on prior outcomes; Bayesian updating of response probabilities"
+      },
+      "incomplete_information": {
+        "description": "Neither we nor competitor have perfect information about each other's costs, strategies, or constraints",
+        "uncertainty_modeling": "Model competitor cost structure, parent company priorities, and strategic objectives as probability distributions",
+        "signaling": "Pricing moves signal information; competitor infers our position strength from our actions"
+      }
+    }
+  },
+  "nonlinear_thresholds_tipping_points": {
+    "description": "Critical thresholds where small changes trigger disproportionate effects - LINEAR models catastrophically wrong at these points",
+    "market_share_tipping_points": {
+      "biosimilar_viability_threshold": {
+        "threshold_share": 0.15,
+        "description": "Biosimilar below 15% share often exits; above 15% gains momentum toward 40-60% equilibrium",
+        "mechanism": "Below threshold: margins don't cover fixed costs → exit. Above: economies of scale + network effects → accelerating growth",
+        "transition_velocity": {
+          "below_to_above": {
+            "time_months": {
+              "distribution": "normal",
+              "mean": 9,
+              "sd": 6,
+              "simulation_ready": true
+            },
+            "description": "Once threshold crossed, rapid acceleration to 40%+ share over 3-15 months"
+          },
+          "above_to_equilibrium": {
+            "time_months": {
+              "distribution": "normal",
+              "mean": 18,
+              "sd": 9,
+              "simulation_ready": true
+            },
+            "equilibrium_share": {
+              "distribution": "beta",
+              "alpha": 5,
+              "beta": 5,
+              "rationale": "Equilibrium typically 40-60% biosimilar share depending on differentiation",
+              "simulation_ready": true
+            }
+          }
+        }
+      },
+      "originator_death_spiral_threshold": {
+        "threshold_share": 0.25,
+        "description": "Originator below 25% share triggers death spiral: volume loss → higher per-unit costs → price pressure → more volume loss",
+        "irreversibility_probability": 0.8,
+        "time_to_exit": {
+          "distribution": "normal",
+          "mean_months": 24,
+          "sd_months": 12,
+          "rationale": "Once death spiral initiated, 18-36 months to market exit",
+          "mean": 24,
+          "unit": "months",
+          "sd": 12,
+          "simulation_ready": true
+        },
+        "prevention_window": "Must defend share above 25% threshold; recovery from below-threshold extremely difficult"
+      },
+      "network_effect_critical_mass": {
+        "threshold_adoption": 0.3,
+        "description": "30% hospital adoption triggers network effects: pharmacist training, protocols, IT integration → rapid cascade to 70%+",
+        "acceleration_factor": 3.5,
+        "rationale": "Post-threshold adoption rate increases 3.5x due to network effects vs pre-threshold linear growth"
+      }
+    },
+    "price_elasticity_discontinuities": {
+      "description": "Demand is NOT smoothly elastic; exhibits sharp discontinuities at specific price points",
+      "formulary_inclusion_threshold": {
+        "threshold_price_vs_comparator": 1.15,
+        "description": "Product priced >15% above comparator often excluded from formulary entirely; <15% typically included",
+        "transition_sharpness": "Near-vertical demand cliff at threshold; 14% premium → 90% formulary access; 16% premium → 20% access",
+        "rationale": "Payer formulary rules often specify rigid price premium limits vs generic/biosimilar comparator"
+      },
+      "patient_copay_threshold": {
+        "monthly_copay_threshold_euro": 50,
+        "description": "Monthly copay >€50 triggers dramatic adherence collapse; <€50 minimal impact",
+        "adherence_drop": {
+          "below_threshold": -0.05,
+          "above_threshold": -0.45,
+          "rationale": "Adherence drops 5% if copay €40→€49; drops 45% if copay €51→€60"
+        }
+      },
+      "reference_pricing_cliff": {
+        "description": "In reference pricing systems, any price above reference = 100% patient copay; creates vertical demand cliff",
+        "demand_elasticity": {
+          "at_or_below_reference": -0.2,
+          "above_reference": -15,
+          "rationale": "Tiny price increases above reference trigger catastrophic volume loss"
+        }
+      }
+    },
+    "stakeholder_behavior_thresholds": {
+      "hcp_switching_resistance_threshold": {
+        "price_differential_threshold": 0.4,
+        "description": "HCPs resist payer switching mandates if price differential <40%; reluctantly comply if >40%",
+        "compliance_probability": {
+          "differential_20_percent": 0.25,
+          "differential_40_percent": 0.65,
+          "differential_60_percent": 0.9
+        },
+        "rationale": "40% threshold where economic argument overwhelms clinical preference; sharp transition"
+      },
+      "payer_budget_crisis_threshold": {
+        "budget_overrun_threshold": 0.1,
+        "description": "Budget overrun >10% triggers emergency measures; <10% managed within normal processes",
+        "emergency_measures": [
+          "Immediate price renegotiation demands",
+          "Unilateral switching mandates",
+          "Delisting threats",
+          "Volume caps"
+        ],
+        "probability_measures_invoked": {
+          "overrun_5_percent": 0.15,
+          "overrun_10_percent": 0.75,
+          "overrun_15_percent": 0.95
+        }
+      },
+      "patient_advocacy_mobilization_threshold": {
+        "patients_affected_threshold": 500,
+        "description": "Policy affecting <500 patients → limited advocacy; >500 patients → organized campaign",
+        "media_attention_probability": {
+          "100_patients": 0.1,
+          "500_patients": 0.55,
+          "1000_patients": 0.85
+        }
+      }
+    },
+    "evidence_credibility_thresholds": {
+      "rwe_vs_rct_credibility_threshold": {
+        "rwe_sample_size_threshold": 2000,
+        "description": "RWE <2000 patients often dismissed as anecdotal; >2000 patients gains payer credibility approaching RCT",
+        "payer_acceptance_probability": {
+          "rwe_500_patients": 0.2,
+          "rwe_2000_patients": 0.65,
+          "rwe_5000_patients": 0.8,
+          "rct_200_patients": 0.7
+        },
+        "rationale": "Sharp credibility threshold around 2000 RWE patients where acceptance jumps"
+      },
+      "publication_venue_credibility_threshold": {
+        "tier_1_journals": [
+          "NEJM",
+          "Lancet",
+          "JAMA"
+        ],
+        "tier_2_journals": [
+          "BMJ",
+          "Annals",
+          "specialty flagship journals"
+        ],
+        "tier_3_journals": [
+          "Mid-tier specialty",
+          "open-access"
+        ],
+        "payer_credibility_impact": {
+          "tier_1": 0.8,
+          "tier_2": 0.5,
+          "tier_3": 0.2
+        },
+        "sharp_transition": "Tier 1 vs Tier 2 has disproportionate impact; near-threshold effect"
+      }
+    },
+    "temporal_tipping_points": {
+      "biosimilar_launch_window_of_vulnerability": {
+        "critical_window_months": 6,
+        "description": "First 6 months post-biosimilar launch are critical; outcomes here determine 5-year trajectory",
+        "if_we_lose_30_percent_share_in_6mo": {
+          "probability_death_spiral": 0.75,
+          "final_equilibrium_share": {
+            "distribution": "beta",
+            "alpha": 2,
+            "beta": 8,
+            "rationale": "Likely end at 10-30% share; difficult recovery",
+            "simulation_ready": true
+          }
+        },
+        "if_we_hold_70_percent_share_in_6mo": {
+          "probability_stable_premium": 0.7,
+          "final_equilibrium_share": {
+            "distribution": "beta",
+            "alpha": 6,
+            "beta": 4,
+            "rationale": "Stabilize at 50-75% share; sustainable premium",
+            "simulation_ready": true
+          }
+        }
+      },
+      "payer_mea_patience_threshold": {
+        "time_threshold_months": 24,
+        "description": "Payers tolerate outcome uncertainty for ~24 months; beyond that demand resolution or revert to discount",
+        "probability_mea_abandoned": {
+          "month_12": 0.1,
+          "month_24": 0.4,
+          "month_36": 0.75
+        }
+      }
+    },
+    "saturation_and_diminishing_returns": {
+      "publication_saturation": {
+        "impact_by_publication_number": {
+          "publication_1": 0.35,
+          "publication_2": 0.25,
+          "publication_3": 0.15,
+          "publication_4": 0.08,
+          "publication_5_plus": 0.03
+        },
+        "description": "First publication worth 0.35 impact; fifth worth 0.03; severe diminishing returns",
+        "saturation_mechanism": "Payers and KOLs reach 'enough evidence' threshold; additional publications provide minimal new information"
+      },
+      "kol_engagement_saturation": {
+        "optimal_kol_count": {
+          "distribution": "normal",
+          "mean": 8,
+          "sd": 3,
+          "rationale": "5-11 KOLs provide optimal coverage; beyond that, redundancy and coordination costs dominate",
+          "simulation_ready": true
+        },
+        "marginal_impact_trajectory": {
+          "kol_1_to_5": 0.25,
+          "kol_6_to_10": 0.12,
+          "kol_11_to_15": 0.04,
+          "kol_16_plus": 0.01
+        }
+      }
+    },
+    "threshold_modeling_in_mc_simulation": {
+      "description": "How to incorporate nonlinear thresholds into MC simulation to avoid catastrophic linear model failures",
+      "step_function_modeling": {
+        "implementation": "Use IF-THEN logic, not linear interpolation, at thresholds",
+        "example": "IF market_share < 0.15 THEN exit_probability = 0.85 ELSE growth_acceleration = TRUE"
+      },
+      "phase_transition_modeling": {
+        "implementation": "Model market as having discrete phases with different dynamics",
+        "phases": [
+          "Pre-threshold: linear dynamics, slow change",
+          "Transition: rapid nonlinear change, high variance",
+          "Post-threshold: new equilibrium, different dynamics"
+        ]
+      },
+      "sensitivity_at_thresholds": {
+        "description": "Run dense sampling around known thresholds to capture transition dynamics",
+        "sampling_strategy": "10x sample density in ±10% range around critical thresholds vs base case"
+      }
+    }
+  },
+  "time_pressure_critical_windows": {
+    "description": "Time-bound decisions with irreversible consequences - static models miss urgency-driven trade-offs",
+    "regulatory_decision_deadlines": {
+      "mea_negotiation_window": {
+        "typical_window_months": {
+          "distribution": "normal",
+          "mean": 4,
+          "sd": 2,
+          "rationale": "Payers typically give 2-6 months to negotiate MEA before defaulting to rejection",
+          "simulation_ready": true
+        },
+        "late_stage_penalties": {
+          "submit_month_1_2": "Full consideration, optimal terms possible",
+          "submit_month_3": "Compressed timeline, -15% negotiation leverage",
+          "submit_month_4_plus": "Take-it-or-leave-it terms, -40% leverage",
+          "miss_deadline": "Default rejection, must wait 12-24 months for reassessment"
+        },
+        "urgency_vs_quality_tradeoff": {
+          "description": "Rush incomplete evidence package to meet deadline vs wait 6 months for complete data but miss window",
+          "optimal_decision_threshold": "Submit if evidence >60% complete; wait if <60% as rushed submission likely fails anyway"
+        }
+      },
+      "tender_response_deadline": {
+        "typical_window_days": {
+          "distribution": "normal",
+          "mean": 30,
+          "sd": 15,
+          "rationale": "Hospital tenders typically give 15-45 days for bid preparation",
+          "simulation_ready": true
+        },
+        "no_bid_consequences": "Excluded from market for tender duration (typically 1-3 years); hard to re-enter",
+        "rushed_bid_quality_penalty": {
+          "preparation_time_days_15": -0.25,
+          "preparation_time_days_30": -0.1,
+          "preparation_time_days_45": 0,
+          "description": "Rushed bids have 10-25% lower win probability due to errors, incomplete value proposition"
+        }
+      },
+      "hta_resubmission_embargo": {
+        "embargo_duration_months": {
+          "distribution": "normal",
+          "mean": 18,
+          "sd": 9,
+          "rationale": "After HTA rejection, typically 9-27 month embargo before resubmission allowed",
+          "simulation_ready": true
+        },
+        "revenue_foregone": {
+          "monthly_revenue_impact_percent": {
+            "distribution": "beta",
+            "alpha": 4,
+            "beta": 6,
+            "rationale": "Each embargo month costs 15-45% of potential monthly revenue",
+            "simulation_ready": true
+          }
+        },
+        "strategic_implication": "First submission CRITICAL; cannot afford rejection as re-entry delayed 18+ months"
+      }
+    },
+    "competitive_windows_of_vulnerability": {
+      "first_6_months_post_biosimilar": {
+        "description": "Critical window where originator share trajectory determined for entire post-LOE lifecycle",
+        "share_retention_targets": {
+          "month_3_target": 0.75,
+          "month_6_target": 0.6,
+          "description": "Must retain >75% share at month 3, >60% at month 6 to stabilize at viable long-term position"
+        },
+        "intervention_effectiveness_decay": {
+          "month_0_2": 1.0,
+          "month_3_5": 0.6,
+          "month_6_plus": 0.25,
+          "description": "Defensive interventions 100% effective if deployed pre-launch; 60% effective months 3-5; 25% effective post-month 6"
+        },
+        "irreversibility": "Share losses in first 6 months very difficult to recover; prescriber switching patterns solidify"
+      },
+      "competitor_preemption_risk_window": {
+        "description": "If we telegraph strategy, competitor can preempt; narrow window to execute before they react",
+        "competitor_awareness_to_response_time": {
+          "distribution": "normal",
+          "mean_months": 3,
+          "sd_months": 2,
+          "rationale": "Competitors take 1-5 months to formulate and deploy counter-strategy once aware",
+          "mean": 3,
+          "unit": "months",
+          "sd": 2,
+          "simulation_ready": true
+        },
+        "stealth_execution_premium": "Strategies executed stealthily (e.g., KOL engagement without publicity) have 3-5 month head start before competitive response"
+      }
+    },
+    "budget_cycle_dependencies": {
+      "q4_hospital_tender_clustering": {
+        "description": "60-70% of annual hospital tenders clustered in Q4 as budgets finalized for next year",
+        "q4_tender_concentration": {
+          "distribution": "beta",
+          "alpha": 7,
+          "beta": 3,
+          "rationale": "65-75% of annual tender volume occurs Oct-Dec",
+          "simulation_ready": true
+        },
+        "strategic_implications": {
+          "resource_concentration": "Must concentrate pricing/access resources in Q3-Q4 for tender preparation",
+          "q4_failure_cost": "Losing Q4 tenders = locked out of 60-70% of hospital market for entire next year",
+          "q1_q3_opportunity": "Off-season tenders (Q1-Q3) have less competition; higher win probability"
+        }
+      },
+      "annual_payer_budget_reset": {
+        "description": "Payer willingness to negotiate resets annually; fiscal year boundaries create decision windows",
+        "optimal_negotiation_timing": {
+          "q4_prior_year": "Payers planning next year budget; receptive to MEA proposals that reduce budget uncertainty",
+          "q1_current_year": "Budget locked; payers resistant to changes that increase spend",
+          "q2_q3_current_year": "Mid-year review window; payers will consider adjustments if budget underrun projected"
+        }
+      }
+    },
+    "evidence_generation_vs_market_timing": {
+      "rwe_generation_lag": {
+        "typical_time_to_publication_months": {
+          "distribution": "normal",
+          "mean": 18,
+          "sd": 9,
+          "rationale": "From study initiation to peer-reviewed publication: 9-27 months",
+          "simulation_ready": true
+        },
+        "market_need_timeline": "Biosimilar launches in 12 months; need evidence before launch for defensive positioning",
+        "impossible_timeline_probability": 0.4,
+        "description": "40% probability market timeline faster than evidence generation timeline; must choose: incomplete evidence now vs perfect evidence too late"
+      },
+      "congress_presentation_windows": {
+        "major_congresses_per_year": 3,
+        "abstract_deadline_to_presentation_months": {
+          "distribution": "normal",
+          "mean": 6,
+          "sd": 2,
+          "simulation_ready": true
+        },
+        "strategic_timing": {
+          "ideal": "Data ready 6 months before major congress; can submit abstract, present, and capitalize on buzz",
+          "rushed": "Data ready <3 months before congress; miss abstract deadline, must wait another year",
+          "cost_of_delay": "Missing optimal congress means 6-12 month delay before next opportunity; market window may close"
+        }
+      }
+    },
+    "irreversible_commitment_deadlines": {
+      "supply_chain_capacity_decisions": {
+        "lead_time_capacity_expansion_months": {
+          "distribution": "normal",
+          "mean": 24,
+          "sd": 12,
+          "rationale": "Manufacturing capacity expansion takes 12-36 months",
+          "simulation_ready": true
+        },
+        "commitment_irreversibility": "Capacity investments largely irreversible; sunk costs if market doesn't materialize",
+        "decision_pressure": "Must commit to capacity 24 months before market need, based on incomplete market intelligence"
+      },
+      "long_term_mea_commitments": {
+        "typical_duration_years": {
+          "distribution": "normal",
+          "mean": 3,
+          "sd": 1,
+          "simulation_ready": true
+        },
+        "exit_penalties": {
+          "financial_penalty_percent_revenue": {
+            "distribution": "beta",
+            "alpha": 3,
+            "beta": 7,
+            "rationale": "Early MEA termination typically costs 15-40% of MEA-period revenue as penalty",
+            "simulation_ready": true
+          }
+        },
+        "strategic_lock_in": "3-year MEA commitment made under one market condition must be honored even if conditions change drastically"
+      }
+    },
+    "time_pressure_modeling_in_mc": {
+      "description": "How to incorporate time pressure and critical windows into MC simulation",
+      "decision_tree_time_branching": {
+        "implementation": "Model time as discrete decision points; different strategies available at different times",
+        "example": {
+          "month_0": [
+            "Full evidence package",
+            "Partial evidence package",
+            "Wait for complete data"
+          ],
+          "month_3": [
+            "Partial evidence only",
+            "Wait for complete data"
+          ],
+          "month_6": [
+            "Wait for complete data only"
+          ],
+          "month_9": [
+            "Missed window, default rejection"
+          ]
+        }
+      },
+      "velocity_dependent_probabilities": {
+        "implementation": "Success probabilities depend on how quickly action taken relative to deadline",
+        "formula": "success_probability = base_probability * (1 - time_pressure_penalty)",
+        "time_pressure_penalty": "Increases exponentially as deadline approaches"
+      },
+      "irreversibility_tracking": {
+        "implementation": "Track which decisions create irreversible commitments; flag path dependencies",
+        "critical_flags": [
+          "Supply chain commitments (sunk costs)",
+          "Long-term contract lock-ins",
+          "Market position losses (death spiral risk)",
+          "Regulatory/payer embargo periods"
+        ]
+      },
+      "optimal_stopping_problems": {
+        "implementation": "Model decisions as 'act now with imperfect information' vs 'wait for better information but risk missing window'",
+        "solution_approach": "Dynamic programming; calculate expected value of waiting vs acting at each time point"
+      }
+    }
+  },
+  "simulation_parameters": {
+    "monte_carlo_integration": {
+      "description": "How pricing/access module integrates into MC simulation alongside medical affairs pillars",
+      "interaction_modeling": {
+        "pricing_as_outcome": "Medical affairs success influences achievable price/volume trade-offs",
+        "pricing_as_constraint": "Price pressure alters optimal medical affairs resource allocation",
+        "bidirectional": "Success probability of both pricing and medical affairs pillars mutually dependent",
+        "competitor_response": "Our strategy triggers competitor counter-moves modeled as conditional probability distributions",
+        "stakeholder_cascades": "Interventions create multiplier effects through network cascades",
+        "threshold_effects": "Linear relationships break at critical thresholds; model as phase transitions",
+        "time_dependencies": "Strategy effectiveness decays/amplifies based on timing relative to critical windows"
+      },
+      "scenario_modeling_approach": {
+        "base_case": "Run medical affairs simulation WITHOUT pricing module; outputs medical-only risks",
+        "integrated_case": "Run WITH pricing module; outputs combined medical-commercial risks and resource reallocation",
+        "comparison": "Delta between base and integrated reveals commercial impact on strategic priorities",
+        "sensitivity_analysis": "Test impact of competitor strategies, cascade dynamics, threshold proximity, time pressure"
+      },
+      "key_dependencies_to_model": {
+        "evidence_quality_price_premium": {
+          "functional_form": "linear",
+          "coefficient": 0.35,
+          "description": "Each 10pp increase in evidence pillar success → 3.5pp increase in premium pricing sustainability"
+        },
+        "biosimilar_timing_evidence_urgency": {
+          "functional_form": "exponential_decay",
+          "half_life_months": 18,
+          "description": "Value of defensive evidence publication decays exponentially as biosimilar launch approaches"
+        },
+        "stakeholder_engagement_mea_terms": {
+          "functional_form": "threshold",
+          "threshold": 0.65,
+          "impact_above": 0.25,
+          "description": "Stakeholder engagement >65% success improves MEA negotiation outcomes by 25%"
+        },
+        "tender_pressure_education_roi": {
+          "functional_form": "inverse",
+          "description": "As tender dominance increases, ROI of HCP education decreases; reallocate to pharmacist engagement"
+        },
+        "market_share_death_spiral": {
+          "functional_form": "threshold_with_irreversibility",
+          "threshold": 0.25,
+          "description": "Below 25% share triggers death spiral; very difficult to reverse"
+        },
+        "kol_cascade_amplification": {
+          "functional_form": "network_diffusion",
+          "reach_coefficient": 4,
+          "description": "Single KOL influences 4x institutions via trainee dispersion vs direct contact"
+        },
+        "time_to_deadline_penalty": {
+          "functional_form": "exponential_increase",
+          "description": "Effectiveness penalty increases exponentially as deadline approaches"
+        }
+      }
+    },
+    "output_recommendations": {
+      "description": "What pricing module simulation should deliver to user",
+      "commercial_risk_overlay": "Identify which medical affairs tactics have greatest commercial leverage or risk considering competitor responses and cascade effects",
+      "resource_reallocation": "Recommend shifting medical affairs resources based on pricing/access constraints, time pressure, and threshold proximity",
+      "mea_readiness": "Flag when MEA proposal advisable based on evidence maturity, market dynamics, and negotiation window timing",
+      "launch_sequence_optimization": "Suggest geographic launch sequence balancing access, revenue, reference price cascades, and stakeholder coordination",
+      "biosimilar_defense_urgency": "Quantify time-to-impact for defensive evidence generation relative to competitive windows",
+      "price_premium_sustainability": "Model duration premium pricing sustainable based on medical affairs execution, competitive response, and threshold risks",
+      "threshold_proximity_warnings": "Alert when approaching critical thresholds (market share, budget overrun, time deadlines) requiring immediate action",
+      "cascade_leverage_opportunities": "Identify high-leverage stakeholder interventions that trigger beneficial cascades",
+      "competitive_scenario_planning": "Model range of competitor responses and recommend strategies robust to competitive uncertainty",
+      "optimal_timing_recommendations": "Identify critical windows for evidence publication, tender bids, MEA proposals relative to deadlines and competitive moves"
+    }
+  },
+  "linkage_index": {
+    "known_pillar_ids": [
+      "compliance_governance",
+      "congress_presence",
+      "data_analytics",
+      "digital_omnichannel",
+      "evidence_generation",
+      "evidence_interpretation",
+      "field_medical",
+      "hcp_education",
+      "internal_alignment",
+      "kol_engagement",
+      "market_access_support",
+      "patient_advocacy",
+      "publications",
+      "rwe_generation",
+      "scientific_exchange"
+    ],
+    "known_tactic_ids": [
+      "congress_symposium",
+      "hcp_education_program",
+      "kol_advisory_board",
+      "msl_field_engagement",
+      "omnichannel_campaign",
+      "payer_value_dossier",
+      "peer_reviewed_publication",
+      "rwe_registry"
+    ],
+    "known_metric_ids": [
+      "clinical_practice_influence_score",
+      "kol_advocacy_index",
+      "msl_engagement_rate",
+      "publication_citation_impact",
+      "stakeholder_reach_percentage"
+    ],
+    "known_stakeholder_ids": [
+      "academic_researcher",
+      "clinical_trial_investigator",
+      "department_head",
+      "device_regulatory_authority",
+      "digital_therapeutics_company",
+      "employer_group",
+      "formulary_committee",
+      "gpo",
+      "guideline_committee_member",
+      "hcp_nurse_practitioner",
+      "hcp_pharmacist",
+      "hcp_physician_primary_care",
+      "hcp_physician_specialist",
+      "hta_agency",
+      "institutional_review_board",
+      "international_health_organization",
+      "kol",
+      "medical_director",
+      "ministry_of_health_official",
+      "patient_advocacy_organization",
+      "patient_individual",
+      "payer_private",
+      "payer_public",
+      "pbm",
+      "peer_kols",
+      "pharmacovigilance_authority",
+      "professional_society",
+      "real_world_data_provider",
+      "regulatory_authority",
+      "scientific_advisory_committee",
+      "tech_vendor_ehr"
+    ],
+    "known_stakeholder_category_keys": [
+      "academia_research",
+      "data_tech_partners",
+      "digital_health",
+      "external_experts",
+      "government_policy",
+      "healthcare_professionals",
+      "internal_pharma",
+      "market_access_payers",
+      "media_communication",
+      "patients_carers",
+      "regulators",
+      "societies_associations"
+    ]
+  }
+}
