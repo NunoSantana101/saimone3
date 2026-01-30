@@ -3,12 +3,13 @@ core_assistant.py
 Pure-python engine shared by the Streamlit UI (assistant.py) and any CLI or
 batch runner.  NO Streamlit or console I/O; it just raises exceptions.
 
-v5.0 – OpenAI Responses API Migration:
-- Replaces thread-based Assistants API with stateless Responses API
-- Single client.responses.create() call per interaction
-- Tool calls handled in-loop (no submit_tool_outputs polling)
-- Conversation continuity via previous_response_id
-- All data processing / truncation / pipeline logic preserved
+v7.0 – OpenAI Built-in Web Search (test):
+- Replaces custom med_affairs_data / Tavily backend with OpenAI's
+  built-in web_search_preview tool (search_context_size="high")
+- Model manages all web search internally – no function-call routing
+- Removed: get_med_affairs_data, read_webpage, pipeline compression tools
+- Retained: statistical analysis function tools (Monte Carlo, Bayesian)
+- Purpose: evaluate GPT-5.2 native search quality vs custom Tavily pipeline
 
 v6.0 – GPT-5.2 Upgrade:
 - Model upgraded from gpt-4.1 to gpt-5.2
@@ -17,7 +18,12 @@ v6.0 – GPT-5.2 Upgrade:
 - Adaptive reasoning with dynamic compute allocation
 - Knowledge cutoff: August 31, 2025
 
-Key changes from v4.x:
+v5.0 – OpenAI Responses API Migration:
+- Replaces thread-based Assistants API with stateless Responses API
+- Single client.responses.create() call per interaction
+- Conversation continuity via previous_response_id
+
+Key architecture:
 - No threads, no runs, no polling
 - response_id replaces thread_id for continuity
 - Tool definitions passed inline with each request
@@ -33,26 +39,19 @@ from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
 import openai
 from openai import OpenAI
 
-# v3.0 truncation + intent metadata helpers
-from med_affairs_data import extract_clinical_outcomes
+# v7.0: med_affairs_data backend unhooked – using OpenAI web_search_preview
+# from med_affairs_data import extract_clinical_outcomes
 
-# v3.3 Agent Data Pipeline (v1.1 Hybrid with Vector Store)
-from agent_data_pipeline import (
-    process_through_pipeline,
-    process_with_hybrid_pipeline,
-    decompress_pipeline_data,
-    search_manifest,
-    cache_pipeline_data,
-    get_cached_pipeline_data,
-    cache_vector_store_info,
-    get_cached_vector_store_info,
-    cleanup_vector_store,
-    handle_pipeline_tool_call,
-    select_pipeline_strategy,
-    PipelineStrategy,
-    MAX_UNCOMPRESSED_OUTPUT,
-    VECTOR_STORE_THRESHOLD,
-)
+# v7.0: Agent data pipeline unhooked – no custom search results to compress
+# from agent_data_pipeline import (
+#     process_through_pipeline, process_with_hybrid_pipeline,
+#     decompress_pipeline_data, search_manifest,
+#     cache_pipeline_data, get_cached_pipeline_data,
+#     cache_vector_store_info, get_cached_vector_store_info,
+#     cleanup_vector_store, handle_pipeline_tool_call,
+#     select_pipeline_strategy, PipelineStrategy,
+#     MAX_UNCOMPRESSED_OUTPUT, VECTOR_STORE_THRESHOLD,
+# )
 
 from tool_config import (
     DEFAULT_MAX_PER_SOURCE,
@@ -114,126 +113,31 @@ DEFAULT_MODEL = "gpt-5.2"
 #  Tool Definitions for Responses API
 # ──────────────────────────────────────────────────────────────────────
 
-def _load_tool_schema_v3() -> dict:
-    """Load the primary get_med_affairs_data schema from tool_schema_v3.json."""
-    schema_path = os.path.join(os.path.dirname(__file__), "tool_schema_v3.json")
-    try:
-        with open(schema_path, "r") as f:
-            return json.load(f)
-    except Exception as exc:
-        _logger.error(f"Failed to load tool_schema_v3.json: {exc}")
-        return {}
+# v7.0: _load_tool_schema_v3 removed – no longer loading custom tool schema
+# Web search is handled by OpenAI's built-in web_search_preview tool.
 
 
 def build_tools_list() -> List[dict]:
     """
     Build the complete tools list for Responses API.
-    Includes all function tools the assistant can call.
+
+    v7.0: Uses OpenAI's built-in web_search_preview tool instead of custom
+    med_affairs_data / Tavily backend.  The model manages all web search
+    internally; no function-call routing is needed for search.
+    Statistical analysis function tools are retained.
     """
     tools: List[dict] = []
 
-    # 1. Primary data tool – from tool_schema_v3.json
-    main_schema = _load_tool_schema_v3()
-    if main_schema:
-        tools.append({
-            "type": "function",
-            "name": main_schema.get("name", "get_med_affairs_data"),
-            "description": main_schema.get("description", ""),
-            "parameters": main_schema.get("parameters", {}),
-        })
-
-    # 2. read_webpage – Search-Decide-Read pattern (v4.1)
+    # 1. OpenAI built-in web search (v7.0)
+    #    - Model decides when to search, what to query, and synthesizes results
+    #    - search_context_size "high" maximises context fed back to the model
+    #    - No function_call is emitted; search happens server-side
     tools.append({
-        "type": "function",
-        "name": "read_webpage",
-        "description": (
-            "Fetch and extract readable content from a URL. Use after search results "
-            "to get full text of a particularly relevant page. Returns cleaned text "
-            "with optional context-query-based extraction."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "url": {
-                    "type": "string",
-                    "description": "Full URL to fetch content from.",
-                },
-                "context_query": {
-                    "type": "string",
-                    "description": "Optional query to focus extraction on relevant sections.",
-                },
-            },
-            "required": ["url"],
-        },
+        "type": "web_search_preview",
+        "search_context_size": "high",
     })
 
-    # 3. decompress_pipeline_data – for large compressed results
-    tools.append({
-        "type": "function",
-        "name": "decompress_pipeline_data",
-        "description": (
-            "Decompress a chunk of pipeline-compressed data. Use when previous "
-            "search returned compressed results with a manifest_id."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "manifest_id": {
-                    "type": "string",
-                    "description": "Manifest ID from the compressed result.",
-                },
-                "chunk_index": {
-                    "type": "integer",
-                    "description": "Index of the chunk to decompress (0-based).",
-                },
-                "item_indices": {
-                    "type": "array",
-                    "items": {"type": "integer"},
-                    "description": "Specific item indices to extract from the chunk.",
-                },
-            },
-            "required": ["manifest_id"],
-        },
-    })
-
-    # 4. search_pipeline_manifest – search compressed data without decompression
-    tools.append({
-        "type": "function",
-        "name": "search_pipeline_manifest",
-        "description": (
-            "Search a pipeline manifest for matching items without full decompression. "
-            "Use when you need to find specific results in compressed data."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "manifest_id": {
-                    "type": "string",
-                    "description": "Manifest ID from the compressed result.",
-                },
-                "search_term": {
-                    "type": "string",
-                    "description": "Term to search for in manifest entries.",
-                },
-                "source_filter": {
-                    "type": "string",
-                    "description": "Filter results to a specific source.",
-                },
-                "date_filter": {
-                    "type": "string",
-                    "description": "Filter by date (YYYY format).",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Maximum results to return. Default: 20.",
-                    "default": 20,
-                },
-            },
-            "required": ["manifest_id"],
-        },
-    })
-
-    # 5. run_statistical_analysis – Monte Carlo & Bayesian
+    # 2. run_statistical_analysis – Monte Carlo & Bayesian
     tools.append({
         "type": "function",
         "name": "run_statistical_analysis",
@@ -262,7 +166,7 @@ def build_tools_list() -> List[dict]:
         },
     })
 
-    # 6. monte_carlo_simulation – specific MC function
+    # 3. monte_carlo_simulation – specific MC function
     tools.append({
         "type": "function",
         "name": "monte_carlo_simulation",
@@ -300,7 +204,7 @@ def build_tools_list() -> List[dict]:
         },
     })
 
-    # 7. bayesian_analysis – specific Bayesian function
+    # 4. bayesian_analysis – specific Bayesian function
     tools.append({
         "type": "function",
         "name": "bayesian_analysis",
@@ -617,9 +521,13 @@ def _truncate_search_results(
                     slim[field_name] = val
 
         if extract_outcomes and content and rank < t1_count:
-            outcomes = extract_clinical_outcomes(content)
-            if outcomes:
-                slim["outcomes"] = outcomes
+            try:
+                from med_affairs_data import extract_clinical_outcomes
+                outcomes = extract_clinical_outcomes(content)
+                if outcomes:
+                    slim["outcomes"] = outcomes
+            except ImportError:
+                pass  # v7.0: med_affairs_data not in active path
 
         return slim
 
@@ -772,65 +680,12 @@ def _minimal_response(res: dict, query: str = None) -> dict:
 #  Default (sync) tool router
 # ──────────────────────────────────────────────────────────────────────
 def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
-    """Routes tool calls to the project's data layer.
+    """Routes function-call tools to backend handlers.
 
-    Applies size enforcement to prevent output failures.
-    Pipeline integration for large results (compression / vector store).
+    v7.0: Web search is handled by OpenAI's built-in web_search_preview
+    tool (server-side, no routing needed).  Only statistical analysis
+    function tools are routed here.
     """
-    from med_affairs_data import get_medaffairs_data  # local import to avoid cycles
-
-    # ── Pipeline decompression tools ──
-    if name == "decompress_pipeline_data":
-        try:
-            manifest_id = args.get("manifest_id")
-            cached = get_cached_pipeline_data(manifest_id) if manifest_id else None
-            if cached:
-                result = decompress_pipeline_data(
-                    cached,
-                    chunk_index=args.get("chunk_index"),
-                    item_indices=args.get("item_indices"),
-                )
-            else:
-                pipeline_data = args.get("pipeline_data", {})
-                result = decompress_pipeline_data(
-                    pipeline_data,
-                    chunk_index=args.get("chunk_index"),
-                    item_indices=args.get("item_indices"),
-                )
-            return json.dumps(result)
-        except Exception as exc:
-            _logger.error(f"Pipeline decompression error: {exc}")
-            return json.dumps({"error": str(exc)})
-
-    if name == "search_pipeline_manifest":
-        try:
-            manifest_id = args.get("manifest_id")
-            cached = get_cached_pipeline_data(manifest_id) if manifest_id else None
-            manifest = cached.get("manifest", {}) if cached else args.get("manifest", {})
-            result = search_manifest(
-                manifest,
-                search_term=args.get("search_term"),
-                source_filter=args.get("source_filter"),
-                date_filter=args.get("date_filter"),
-                limit=args.get("limit", 20),
-            )
-            return json.dumps(result)
-        except Exception as exc:
-            _logger.error(f"Pipeline manifest search error: {exc}")
-            return json.dumps({"error": str(exc)})
-
-    # ── read_webpage (v4.1) ──
-    if name == "read_webpage":
-        try:
-            from med_affairs_data import read_webpage
-            result = read_webpage(
-                url=args.get("url", ""),
-                context_query=args.get("context_query"),
-            )
-            return json.dumps(result)
-        except Exception as exc:
-            _logger.error(f"read_webpage error: {exc}")
-            return json.dumps({"status": "error", "error": str(exc)})
 
     # ── Statistical analysis tools ──
     if name == "run_statistical_analysis":
@@ -870,52 +725,6 @@ def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
             return json.dumps(result)
         except Exception as exc:
             _logger.error(f"Bayesian analysis error: {exc}")
-            return json.dumps({"error": str(exc)})
-
-    # ── Standard data tools with hybrid pipeline ──
-    if name in {
-        "get_med_affairs_data",
-        "get_pubmed_data",
-        "get_fda_data",
-        "get_ema_data",
-        "get_core_data",
-        "get_who_data",
-        "tavily_tool",
-        "aggregated_search",
-    }:
-        try:
-            res = get_medaffairs_data(name, args)
-            query_text = args.get("query", "")
-            res = _truncate_search_results(res, query=query_text)
-
-            use_pipeline = args.get("use_pipeline", True)
-            serialized_check = json.dumps(res)
-            size_bytes = len(serialized_check.encode('utf-8'))
-
-            if use_pipeline and size_bytes > MAX_UNCOMPRESSED_OUTPUT:
-                strategy = select_pipeline_strategy(size_bytes)
-                _logger.info(f"Hybrid pipeline for {name}: {size_bytes} bytes -> {strategy.value}")
-
-                if strategy == PipelineStrategy.VECTOR_STORE:
-                    vector_store_id = args.get("vector_store_id")
-                    res = process_with_hybrid_pipeline(
-                        res, query=query_text, vector_store_id=vector_store_id
-                    )
-                    manifest_id = res.get("manifest", {}).get("manifest_id")
-                    if manifest_id and res.get("vector_store"):
-                        cache_vector_store_info(manifest_id, res.get("vector_store"))
-                else:
-                    res = process_through_pipeline(res, query=query_text)
-
-                manifest_id = res.get("manifest", {}).get("manifest_id")
-                if manifest_id:
-                    cache_pipeline_data(manifest_id, res)
-            else:
-                res = _enforce_output_size_limit(res, query=query_text)
-
-            return json.dumps(res)
-        except Exception as exc:
-            _logger.error(f"Tool router error for {name}: {exc}")
             return json.dumps({"error": str(exc)})
 
     return json.dumps({"error": f"Unknown function {name}"})
