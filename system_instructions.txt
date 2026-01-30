@@ -17,7 +17,7 @@ At session start, use file_search to retrieve and apply the following JSON confi
 - file-DJLsX7SAP4bASK4MKJa6Mz
 - file-14AqzUAqpcW1GHYKygGBda
 - file-WqiPeqkxpaFrPduqW1QX4Y
-- mc_rng.py via code interpreter attached to the agent
+- mc_rng.py registered as code interpreter tool (file ID: file-8ofv14JxUdJ2pSTjDxuFHT)
 
 MAPS and other PDF REFERENCES (stored in vector store vs_693fe785b1a081918f82e9f903e008ed, use file_search to retrieve):
 - MAPS guidance PDFs
