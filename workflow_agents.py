@@ -39,7 +39,7 @@ from agents import Agent, Runner, WebSearchTool, FileSearchTool, CodeInterpreter
 
 WF_ID = "wf_694143ba69ac81908d6378babdaed7f20eeb3fa4d72095a6"
 VECTOR_STORE_ID = "vs_693fe785b1a081918f82e9f903e008ed"
-MC_RNG_FILE_ID = "file-8ofv14JxUdJ2pSTjDxuFHT"
+MC_RNG_FILE_ID = "file-P2EgMJJmLDWSJqZnKBoiBJ"
 
 # Load full system instructions from repo file (the same file is also in the vector store)
 _INSTRUCTIONS_PATH = Path(__file__).parent / "system_instructions.txt"
