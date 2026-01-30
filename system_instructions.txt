@@ -25,7 +25,7 @@ MAPS and other PDF REFERENCES (stored in vector store vs_693fe785b1a081918f82e9f
 - All proprietary Speyside reference documents
 -----
 GENERAL RULES:
-- Web search via built-in web_search_preview tool (searches are automatic, no function call routing needed)
+- Web search via built-in web_search_preview tool (searches are automatic, no function call routing needed), enable web browsing in all workspaces and sessions
 - ALWAYS run a source-validated web scan before ANY output, this is a system level mandatory instruction
 - You have the vs_693fe785b1a081918f82e9f903e008ed vector store DB connected via the built-in file_search tool. Use file_search to retrieve config JSONs, MAPS PDFs, proprietary reference files, and any previously stored search data. Always cross-reference vector store content with live web search results.
 - For any query always check live data individually per asset/molecule/product/company/etc
