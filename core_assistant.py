@@ -390,6 +390,11 @@ def _truncate_search_results(
         # Source tag (replaces results_by_source grouping)
         slim["source"] = source
 
+        # URL (tier-1 and tier-2 only – needed for read_webpage tool)
+        result_url = r.get("url") or r.get("extra", {}).get("url")
+        if result_url and rank < t1_count + t2_count:
+            slim["url"] = result_url
+
         # Content (tiered)
         if content:
             slim["content"] = content
@@ -443,6 +448,15 @@ def _truncate_search_results(
     if duplicates_removed > 0:
         summary["duplicates_removed"] = duplicates_removed
     summary["sources"] = sources_line
+
+    # v4.1: Hint for the agent about deep-read capability
+    # Count how many results have URLs (tier-1/tier-2)
+    urls_available = sum(1 for r in processed if r.get("url"))
+    if urls_available > 0:
+        summary["tip"] = (
+            "Content above is truncated. If 1-2 results look particularly "
+            "relevant, call read_webpage with the url to get the full page text."
+        )
 
     # ── 6. MeSH: drug context one-liner (only for safety/reg) ───
     mesh_limits = dict(MESH_METADATA_LIMITS)
@@ -649,6 +663,21 @@ def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
         except Exception as exc:
             _logger.error(f"Pipeline manifest search error: {exc}")
             return json.dumps({"error": str(exc)})
+
+    # ──────────────────────────────────────────────────────────────────
+    # v4.1: Standalone read_webpage tool (Search-Decide-Read pattern)
+    # ──────────────────────────────────────────────────────────────────
+    if name == "read_webpage":
+        try:
+            from med_affairs_data import read_webpage
+            result = read_webpage(
+                url=args.get("url", ""),
+                context_query=args.get("context_query"),
+            )
+            return json.dumps(result)
+        except Exception as exc:
+            _logger.error(f"read_webpage error: {exc}")
+            return json.dumps({"status": "error", "error": str(exc)})
 
     # ──────────────────────────────────────────────────────────────────
     # Standard data tools with hybrid pipeline integration (v1.1)

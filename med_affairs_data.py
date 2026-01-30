@@ -5503,6 +5503,114 @@ def tavily_tool(
         "saimone": saimone,
     }
 
+# ────────────────────────────────────────────────────────────────
+# STANDALONE READ_WEBPAGE TOOL (v4.1)
+# Lets the agent deep-read 1-2 URLs from search results on demand,
+# instead of fetching full content for every hit upfront.
+# Uses Tavily extract API (handles JS-rendered pages, bypasses
+# bot blocks better than raw requests).
+# ────────────────────────────────────────────────────────────────
+
+READ_WEBPAGE_MAX_CHARS = 20_000  # Hard cap on returned content
+READ_WEBPAGE_TIMEOUT = 15        # Seconds
+
+
+def read_webpage(url: str, context_query: Optional[str] = None) -> dict:
+    """Fetch and return the full text content of a single URL.
+
+    Uses Tavily extract for reliable content retrieval (handles JS sites,
+    anti-bot protections).  Falls back to raw requests + HTML stripping
+    if Tavily is unavailable.
+
+    Args:
+        url: The URL to read (typically from a search result).
+        context_query: Optional query for relevance-based reranking of
+                       extracted chunks.
+
+    Returns:
+        dict with status, url, content (truncated to READ_WEBPAGE_MAX_CHARS),
+        and content_length metadata.
+    """
+    if not url or not isinstance(url, str) or not url.strip():
+        return {"status": "error", "error": "url_required"}
+
+    url = url.strip()
+
+    # ── Strategy 1: Tavily extract (preferred) ──────────────────
+    if TAVILY_ENABLED and TAVILY_API_KEY:
+        payload: Dict[str, Any] = {
+            "urls": [url],
+            "extract_depth": "basic",
+            "format": "markdown",
+        }
+        if context_query:
+            payload["query"] = context_query
+
+        resp = _tavily_post("extract", payload)
+
+        # Tavily returns {"results": [{"url": ..., "raw_content": ...}]}
+        tavily_results = resp.get("results", [])
+        if isinstance(tavily_results, list) and tavily_results:
+            first = tavily_results[0]
+            raw = first.get("raw_content") or first.get("text") or ""
+            if raw:
+                raw = raw.strip()
+                truncated = len(raw) > READ_WEBPAGE_MAX_CHARS
+                content = raw[:READ_WEBPAGE_MAX_CHARS]
+                return {
+                    "status": "ok",
+                    "url": url,
+                    "content": content,
+                    "content_length": len(content),
+                    "truncated": truncated,
+                    "source": "tavily_extract",
+                }
+
+        # Tavily returned no content — fall through to fallback
+        _logger.warning("Tavily extract returned no content for %s, trying fallback", url)
+
+    # ── Strategy 2: Raw requests + HTML stripping (fallback) ────
+    try:
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            )
+        }
+        response = requests.get(url, headers=headers, timeout=READ_WEBPAGE_TIMEOUT)
+        response.raise_for_status()
+
+        # Strip HTML to plain text
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(response.content, "html.parser")
+        for tag in soup(["script", "style", "header", "footer", "nav", "aside"]):
+            tag.decompose()
+
+        text = soup.get_text(separator="\n")
+        # Collapse whitespace
+        lines = (line.strip() for line in text.splitlines())
+        clean = "\n".join(line for line in lines if line)
+
+        truncated = len(clean) > READ_WEBPAGE_MAX_CHARS
+        content = clean[:READ_WEBPAGE_MAX_CHARS]
+
+        return {
+            "status": "ok",
+            "url": url,
+            "content": content,
+            "content_length": len(content),
+            "truncated": truncated,
+            "source": "direct_fetch",
+        }
+    except Exception as exc:
+        return {
+            "status": "error",
+            "url": url,
+            "error": f"fetch_failed: {exc}",
+        }
+
+
 def tavily_search(
     query: str,
     max_results: int,
