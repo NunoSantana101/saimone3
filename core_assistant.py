@@ -138,7 +138,7 @@ VECTOR_STORE_ID = "vs_693fe785b1a081918f82e9f903e008ed"
 # ──────────────────────────────────────────────────────────────────────
 #  Code Interpreter – mc_rng.py file registration
 # ──────────────────────────────────────────────────────────────────────
-MC_RNG_FILE_ID = "file-8ofv14JxUdJ2pSTjDxuFHT"
+MC_RNG_FILE_ID = "file-P2EgMJJmLDWSJqZnKBoiBJ"
 
 _ci_container_id: Optional[str] = None
 
