@@ -69,13 +69,13 @@ DEFAULT_MAX_REFINEMENT_SUGGESTIONS = 0  # Moved to lazy tool; 0 = don't include 
 # ────────────────────────────────────────────────────────────────
 # OUTPUT SIZE SAFETY LIMITS
 # ────────────────────────────────────────────────────────────────
-# v4.0 CALCULATION BASIS (tiered content):
-# - Tier-1 (top 5):  ~title 150 + content 600 + fields 300 = ~1,050 chars
-# - Tier-2 (6-15):   ~title 150 + content 300 + fields 200 = ~650 chars
+# v4.1 CALCULATION BASIS (tiered content – bumped for richer top-k):
+# - Tier-1 (top 5):  ~title 150 + content 900 + fields 350 = ~1,400 chars
+# - Tier-2 (6-15):   ~title 150 + content 400 + fields 250 = ~800 chars
 # - Tier-3 (16+):    ~title 150 + content 0   + fields 100 = ~250 chars
 # - Summary header:  ~400 chars
-# - 20 results: 5×1050 + 10×650 + 5×250 = 5,250+6,500+1,250 = ~13,000 chars
-# - With JSON overhead: ~16KB (safe, was ~51KB before)
+# - 20 results: 5×1400 + 10×800 + 5×250 = 7,000+8,000+1,250 = ~16,250 chars
+# - With JSON overhead: ~20KB base; ~55-60KB on heavy broad queries (200KB hard limit)
 # ────────────────────────────────────────────────────────────────
 
 # Adaptive limits by query intent
@@ -127,17 +127,17 @@ INTENT_BASED_LIMITS = {
 # ────────────────────────────────────────────────────────────────
 RESULT_TIERS = {
     "tier_1_count": 5,       # Top N results: full content
-    "tier_1_content": 600,   # chars of content for tier-1
+    "tier_1_content": 900,   # chars of content for tier-1 (was 600)
     "tier_2_count": 10,      # Next N results: summary content
-    "tier_2_content": 250,   # chars of content for tier-2
+    "tier_2_content": 400,   # chars of content for tier-2 (was 250)
     "tier_3_content": 0,     # Remaining: title + key fields only (no body text)
 }
 
 # Field truncation limits for individual results
 RESULT_FIELD_LIMITS = {
     "title_max_chars": 150,
-    "content_max_chars": 600,        # Tier-1 default (overridden by tier)
-    "extra_field_max_chars": 200,    # Was 250 – trimmed
+    "content_max_chars": 900,        # Tier-1 default (was 600)
+    "extra_field_max_chars": 250,    # Restored from 200 – more metadata room
     "extra_list_max_items": 4,       # Was 5
 }
 
