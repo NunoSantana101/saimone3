@@ -41,6 +41,14 @@ OPTIMIZATION v4.0 – Token-Efficient Tiered Results:
 - URLs stripped by default (added back only for citation requests)
 - Net effect: ~40-60% fewer tokens with equal or better agent reasoning
 
+v4.2 – Increased Search Results Depth:
+- Tier-1: 5→8 results at 900→1500 chars (richer top-k content)
+- Tier-2: 10→12 results at 400→800 chars (more mid-tier substance)
+- Tier-3: 0→200 chars (brief snippets instead of title-only)
+- Default total: 20→30 results, per-source: 8→12
+- Intent limits scaled proportionally (~40% increase across all intents)
+- Estimated payload: ~100-160KB on broad queries (within 200KB hard limit)
+
 v3.3 Agent Data Pipeline:
 - Structured data compression (gzip+base64) for large results
 - Data manifests with searchable summaries
@@ -62,20 +70,20 @@ from enum import Enum
 # v4.0: Dramatically reduced – the agent cannot meaningfully reason
 # over 50+ results; it summarizes or cherry-picks.  Fewer, richer
 # results produce better synthesis at lower token cost.
-DEFAULT_MAX_PER_SOURCE = 8           # Was 20 – 8 best per source is plenty
-DEFAULT_MAX_TOTAL = 20               # Was 50 – 20 ranked results is the sweet spot
+DEFAULT_MAX_PER_SOURCE = 12          # Was 8 – more per source for richer coverage
+DEFAULT_MAX_TOTAL = 30               # Was 20 – 30 ranked results with tiered content
 DEFAULT_MAX_REFINEMENT_SUGGESTIONS = 0  # Moved to lazy tool; 0 = don't include inline
 
 # ────────────────────────────────────────────────────────────────
 # OUTPUT SIZE SAFETY LIMITS
 # ────────────────────────────────────────────────────────────────
-# v4.1 CALCULATION BASIS (tiered content – bumped for richer top-k):
-# - Tier-1 (top 5):  ~title 150 + content 900 + fields 350 = ~1,400 chars
-# - Tier-2 (6-15):   ~title 150 + content 400 + fields 250 = ~800 chars
-# - Tier-3 (16+):    ~title 150 + content 0   + fields 100 = ~250 chars
-# - Summary header:  ~400 chars
-# - 20 results: 5×1400 + 10×800 + 5×250 = 7,000+8,000+1,250 = ~16,250 chars
-# - With JSON overhead: ~20KB base; ~55-60KB on heavy broad queries (200KB hard limit)
+# v4.2 CALCULATION BASIS (increased top-k count and content depth):
+# - Tier-1 (top 8):  ~title 150 + content 1500 + fields 400 = ~2,050 chars
+# - Tier-2 (9-20):   ~title 150 + content 800  + fields 300 = ~1,250 chars
+# - Tier-3 (21+):    ~title 150 + content 200  + fields 150 = ~500 chars
+# - Summary header:  ~500 chars
+# - 30 results: 8×2050 + 12×1250 + 10×500 = 16,400+15,000+5,000 = ~36,400 chars
+# - With JSON overhead: ~45KB base; ~100-160KB on heavy broad queries (200KB hard limit)
 # ────────────────────────────────────────────────────────────────
 
 # Adaptive limits by query intent
@@ -83,38 +91,38 @@ DEFAULT_MAX_REFINEMENT_SUGGESTIONS = 0  # Moved to lazy tool; 0 = don't include 
 # tiered results – quality over quantity.
 INTENT_BASED_LIMITS = {
     "safety": {
-        "max_per_source": 10,
-        "max_total": 25,          # Was 60 – safety needs depth not breadth
+        "max_per_source": 15,
+        "max_total": 35,          # Was 25 – more safety signals with richer content
         "priority_sources": ["faers", "fda_safety_communications", "pubmed"],
     },
     "regulatory": {
-        "max_per_source": 12,
-        "max_total": 30,          # Was 80 – reg queries are usually specific
+        "max_per_source": 16,
+        "max_total": 40,          # Was 30 – broader regulatory landscape
         "priority_sources": ["regulatory_combined", "fda_drugs", "ema"],
     },
     "kol": {
-        "max_per_source": 10,
-        "max_total": 25,          # Was 60
+        "max_per_source": 15,
+        "max_total": 35,          # Was 25
         "priority_sources": ["openalex_kol", "pubmed_investigators", "pubmed"],
     },
     "clinical_trial": {
-        "max_per_source": 10,
-        "max_total": 25,          # Was 70
+        "max_per_source": 15,
+        "max_total": 35,          # Was 25
         "priority_sources": ["clinicaltrials", "eu_clinical_trials", "who_ictrp"],
     },
     "latam": {
-        "max_per_source": 10,
-        "max_total": 25,          # Was 70
+        "max_per_source": 15,
+        "max_total": 35,          # Was 25
         "priority_sources": ["latam_trials", "anvisa", "latam_regulatory", "paho", "regional_kol"],
     },
     "asia": {
-        "max_per_source": 10,
-        "max_total": 25,          # Was 70
+        "max_per_source": 15,
+        "max_total": 35,          # Was 25
         "priority_sources": ["asia_trials", "pmda", "nmpa", "asia_regulatory", "regional_kol"],
     },
     "general": {
-        "max_per_source": 8,
-        "max_total": 20,          # Was 50
+        "max_per_source": 12,
+        "max_total": 30,          # Was 20
         "priority_sources": ["clinicaltrials", "pubmed", "regulatory_combined"],
     },
 }
@@ -126,19 +134,19 @@ INTENT_BASED_LIMITS = {
 # scan the rest for breadth.
 # ────────────────────────────────────────────────────────────────
 RESULT_TIERS = {
-    "tier_1_count": 5,       # Top N results: full content
-    "tier_1_content": 900,   # chars of content for tier-1 (was 600)
-    "tier_2_count": 10,      # Next N results: summary content
-    "tier_2_content": 400,   # chars of content for tier-2 (was 250)
-    "tier_3_content": 0,     # Remaining: title + key fields only (no body text)
+    "tier_1_count": 8,       # Top N results: full content (was 5)
+    "tier_1_content": 1500,  # chars of content for tier-1 (was 900)
+    "tier_2_count": 12,      # Next N results: summary content (was 10)
+    "tier_2_content": 800,   # chars of content for tier-2 (was 400)
+    "tier_3_content": 200,   # Remaining: title + key fields + brief snippet (was 0)
 }
 
 # Field truncation limits for individual results
 RESULT_FIELD_LIMITS = {
     "title_max_chars": 150,
-    "content_max_chars": 900,        # Tier-1 default (was 600)
-    "extra_field_max_chars": 250,    # Restored from 200 – more metadata room
-    "extra_list_max_items": 4,       # Was 5
+    "content_max_chars": 1500,       # Tier-1 default (was 900)
+    "extra_field_max_chars": 300,    # More metadata room (was 250)
+    "extra_list_max_items": 5,       # Restored (was 4)
 }
 
 
