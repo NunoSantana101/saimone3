@@ -3,6 +3,15 @@ core_assistant.py
 Pure-python engine shared by the Streamlit UI (assistant.py) and any CLI or
 batch runner.  NO Streamlit or console I/O; it just raises exceptions.
 
+v7.4 – Hard Logic (pandas DataFrames):
+- JSON configs loaded into pandas DataFrames at session start via hard_logic.py
+- New query_hard_logic function tool for deterministic, instant structured queries
+- Hard Logic (DataFrames) stays in memory; Soft Logic (GPT-5.2) handles strategy
+- file_search reserved for PDFs and free-text docs only
+- All 7 tools: web_search_preview, file_search, code_interpreter,
+  run_statistical_analysis, monte_carlo_simulation, bayesian_analysis,
+  query_hard_logic
+
 v7.3 – mc_rng.py Code Interpreter Registration:
 - Registers mc_rng.py (file-8ofv14JxUdJ2pSTjDxuFHT) as a code interpreter
   file via a sandbox container for direct import in Python execution
@@ -86,6 +95,12 @@ from tool_config import (
     get_truncation_limits,
     get_preserve_fields,
     should_extract_clinical_outcomes,
+)
+
+from hard_logic import (
+    get_store as _get_hard_logic_store,
+    handle_query_hard_logic as _handle_query_hard_logic,
+    QUERY_HARD_LOGIC_TOOL,
 )
 
 _logger = logging.getLogger(__name__)
@@ -362,6 +377,12 @@ def build_tools_list() -> List[dict]:
         },
     })
 
+    # 7. query_hard_logic – in-memory pandas DataFrame queries (v7.4)
+    #    Provides deterministic, instant access to all JSON config data
+    #    (pillars, metrics, tactics, stakeholders, roles, KOLs, etc.)
+    #    loaded into pandas DataFrames at session start.
+    tools.append(QUERY_HARD_LOGIC_TOOL)
+
     return tools
 
 
@@ -536,10 +557,24 @@ def create_context_prompt_with_budget(
         context = adaptive_medcomms_context(history, token_budget=token_budget)
         context_section = json.dumps(context, indent=2)
 
+    # Inject Hard Logic schema summary if DataFrames are loaded
+    hard_logic_section = ""
+    try:
+        store = _get_hard_logic_store()
+        if store.is_loaded and store.available_datasets:
+            hard_logic_section = (
+                "\n\nHARD LOGIC (in-memory DataFrames — use query_hard_logic tool):\n"
+                + store.get_schema_summary()
+                + "\n"
+            )
+    except Exception:
+        pass  # graceful degradation — file_search still available
+
     return (
         f"SYSTEM CONTEXT - {now_iso}\nToday's date: {now_long}\n\n"
         f"SESSION_CONTEXT:\n{context_section}\n\n"
-        f"{file_note}\n\n"
+        f"{file_note}"
+        f"{hard_logic_section}\n\n"
         "INSTRUCTIONS:\n"
         f"- Output Type: {output_type}\n"
         f"- Response Tone: {response_tone}\n"
@@ -861,10 +896,19 @@ def _minimal_response(res: dict, query: str = None) -> dict:
 def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
     """Routes function-call tools to backend handlers.
 
+    v7.4: Added query_hard_logic for in-memory pandas DataFrame access.
     v7.0: Web search is handled by OpenAI's built-in web_search_preview
-    tool (server-side, no routing needed).  Only statistical analysis
-    function tools are routed here.
+    tool (server-side, no routing needed).  Statistical analysis
+    function tools and hard logic queries are routed here.
     """
+
+    # ── Hard Logic DataFrame queries (v7.4) ──
+    if name == "query_hard_logic":
+        try:
+            return _handle_query_hard_logic(args)
+        except Exception as exc:
+            _logger.error(f"Hard logic query error: {exc}")
+            return json.dumps({"error": str(exc)})
 
     # ── Statistical analysis tools ──
     if name == "run_statistical_analysis":

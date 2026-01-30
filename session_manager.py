@@ -514,8 +514,8 @@ COMPACT_SILENT_INSTRUCTIONS = """=== RESPONSE GUIDELINES ===
 ACCURACY: Evidence-based only. Mark INFERENCES explicitly. Validate via live search. Flag uncertainty.
 SOURCES: Prioritize FDA/EMA/PubMed. Cross-reference claims. Cite with hyperlinks.
 COMPLIANCE: Include regulatory context. Distinguish approved vs investigational.
-DATA: Search internal files first. Use stakeholder_taxonomy_v2.json, tactics_taxonomy_v2.json, pillars_v2.json, metrics_v2.json.
-Available tools: web_search_preview, file_search, code_interpreter, run_statistical_analysis, monte_carlo_simulation, bayesian_analysis"""
+DATA: Use query_hard_logic tool for structured config data (pillars, metrics, tactics, stakeholders, roles, KOLs). Use file_search only for PDFs/free-text docs.
+Available tools: web_search_preview, file_search, code_interpreter, run_statistical_analysis, monte_carlo_simulation, bayesian_analysis, query_hard_logic"""
 
 FULL_SILENT_INSTRUCTIONS = """=== RESPONSE GUIDELINES ===
 
@@ -540,8 +540,8 @@ COMPLIANCE:
 - Note geographic regulatory variations
 
 DATA INTEGRATION:
-- Search internal files first for baseline
-- Load stakeholder_taxonomy_v2.json, tactics_taxonomy_v2.json, pillars_v2.json, metrics_v2.json
+- Use query_hard_logic tool for structured config data (pillars, metrics, tactics, stakeholders, roles, KOLs, data sources, authoritative sources, value realisation)
+- Use file_search only for PDFs and free-text reference documents
 - Combine internal data with live searches for updates
 - Note source recency when conflicts arise"""
 

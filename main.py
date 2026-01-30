@@ -27,6 +27,9 @@ import textwrap
 # -- Import your backend utility functions (v5.0 Responses API)
 from assistant import run_assistant, run_simple, handle_file_upload, validate_file_exists
 
+# -- Import Hard Logic layer (v7.4 – pandas DataFrames for JSON configs)
+from hard_logic import get_store as get_hard_logic_store
+
 # -- Import improved session management (cost-optimized, resilient)
 from session_manager import (
     get_optimized_context,
@@ -115,6 +118,24 @@ def get_api_keys():
 
 api_keys = get_api_keys()
 openai.api_key = api_keys['openai_api_key']
+
+# ── Hard Logic: load JSON configs into pandas DataFrames (once per session) ──
+if "hard_logic_loaded" not in st.session_state:
+    try:
+        from openai import OpenAI
+        _hl_client = OpenAI(api_key=api_keys['openai_api_key'])
+        _hl_store = get_hard_logic_store()
+        _hl_status = _hl_store.load_all(_hl_client)
+        st.session_state["hard_logic_loaded"] = True
+        st.session_state["hard_logic_status"] = _hl_status
+        _ok = sum(1 for v in _hl_status.values() if v == "ok")
+        if _ok < len(_hl_status):
+            _failed = {k: v for k, v in _hl_status.items() if v != "ok"}
+            st.toast(f"Hard Logic: {_ok}/{len(_hl_status)} datasets loaded. Errors: {_failed}", icon="⚠️")
+    except Exception as _hl_exc:
+        st.session_state["hard_logic_loaded"] = False
+        st.session_state["hard_logic_error"] = str(_hl_exc)
+        # Non-fatal: file_search remains available as fallback
 
 st.markdown("""
 <style>
