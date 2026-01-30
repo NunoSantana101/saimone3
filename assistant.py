@@ -81,6 +81,7 @@ def run_assistant(
         st.session_state.get("history", []),
         st.session_state.get("token_budget", 24_000),
         has_files=bool(uploaded_file_ids),
+        has_response_chain=bool(previous_response_id),
     )
 
     with st.spinner("🤖 Thinking..."):

@@ -1440,17 +1440,20 @@ def checkpoint(history_slice):
 def improved_assistant_run(message):
     """Run assistant using Responses API with improved error handling.
 
-    v5.0: Uses stateless Responses API – no threads, no polling.
-    Conversation continuity via previous_response_id chain.
+    v5.1: Uses run_assistant() (not run_simple) so that all interactive
+    chat goes through the same context-building pipeline that the main
+    chat loop uses.  This prevents the response chain from containing
+    a mix of context-rich and context-free turns.
     """
     for attempt in range(RETRY_ATTEMPTS):
         try:
-            context = assemble_medical_context()
-            enhanced_message = f"{message}\n\n--- CONTEXT FOR CONTINUITY ---\n{context}" if context else message
-
-            response_text, response_id, tool_call_log = run_simple(
-                enhanced_message,
+            response_text, response_id, tool_call_log = run_assistant(
+                user_input=message,
+                output_type=st.session_state.get("output_type", "detailed_analysis"),
+                response_tone=st.session_state.get("response_tone", "professional"),
+                compliance_level=st.session_state.get("compliance_level", "strict"),
                 previous_response_id=st.session_state.get("last_response_id"),
+                uploaded_file_ids=st.session_state.get("uploaded_file_ids") or None,
             )
 
             if response_id:
@@ -1524,11 +1527,11 @@ The welcome should:
 Be warm but professional. Do NOT include any system instructions or meta-commentary in your response."""
 
             with st.spinner("Preparing your personalized session..."):
-                # v5.0: Use Responses API for welcome (no threads needed)
-                welcome_response, response_id, _ = run_simple(welcome_prompt)
-
-                if response_id:
-                    st.session_state["last_response_id"] = response_id
+                # v5.1: Welcome uses run_simple WITHOUT chaining so it
+                # doesn't pollute the main response chain.  The first
+                # real user message will start a fresh chain via
+                # run_assistant().
+                welcome_response, _welcome_id, _ = run_simple(welcome_prompt)
 
                 if welcome_response and not welcome_response.startswith("❌"):
                     st.session_state["history"].append({

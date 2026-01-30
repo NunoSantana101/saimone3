@@ -52,7 +52,7 @@ Key architecture:
 
 from __future__ import annotations
 
-import json, time, os, logging
+import atexit, json, time, os, logging
 from datetime import datetime
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
 
@@ -141,17 +141,22 @@ VECTOR_STORE_ID = "vs_693fe785b1a081918f82e9f903e008ed"
 MC_RNG_FILE_ID = "file-P2EgMJJmLDWSJqZnKBoiBJ"
 
 _ci_container_id: Optional[str] = None
+_ci_container_attempts: int = 0
+_CI_MAX_RETRIES: int = 3  # stop retrying after this many failures
 
 
 def _get_code_interpreter_container() -> Optional[str]:
     """Lazy-create a sandbox container with mc_rng.py for code interpreter.
 
     Returns the container ID, or None if creation fails (falls back to
-    system-instructions-based file loading).
+    system-instructions-based file loading).  After *_CI_MAX_RETRIES*
+    consecutive failures, sets _ci_container_id to the sentinel ``""``
+    so get_tools() can cache the (container-less) tools list instead of
+    retrying on every request.
     """
-    global _ci_container_id
+    global _ci_container_id, _ci_container_attempts
     if _ci_container_id is not None:
-        return _ci_container_id
+        return _ci_container_id or None  # "" sentinel → None
     try:
         client = get_client()
         container = client.containers.create(
@@ -159,6 +164,7 @@ def _get_code_interpreter_container() -> Optional[str]:
             file_ids=[MC_RNG_FILE_ID],
         )
         _ci_container_id = container.id
+        _ci_container_attempts = 0
         _logger.info(
             "Created CI container %s with mc_rng.py (%s)",
             _ci_container_id,
@@ -166,12 +172,37 @@ def _get_code_interpreter_container() -> Optional[str]:
         )
         return _ci_container_id
     except Exception as exc:
-        _logger.warning(
-            "Could not create CI container: %s – "
-            "mc_rng.py loaded via instructions fallback",
-            exc,
-        )
+        _ci_container_attempts += 1
+        if _ci_container_attempts >= _CI_MAX_RETRIES:
+            _logger.warning(
+                "CI container creation failed %d times; accepting "
+                "fallback permanently: %s",
+                _ci_container_attempts,
+                exc,
+            )
+            _ci_container_id = ""  # sentinel: stops further retries
+        else:
+            _logger.warning(
+                "Could not create CI container (attempt %d/%d): %s – "
+                "will retry on next call",
+                _ci_container_attempts,
+                _CI_MAX_RETRIES,
+                exc,
+            )
         return None
+
+
+def _cleanup_container() -> None:
+    """Delete the sandbox container on process exit to prevent orphans."""
+    if _ci_container_id and _ci_container_id != "":
+        try:
+            get_client().containers.delete(_ci_container_id)
+            _logger.info("Deleted CI container %s on shutdown", _ci_container_id)
+        except Exception as exc:
+            _logger.debug("Container cleanup failed (non-fatal): %s", exc)
+
+
+atexit.register(_cleanup_container)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -334,16 +365,47 @@ def build_tools_list() -> List[dict]:
     return tools
 
 
-# Cache the tools list (loaded once)
+# Required built-in tools that must be present in every API request.
+# web_search_preview is essential: the agent must always be able to
+# validate claims, check regulatory status, and retrieve up-to-date
+# medical information during any turn of the session.
+_REQUIRED_TOOL_TYPES = frozenset({"web_search_preview", "file_search", "code_interpreter"})
+
+
+# Cache the tools list.  Only cached once the code-interpreter
+# container has been resolved (success OR permanent fallback).
+# If the container creation fails transiently, the list is rebuilt
+# on the next call so the container can be retried.
 _cached_tools: Optional[List[dict]] = None
 
 
 def get_tools() -> List[dict]:
-    """Return cached tools list."""
+    """Return cached tools list, rebuilding if container is unresolved.
+
+    Guarantees that web_search_preview, file_search, and code_interpreter
+    are always present — raises immediately if the invariant is violated
+    so the bug is caught during development, not silently in production.
+    """
     global _cached_tools
-    if _cached_tools is None:
-        _cached_tools = build_tools_list()
-    return _cached_tools
+    if _cached_tools is not None:
+        return _cached_tools
+    tools = build_tools_list()
+
+    # ── Invariant: required built-in tools must always be present ──
+    present = {t.get("type") for t in tools}
+    missing = _REQUIRED_TOOL_TYPES - present
+    if missing:
+        raise RuntimeError(
+            f"Tool list is missing required built-in tools: {missing}. "
+            "web_search_preview must be available for every session turn."
+        )
+
+    # Only cache if the container was resolved (present or permanently
+    # unavailable after the grace window).  _ci_container_id is set to
+    # a string on success; it stays None on transient failure.
+    if _ci_container_id is not None:
+        _cached_tools = tools
+    return tools
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -445,9 +507,16 @@ def create_context_prompt_with_budget(
     token_budget: int,
     *,
     has_files: bool,
+    has_response_chain: bool = False,
 ) -> str:
-    """Compose the user-facing prompt while honouring *token_budget*."""
-    context = adaptive_medcomms_context(history, token_budget=token_budget)
+    """Compose the user-facing prompt while honouring *token_budget*.
+
+    When *has_response_chain* is True the OpenAI Responses API already
+    holds the full conversation server-side (via previous_response_id).
+    In that case we omit the local conversation history from the prompt
+    to avoid triple-sending context (prompt text + response chain +
+    system instructions).
+    """
     now_iso = datetime.utcnow().isoformat()
     now_long = datetime.utcnow().strftime("%B %d, %Y")
 
@@ -456,9 +525,20 @@ def create_context_prompt_with_budget(
         if has_files else ""
     )
 
+    # Only serialize local history when there is no active response
+    # chain.  When the chain is active the API already has full context.
+    if has_response_chain:
+        context_section = (
+            f"(Conversation history available via response chain — "
+            f"{len(history)} exchanges in session)"
+        )
+    else:
+        context = adaptive_medcomms_context(history, token_budget=token_budget)
+        context_section = json.dumps(context, indent=2)
+
     return (
         f"SYSTEM CONTEXT - {now_iso}\nToday's date: {now_long}\n\n"
-        f"SESSION_CONTEXT:\n{json.dumps(context, indent=2)}\n\n"
+        f"SESSION_CONTEXT:\n{context_section}\n\n"
         f"{file_note}\n\n"
         "INSTRUCTIONS:\n"
         f"- Output Type: {output_type}\n"
