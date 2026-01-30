@@ -12,11 +12,15 @@ Architecture:
     file_search = Reserved for PDFs, proprietary docs, and free-text
                   reference files — NOT for JSON configs.
 
+Loading order:
+    1. Local files in data/ directory (fast, no API dependency)
+    2. OpenAI Files API download (fallback)
+
 Usage:
     from hard_logic import get_store
 
     store = get_store()           # singleton, lazy-loads on first call
-    store.load_all(client)        # download + parse all JSONs
+    store.load_all(client)        # load from local files or download
     result = store.query("pillars", operation="list_all")
     schema = store.get_schema_summary()
 """
@@ -25,12 +29,19 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
 _logger = logging.getLogger(__name__)
+
+# ──────────────────────────────────────────────────────────────────────
+#  Local data directory — JSON files here are loaded first (no API call)
+# ──────────────────────────────────────────────────────────────────────
+LOCAL_DATA_DIR = Path(__file__).resolve().parent / "data"
 
 # ──────────────────────────────────────────────────────────────────────
 #  File Registry — JSON configs with known OpenAI file IDs
@@ -121,7 +132,14 @@ class HardLogicStore:
 
     # ── bulk loader ─────────────────────────────────────────────────
     def load_all(self, client) -> Dict[str, str]:
-        """Download every JSON in FILE_REGISTRY, parse into DataFrames.
+        """Load every JSON in FILE_REGISTRY into DataFrames.
+
+        Loading order per dataset:
+            1. Local file in data/<filename> (fast, no API call)
+            2. OpenAI Files API download (fallback)
+
+        If an OpenAI download succeeds, the file is saved locally so
+        subsequent sessions load instantly without an API call.
 
         Args:
             client: An initialised ``openai.OpenAI`` instance.
@@ -134,16 +152,32 @@ class HardLogicStore:
 
         for key, meta in FILE_REGISTRY.items():
             try:
-                raw_bytes = client.files.content(meta["file_id"])
-                text = raw_bytes.read().decode("utf-8")
+                text = self._load_local(meta["filename"])
+                source = "local"
+
+                if text is None:
+                    text = self._download_from_openai(client, meta)
+                    source = "openai"
+                    # Cache locally for future sessions
+                    if text is not None:
+                        self._save_local(meta["filename"], text)
+
+                if text is None:
+                    raise RuntimeError(
+                        f"Could not load {meta['filename']} from local data/ "
+                        f"directory or OpenAI Files API. Place the JSON file in "
+                        f"{LOCAL_DATA_DIR / meta['filename']}"
+                    )
+
                 parsed = json.loads(text)
                 self._raw[key] = parsed
                 self._frames[key] = _to_dataframe(key, parsed)
                 status[key] = "ok"
                 _logger.info(
-                    "Loaded %s (%s) → %d rows",
+                    "Loaded %s (%s) from %s → %d rows",
                     key,
                     meta["filename"],
+                    source,
                     len(self._frames[key]),
                 )
             except Exception as exc:
@@ -160,6 +194,60 @@ class HardLogicStore:
             self._load_time,
         )
         return status
+
+    # ── local file I/O ───────────────────────────────────────────────
+    @staticmethod
+    def _load_local(filename: str) -> Optional[str]:
+        """Try to read a JSON file from the local data/ directory."""
+        path = LOCAL_DATA_DIR / filename
+        if path.is_file():
+            try:
+                text = path.read_text(encoding="utf-8")
+                _logger.info("Found local file: %s", path)
+                return text
+            except Exception as exc:
+                _logger.warning("Could not read local file %s: %s", path, exc)
+        return None
+
+    @staticmethod
+    def _save_local(filename: str, text: str) -> None:
+        """Cache a downloaded JSON file locally for future sessions."""
+        try:
+            LOCAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
+            path = LOCAL_DATA_DIR / filename
+            path.write_text(text, encoding="utf-8")
+            _logger.info("Cached locally: %s", path)
+        except Exception as exc:
+            _logger.warning("Could not cache %s locally: %s", filename, exc)
+
+    @staticmethod
+    def _download_from_openai(client, meta: Dict[str, str]) -> Optional[str]:
+        """Download a file from the OpenAI Files API.
+
+        Returns the file text, or None if the download fails.
+        Handles the 'purpose=assistants' restriction gracefully.
+        """
+        try:
+            raw_bytes = client.files.content(meta["file_id"])
+            return raw_bytes.read().decode("utf-8")
+        except Exception as exc:
+            err_str = str(exc)
+            if "Not allowed to download" in err_str and "purpose" in err_str:
+                _logger.warning(
+                    "Cannot download %s (file_id=%s): file was uploaded with "
+                    "purpose='assistants' which blocks direct downloads. "
+                    "Place the JSON file in %s instead.",
+                    meta["filename"],
+                    meta["file_id"],
+                    LOCAL_DATA_DIR / meta["filename"],
+                )
+            else:
+                _logger.warning(
+                    "OpenAI download failed for %s: %s",
+                    meta["filename"],
+                    exc,
+                )
+            return None
 
     # ── properties ──────────────────────────────────────────────────
     @property

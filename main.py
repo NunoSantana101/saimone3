@@ -131,7 +131,15 @@ if "hard_logic_loaded" not in st.session_state:
         _ok = sum(1 for v in _hl_status.values() if v == "ok")
         if _ok < len(_hl_status):
             _failed = {k: v for k, v in _hl_status.items() if v != "ok"}
-            st.toast(f"Hard Logic: {_ok}/{len(_hl_status)} datasets loaded. Errors: {_failed}", icon="⚠️")
+            if _ok == 0 and any("purpose" in str(v) for v in _failed.values()):
+                st.toast(
+                    f"Hard Logic: 0/{len(_hl_status)} datasets loaded. "
+                    f"OpenAI blocks downloading files uploaded with purpose='assistants'. "
+                    f"Place the JSON files in the data/ directory to fix this.",
+                    icon="⚠️",
+                )
+            else:
+                st.toast(f"Hard Logic: {_ok}/{len(_hl_status)} datasets loaded. Errors: {_failed}", icon="⚠️")
     except Exception as _hl_exc:
         st.session_state["hard_logic_loaded"] = False
         st.session_state["hard_logic_error"] = str(_hl_exc)
