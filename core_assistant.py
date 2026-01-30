@@ -1,31 +1,30 @@
 """
 core_assistant.py
-Pure‑python engine shared by the Streamlit UI (assistant.py) and any CLI or
+Pure-python engine shared by the Streamlit UI (assistant.py) and any CLI or
 batch runner.  NO Streamlit or console I/O; it just raises exceptions.
 
-Thread-based context management:
-- OpenAI threads store full conversation history server-side via thread_id
-- Local context is supplementary for checkpointing and emergency recovery
-- Uses GPT-4.1 throughout for consistency
+v5.0 – OpenAI Responses API Migration:
+- Replaces thread-based Assistants API with stateless Responses API
+- Single client.responses.create() call per interaction
+- Tool calls handled in-loop (no submit_tool_outputs polling)
+- Conversation continuity via previous_response_id
+- All data processing / truncation / pipeline logic preserved
 
-Improvements:
-- Integration with session_manager for circuit breaker support
-- Cached validation where possible
-- Thread-centric context management
-- Increased token budgets for richer responses
-
-v3.3 Agent Data Pipeline:
-- Structured data schemas for consistency
-- Compression (gzip+base64) for large payloads
-- Data manifests with searchable summaries
-- Decompression tools for agent access
+Key changes from v4.x:
+- No threads, no runs, no polling
+- response_id replaces thread_id for continuity
+- Tool definitions passed inline with each request
+- Instructions passed directly (no server-side assistant config)
 """
 
 from __future__ import annotations
 
-import json, time, openai
+import json, time, os, logging
 from datetime import datetime
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
+
+import openai
+from openai import OpenAI
 
 # v3.0 truncation + intent metadata helpers
 from med_affairs_data import extract_clinical_outcomes
@@ -63,36 +62,327 @@ from tool_config import (
     should_extract_clinical_outcomes,
 )
 
+_logger = logging.getLogger(__name__)
+
 # ──────────────────────────────────────────────────────────────────────
-#  Output Size Limits - Prevents agent silent failures from truncation
-#  OpenAI's submit_tool_outputs has undocumented limits (~256KB per output)
+#  Output Size Limits
 # ──────────────────────────────────────────────────────────────────────
-MAX_TOOL_OUTPUT_BYTES = 200_000  # 200KB safety limit (OpenAI allows ~256KB)
+MAX_TOOL_OUTPUT_BYTES = 200_000  # 200KB safety limit
 PROGRESSIVE_TRUNCATION_THRESHOLDS = [
-    (180_000, 0.9),   # At 180KB, reduce to 90% of results
-    (160_000, 0.75),  # At 160KB, reduce to 75%
-    (140_000, 0.6),   # At 140KB, reduce to 60%
-    (120_000, 0.5),   # At 120KB, reduce to 50%
+    (180_000, 0.9),
+    (160_000, 0.75),
+    (140_000, 0.6),
+    (120_000, 0.5),
 ]
 
-import logging
-_logger = logging.getLogger(__name__)
-# Import session management utilities (optional - graceful fallback)
-try:
-    from session_manager import (
-        validate_thread_exists_cached,
-        get_circuit_breaker,
-        get_optimized_context,
-    )
-    SESSION_MANAGER_AVAILABLE = True
-except ImportError:
-    SESSION_MANAGER_AVAILABLE = False
+# ──────────────────────────────────────────────────────────────────────
+#  OpenAI Client – lazy-init so main.py can set the API key first
+# ──────────────────────────────────────────────────────────────────────
+_client: Optional[OpenAI] = None
+
+
+def get_client() -> OpenAI:
+    """Return a shared OpenAI client (created lazily)."""
+    global _client
+    if _client is None:
+        # Prefer explicit key from openai module (set by main.py),
+        # then fall back to OPENAI_API_KEY env var.
+        api_key = getattr(openai, "api_key", None) or os.environ.get("OPENAI_API_KEY")
+        _client = OpenAI(api_key=api_key)
+    return _client
+
+
+def reset_client():
+    """Force re-creation of the client (e.g. after API key change)."""
+    global _client
+    _client = None
+
 
 # ──────────────────────────────────────────────────────────────────────
-#  Lightweight token & context helpers (lifted verbatim from assistant.py)
+#  Default model
+# ──────────────────────────────────────────────────────────────────────
+DEFAULT_MODEL = "gpt-4.1"
+
+# ──────────────────────────────────────────────────────────────────────
+#  Tool Definitions for Responses API
+# ──────────────────────────────────────────────────────────────────────
+
+def _load_tool_schema_v3() -> dict:
+    """Load the primary get_med_affairs_data schema from tool_schema_v3.json."""
+    schema_path = os.path.join(os.path.dirname(__file__), "tool_schema_v3.json")
+    try:
+        with open(schema_path, "r") as f:
+            return json.load(f)
+    except Exception as exc:
+        _logger.error(f"Failed to load tool_schema_v3.json: {exc}")
+        return {}
+
+
+def build_tools_list() -> List[dict]:
+    """
+    Build the complete tools list for Responses API.
+    Includes all function tools the assistant can call.
+    """
+    tools: List[dict] = []
+
+    # 1. Primary data tool – from tool_schema_v3.json
+    main_schema = _load_tool_schema_v3()
+    if main_schema:
+        tools.append({
+            "type": "function",
+            "name": main_schema.get("name", "get_med_affairs_data"),
+            "description": main_schema.get("description", ""),
+            "parameters": main_schema.get("parameters", {}),
+        })
+
+    # 2. read_webpage – Search-Decide-Read pattern (v4.1)
+    tools.append({
+        "type": "function",
+        "name": "read_webpage",
+        "description": (
+            "Fetch and extract readable content from a URL. Use after search results "
+            "to get full text of a particularly relevant page. Returns cleaned text "
+            "with optional context-query-based extraction."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "Full URL to fetch content from.",
+                },
+                "context_query": {
+                    "type": "string",
+                    "description": "Optional query to focus extraction on relevant sections.",
+                },
+            },
+            "required": ["url"],
+        },
+    })
+
+    # 3. decompress_pipeline_data – for large compressed results
+    tools.append({
+        "type": "function",
+        "name": "decompress_pipeline_data",
+        "description": (
+            "Decompress a chunk of pipeline-compressed data. Use when previous "
+            "search returned compressed results with a manifest_id."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "manifest_id": {
+                    "type": "string",
+                    "description": "Manifest ID from the compressed result.",
+                },
+                "chunk_index": {
+                    "type": "integer",
+                    "description": "Index of the chunk to decompress (0-based).",
+                },
+                "item_indices": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "Specific item indices to extract from the chunk.",
+                },
+            },
+            "required": ["manifest_id"],
+        },
+    })
+
+    # 4. search_pipeline_manifest – search compressed data without decompression
+    tools.append({
+        "type": "function",
+        "name": "search_pipeline_manifest",
+        "description": (
+            "Search a pipeline manifest for matching items without full decompression. "
+            "Use when you need to find specific results in compressed data."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "manifest_id": {
+                    "type": "string",
+                    "description": "Manifest ID from the compressed result.",
+                },
+                "search_term": {
+                    "type": "string",
+                    "description": "Term to search for in manifest entries.",
+                },
+                "source_filter": {
+                    "type": "string",
+                    "description": "Filter results to a specific source.",
+                },
+                "date_filter": {
+                    "type": "string",
+                    "description": "Filter by date (YYYY format).",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum results to return. Default: 20.",
+                    "default": 20,
+                },
+            },
+            "required": ["manifest_id"],
+        },
+    })
+
+    # 5. run_statistical_analysis – Monte Carlo & Bayesian
+    tools.append({
+        "type": "function",
+        "name": "run_statistical_analysis",
+        "description": (
+            "Run statistical analysis including Monte Carlo simulations and "
+            "Bayesian inference for medical affairs scenarios."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "analysis_type": {
+                    "type": "string",
+                    "description": "Type of analysis to run.",
+                    "enum": ["monte_carlo", "bayesian_inference", "sensitivity_analysis"],
+                },
+                "therapy_area": {
+                    "type": "string",
+                    "description": "Therapy area for the analysis.",
+                },
+                "parameters": {
+                    "type": "object",
+                    "description": "Analysis-specific parameters.",
+                },
+            },
+            "required": ["analysis_type"],
+        },
+    })
+
+    # 6. monte_carlo_simulation – specific MC function
+    tools.append({
+        "type": "function",
+        "name": "monte_carlo_simulation",
+        "description": (
+            "Run Monte Carlo simulation for medical affairs parameter sampling "
+            "and scenario analysis."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "therapy_area": {
+                    "type": "string",
+                    "description": "Therapy area (e.g., oncology, cardiology).",
+                },
+                "region": {
+                    "type": "string",
+                    "description": "Target region (e.g., US, EU, LATAM).",
+                },
+                "lifecycle_phase": {
+                    "type": "string",
+                    "description": "Product lifecycle phase.",
+                    "enum": ["pre_launch", "launch", "growth", "mature", "loe"],
+                },
+                "iterations": {
+                    "type": "integer",
+                    "description": "Number of simulation iterations. Default: 1000.",
+                    "default": 1000,
+                },
+                "scenarios": {
+                    "type": "object",
+                    "description": "Custom scenario parameters for simulation.",
+                },
+            },
+            "required": ["therapy_area"],
+        },
+    })
+
+    # 7. bayesian_analysis – specific Bayesian function
+    tools.append({
+        "type": "function",
+        "name": "bayesian_analysis",
+        "description": (
+            "Run Bayesian inference analysis for evidence synthesis and "
+            "probability estimation in medical affairs contexts."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "therapy_area": {
+                    "type": "string",
+                    "description": "Therapy area for analysis.",
+                },
+                "evidence": {
+                    "type": "object",
+                    "description": "Evidence data for Bayesian updating.",
+                },
+                "priors": {
+                    "type": "object",
+                    "description": "Prior distribution parameters.",
+                },
+            },
+            "required": ["therapy_area"],
+        },
+    })
+
+    return tools
+
+
+# Cache the tools list (loaded once)
+_cached_tools: Optional[List[dict]] = None
+
+
+def get_tools() -> List[dict]:
+    """Return cached tools list."""
+    global _cached_tools
+    if _cached_tools is None:
+        _cached_tools = build_tools_list()
+    return _cached_tools
+
+
+# ──────────────────────────────────────────────────────────────────────
+#  System Instructions for Responses API
+# ──────────────────────────────────────────────────────────────────────
+
+SYSTEM_INSTRUCTIONS = """You are sAImone, an expert Medical Affairs AI assistant powered by GPT-4.1.
+
+CORE CAPABILITIES:
+- Search 70+ medical/regulatory databases worldwide (PubMed, FDA, EMA, ClinicalTrials.gov, WHO, ANVISA, PMDA, NMPA, etc.)
+- Analyse clinical data, regulatory filings, and safety reports
+- Discover and profile Key Opinion Leaders (KOLs) globally
+- Run statistical analyses (Monte Carlo, Bayesian inference)
+- Read and extract content from web pages for deeper analysis
+
+ACCURACY & VALIDATION:
+- Provide medically accurate, evidence-based responses only
+- Distinguish VERIFIED FACTS vs INFERENCES/ASSUMPTIONS
+- Validate clinical data and regulatory timelines against primary sources via search
+- Flag uncertainty with "Requires verification"
+
+SOURCE VERIFICATION:
+- Prioritize: FDA/EMA filings, peer-reviewed publications
+- Cross-reference claims against multiple sources
+- For time-sensitive info, verify current status via live search
+- Always provide hyperlinks in reference sections
+- Always search regulatory agencies (EMA, FDA, country-specific) for system context
+
+COMPLIANCE:
+- Include regulatory considerations
+- Distinguish approved indications vs investigational uses
+- Note geographic regulatory variations
+
+DATA INTEGRATION:
+- Search internal files first for baseline
+- Combine internal data with live searches for updates
+- Note source recency when conflicts arise
+
+SEARCH STRATEGY:
+- When search results include URLs and content is truncated, use read_webpage on the most relevant 1-2 URLs to get full page text
+- Use fallback_sources when primary source returns few results
+- For comprehensive coverage, search multiple complementary sources"""
+
+
+# ──────────────────────────────────────────────────────────────────────
+#  Lightweight token & context helpers
 # ──────────────────────────────────────────────────────────────────────
 def estimate_tokens_simple(content: Any) -> int:
-    """Cheap 0·25‑chars ≃ 1 token estimate – fast enough for budgeting."""
+    """Cheap 0.25-chars ~ 1 token estimate – fast enough for budgeting."""
     if isinstance(content, list):
         return sum(len(str(item)) // 4 for item in content)
     return len(str(content)) // 4
@@ -103,30 +393,21 @@ def adaptive_medcomms_context(
 ) -> List[Dict[str, str]]:
     """Return a subset of *history* that fits *token_budget*.
 
-    Thread-based context management:
-    - OpenAI threads store full conversation history server-side
-    - This provides supplementary local context
-    - thread_id is the primary context reference
-
-    GPT-4.1 Optimized:
-    - Default budget increased to 24k for richer responses
-    - Last 8 exchanges included for good continuity (increased from 6)
-    - Balances context quality with response speed
-
-    If session_manager is available, uses optimized version with:
-    - Deduplication
-    - Caching
-    - Better categorization
+    Responses API context management:
+    - Conversation history is managed via previous_response_id chain
+    - Local context is supplementary for prompt enrichment
+    - Last 8 exchanges included for good continuity
     """
     # Use optimized version if available
-    if SESSION_MANAGER_AVAILABLE:
+    try:
+        from session_manager import get_optimized_context
         return get_optimized_context(history, token_budget)
+    except ImportError:
+        pass
 
-    # Fallback to original implementation
     if not history:
         return []
 
-    # Include last 8 exchanges for good continuity (thread has full history)
     must_include = history[-8:] if len(history) >= 8 else history
     remaining = token_budget - estimate_tokens_simple(must_include)
 
@@ -137,7 +418,7 @@ def adaptive_medcomms_context(
         "document_analysis": [], "regulatory_decisions": [], "compliance": [],
         "kol_research": [], "market_analysis": [], "general": [],
     }
-    for msg in history[:-8]:  # Exclude last 8 (already in must_include)
+    for msg in history[:-8]:
         t = msg["content"].lower()
         if any(k in t for k in ("upload", "document", "pdf", "file", "review")):
             priority["document_analysis"].append(msg)
@@ -157,7 +438,7 @@ def adaptive_medcomms_context(
         "document_analysis", "regulatory_decisions", "compliance",
         "kol_research", "market_analysis", "general",
     ):
-        for m in reversed(priority[bucket]):          # oldest first
+        for m in reversed(priority[bucket]):
             cost = estimate_tokens_simple([m])
             if remaining - cost < 100:
                 break
@@ -181,25 +462,20 @@ def create_context_prompt_with_budget(
     *,
     has_files: bool,
 ) -> str:
-    """Compose full system prompt while honouring *token_budget*."""
+    """Compose the user-facing prompt while honouring *token_budget*."""
     context = adaptive_medcomms_context(history, token_budget=token_budget)
-    now_iso  = datetime.utcnow().isoformat()
+    now_iso = datetime.utcnow().isoformat()
     now_long = datetime.utcnow().strftime("%B %d, %Y")
 
-    mem_note = (
-        "You MAY call retrieve_memory_context if the user explicitly references past sessions."
-        if any("past medical session" in m["content"].lower() for m in history[-3:])
-        else "Call retrieve_memory_context **only** when the user clearly asks about past conversations."
-    )
     file_note = (
-        "\n\nREFERENCE FILES AVAILABLE – use them when relevant."
+        "\n\nREFERENCE FILES AVAILABLE - use them when relevant."
         if has_files else ""
     )
 
     return (
-        f"SYSTEM CONTEXT – {now_iso}\nToday's date: {now_long}\n\n"
+        f"SYSTEM CONTEXT - {now_iso}\nToday's date: {now_long}\n\n"
         f"SESSION_CONTEXT:\n{json.dumps(context, indent=2)}\n\n"
-        f"{mem_note}{file_note}\n\n"
+        f"{file_note}\n\n"
         "INSTRUCTIONS:\n"
         f"- Output Type: {output_type}\n"
         f"- Response Tone: {response_tone}\n"
@@ -208,53 +484,9 @@ def create_context_prompt_with_budget(
         f"USER_QUERY: {user_input}"
     )
 
-# ──────────────────────────────────────────────────────────────────────
-#  Thread validation & guard – avoids "run already active" and stale thread errors
-# ──────────────────────────────────────────────────────────────────────
-def validate_thread_exists(thread_id: str) -> Tuple[bool, str]:
-    """
-    Check if a thread exists and is accessible on OpenAI servers.
-    Returns (is_valid, error_message).
-
-    If session_manager is available, uses cached validation to reduce API calls.
-    """
-    # Use cached validation if session manager is available
-    if SESSION_MANAGER_AVAILABLE:
-        return validate_thread_exists_cached(thread_id)
-
-    # Fallback to direct validation
-    try:
-        openai.beta.threads.retrieve(thread_id)
-        return True, ""
-    except openai.NotFoundError:
-        return False, f"Thread {thread_id} not found - it may have been deleted or expired"
-    except openai.BadRequestError as e:
-        return False, f"Thread {thread_id} is invalid: {str(e)}"
-    except Exception as e:
-        # For network errors etc., assume thread might be valid
-        return True, f"Warning: Could not validate thread: {str(e)}"
-
-
-def wait_for_idle_thread(thread_id: str, *, poll: float = 1.0, timeout: int = 120) -> None:
-    """Block until *thread_id* has no active run (queued/in_progress/requires_action/cancelling)."""
-    # Statuses that indicate an active run that blocks new operations
-    ACTIVE_STATUSES = {"queued", "in_progress", "requires_action", "cancelling"}
-
-    start = time.time()
-    while time.time() - start < timeout:
-        try:
-            runs = openai.beta.threads.runs.list(thread_id=thread_id, limit=1)
-            if not runs.data or runs.data[0].status not in ACTIVE_STATUSES:
-                return
-        except openai.NotFoundError:
-            raise RuntimeError(f"Thread {thread_id} not found - please start a new session")
-        except openai.BadRequestError as e:
-            raise RuntimeError(f"Invalid thread {thread_id}: {str(e)}")
-        time.sleep(poll)
-    raise RuntimeError("Thread never became idle within allotted time")
 
 # ──────────────────────────────────────────────────────────────────────
-#  Result Truncation Helper - Prevents "output string too long" 400 errors
+#  Result Truncation Helper
 # ──────────────────────────────────────────────────────────────────────
 def _truncate_search_results(
     res: dict,
@@ -264,17 +496,15 @@ def _truncate_search_results(
     intent: QueryIntent = None,
 ) -> dict:
     """
-    v4.0 – Token-efficient tiered result processing.
+    v4.0 - Token-efficient tiered result processing.
 
     Key changes from v3.x:
-    1. DEDUP – cross-source duplicates removed by normalised title
-    2. FLAT RANKED LIST – results_by_source flattened; source becomes a field
-    3. TIERED CONTENT – top-N get full text, tail gets headline-only
-    4. SUMMARY HEADER – one-paragraph overview for agent reasoning head-start
-    5. URLS STRIPPED – unless the agent/user explicitly requests citations
-    6. MESH / REFINEMENTS – not included inline (lazy-loadable via tools)
-
-    Net effect: ~40-60% fewer tokens, same or better agent reasoning quality.
+    1. DEDUP - cross-source duplicates removed by normalised title
+    2. FLAT RANKED LIST - results_by_source flattened; source becomes a field
+    3. TIERED CONTENT - top-N get full text, tail gets headline-only
+    4. SUMMARY HEADER - one-paragraph overview for agent reasoning head-start
+    5. URLS STRIPPED - unless the agent/user explicitly requests citations
+    6. MESH / REFINEMENTS - not included inline (lazy-loadable via tools)
     """
     if not isinstance(res, dict):
         return res
@@ -291,7 +521,6 @@ def _truncate_search_results(
     extra_field_max = RESULT_FIELD_LIMITS.get("extra_field_max_chars", 200)
     extra_list_max = RESULT_FIELD_LIMITS.get("extra_list_max_items", 4)
 
-    # Tier thresholds
     t1_count = RESULT_TIERS.get("tier_1_count", 5)
     t1_content = RESULT_TIERS.get("tier_1_content", 600)
     t2_count = RESULT_TIERS.get("tier_2_count", 10)
@@ -301,7 +530,7 @@ def _truncate_search_results(
     preserve_fields = get_preserve_fields(intent)
     extract_outcomes = should_extract_clinical_outcomes(intent)
 
-    # ── 1. Collect all results into flat list with source tag ────
+    # -- 1. Collect all results into flat list with source tag
     raw_items: list = []
 
     if "results_by_source" in res:
@@ -315,7 +544,7 @@ def _truncate_search_results(
             src = r.get("source", r.get("_source", "unknown"))
             raw_items.append((r, src))
 
-    # ── 2. Deduplicate by normalised title ───────────────────────
+    # -- 2. Deduplicate by normalised title
     seen_titles: set = set()
     deduped: list = []
     duplicates_removed = 0
@@ -323,7 +552,6 @@ def _truncate_search_results(
     for r, source in raw_items:
         title_raw = r.get("title", "")
         norm = title_raw.lower().strip()
-        # Normalise: drop punctuation, collapse whitespace
         norm = "".join(c for c in norm if c.isalnum() or c == " ")
         norm = " ".join(norm.split())
 
@@ -334,31 +562,26 @@ def _truncate_search_results(
             seen_titles.add(norm)
         deduped.append((r, source))
 
-    # ── 3. Rank: priority sources first, then by authority/date ──
+    # -- 3. Rank: priority sources first, then by authority/date
     priority_sources = limits.get("priority_sources", [])
 
     def _rank_key(item_tuple):
         r, source = item_tuple
-        # Priority sources get lower rank number (sorted ascending)
         try:
             src_rank = priority_sources.index(source)
         except ValueError:
             src_rank = len(priority_sources)
-        # Authority score (higher is better → negate for ascending sort)
         authority = -(r.get("_authority", 0) or 0)
         return (src_rank, authority)
 
     deduped.sort(key=_rank_key)
-
-    # Cap to max_total
     final_items = deduped[:max_total]
     total_available = len(deduped)
 
-    # ── 4. Per-result slimming with tiered content depth ─────────
+    # -- 4. Per-result slimming with tiered content depth
     def _process_result(r: dict, source: str, rank: int) -> dict:
         extra = r.get("extra", {})
 
-        # Determine content budget based on rank tier
         if rank < t1_count:
             content_budget = t1_content
         elif rank < t1_count + t2_count:
@@ -366,7 +589,6 @@ def _truncate_search_results(
         else:
             content_budget = t3_content
 
-        # Extract raw content
         content = (
             r.get("snippet")
             or extra.get("abstract")
@@ -378,33 +600,26 @@ def _truncate_search_results(
         if content and content_budget > 0 and len(content) > content_budget:
             content = content[:content_budget] + "..."
         elif content_budget == 0:
-            content = ""  # Tier-3: no body text
+            content = ""
 
         slim: dict = {}
 
-        # Title (always present)
         title = r.get("title", "")
         if title:
             slim["title"] = title[:title_max]
-
-        # Source tag (replaces results_by_source grouping)
         slim["source"] = source
 
-        # URL (tier-1 and tier-2 only – needed for read_webpage tool)
         result_url = r.get("url") or r.get("extra", {}).get("url")
         if result_url and rank < t1_count + t2_count:
             slim["url"] = result_url
 
-        # Content (tiered)
         if content:
             slim["content"] = content
 
-        # Date
         date = r.get("date") or extra.get("date")
         if date:
             slim["date"] = date
 
-        # Intent-specific fields (only for tier-1 and tier-2)
         if rank < t1_count + t2_count:
             for field_name in preserve_fields:
                 val = extra.get(field_name) or r.get(field_name)
@@ -420,7 +635,6 @@ def _truncate_search_results(
                 else:
                     slim[field_name] = val
 
-        # Clinical outcome extraction (tier-1 only, safety/trial intents)
         if extract_outcomes and content and rank < t1_count:
             outcomes = extract_clinical_outcomes(content)
             if outcomes:
@@ -433,7 +647,7 @@ def _truncate_search_results(
         for rank, (r, source) in enumerate(final_items)
     ]
 
-    # ── 5. Build summary header ──────────────────────────────────
+    # -- 5. Build summary header
     source_counts: dict = {}
     for _, source in final_items:
         source_counts[source] = source_counts.get(source, 0) + 1
@@ -449,8 +663,6 @@ def _truncate_search_results(
         summary["duplicates_removed"] = duplicates_removed
     summary["sources"] = sources_line
 
-    # v4.1: Hint for the agent about deep-read capability
-    # Count how many results have URLs (tier-1/tier-2)
     urls_available = sum(1 for r in processed if r.get("url"))
     if urls_available > 0:
         summary["tip"] = (
@@ -458,7 +670,7 @@ def _truncate_search_results(
             "relevant, call read_webpage with the url to get the full page text."
         )
 
-    # ── 6. MeSH: drug context one-liner (only for safety/reg) ───
+    # -- 6. MeSH: drug context one-liner (only for safety/reg)
     mesh_limits = dict(MESH_METADATA_LIMITS)
     if intent and intent.value in INTENT_MESH_LIMITS:
         mesh_limits.update(INTENT_MESH_LIMITS[intent.value])
@@ -479,7 +691,7 @@ def _truncate_search_results(
             if drug_ctx:
                 summary["drug_context"] = drug_ctx
 
-    # ── 7. Assemble final output ─────────────────────────────────
+    # -- 7. Assemble final output
     output: dict = {
         "summary": summary,
         "results": processed,
@@ -491,23 +703,10 @@ def _truncate_search_results(
 def _enforce_output_size_limit(res: dict, max_bytes: int = MAX_TOOL_OUTPUT_BYTES, query: str = None) -> dict:
     """
     Enforce hard output size limit with progressive truncation.
-
-    This is the CRITICAL safeguard against agent silent failures.
-    OpenAI's submit_tool_outputs has an undocumented limit (~256KB).
-
-    Strategy:
-    1. Check serialized JSON size
-    2. If over limit, progressively reduce results count
-    3. If still over, strip metadata and reduce field sizes
-    4. Log warnings for debugging
-
-    Returns:
-        Truncated dict guaranteed to be under max_bytes when serialized
     """
     if not isinstance(res, dict):
         return res
 
-    # First serialization check
     try:
         serialized = json.dumps(res)
         current_size = len(serialized.encode('utf-8'))
@@ -520,60 +719,46 @@ def _enforce_output_size_limit(res: dict, max_bytes: int = MAX_TOOL_OUTPUT_BYTES
 
     _logger.warning(f"Output size {current_size} bytes exceeds limit {max_bytes}, applying progressive truncation")
 
-    # Progressive reduction of results
     for threshold, factor in PROGRESSIVE_TRUNCATION_THRESHOLDS:
         if current_size <= threshold:
             break
 
-        # Reduce results in results_by_source
         if "results_by_source" in res:
             for source, results in res.get("results_by_source", {}).items():
                 if isinstance(results, list):
                     new_count = max(3, int(len(results) * factor))
                     res["results_by_source"][source] = results[:new_count]
 
-        # Reduce results in flat results array
         if "results" in res and isinstance(res["results"], list):
             new_count = max(5, int(len(res["results"]) * factor))
             res["results"] = res["results"][:new_count]
 
-        # Recalculate size
         serialized = json.dumps(res)
         current_size = len(serialized.encode('utf-8'))
 
-        if current_size <= max_bytes * 0.9:  # Target 90% of max for safety
+        if current_size <= max_bytes * 0.9:
             break
 
-    # If still over limit, apply aggressive field stripping
     if current_size > max_bytes:
         _logger.warning(f"Still over limit ({current_size} bytes), applying aggressive field stripping")
         res = _aggressive_truncation(res, max_bytes)
         serialized = json.dumps(res)
         current_size = len(serialized.encode('utf-8'))
 
-    # Final safety check - if STILL over, strip to bare minimum
     if current_size > max_bytes:
         _logger.error(f"Output still exceeds limit after truncation ({current_size} > {max_bytes})")
         res = _minimal_response(res, query)
-        serialized = json.dumps(res)
-        current_size = len(serialized.encode('utf-8'))
 
     return res
 
 
 def _aggressive_truncation(res: dict, max_bytes: int) -> dict:
-    """
-    Aggressive truncation when progressive reduction isn't enough.
-    Content-first: shorten content per result but keep it present.
-    v4.0: Works with flat result list only.
-    """
-    # Strip any leftover non-essential top-level keys
+    """Aggressive truncation when progressive reduction isn't enough."""
     keep_keys = {"summary", "results", "query", "source", "total_results", "drug_context"}
     for key in list(res.keys()):
         if key not in keep_keys:
             del res[key]
 
-    # Shorten results – keep title + truncated content
     def _slim(r: dict) -> dict:
         out: dict = {}
         if r.get("title"):
@@ -592,7 +777,7 @@ def _aggressive_truncation(res: dict, max_bytes: int) -> dict:
 
 
 def _minimal_response(res: dict, query: str = None) -> dict:
-    """Last resort – return count + message so the agent can request a refined query."""
+    """Last resort - return count + message so the agent can refine."""
     result_count = len(res.get("results", []))
     return {
         "error": "Results truncated due to size limits",
@@ -603,29 +788,20 @@ def _minimal_response(res: dict, query: str = None) -> dict:
 
 
 # ──────────────────────────────────────────────────────────────────────
-#  Default (sync) tool router – override from UI/CLI if needed
+#  Default (sync) tool router
 # ──────────────────────────────────────────────────────────────────────
 def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
-    """Routes get_med_affairs_data to the project's data layer.
+    """Routes tool calls to the project's data layer.
 
-    CRITICAL: Applies size enforcement to prevent agent silent failures.
-
-    v3.3 Pipeline Integration:
-    - Large results are compressed with gzip+base64
-    - Manifest provides searchable summaries
-    - Agent can decompress via pipeline tools
+    Applies size enforcement to prevent output failures.
+    Pipeline integration for large results (compression / vector store).
     """
-    from med_affairs_data import (
-        get_medaffairs_data,
-    )  # local import to avoid cycles
+    from med_affairs_data import get_medaffairs_data  # local import to avoid cycles
 
-    # ──────────────────────────────────────────────────────────────────
-    # v3.3: Pipeline decompression tools
-    # ──────────────────────────────────────────────────────────────────
+    # ── Pipeline decompression tools ──
     if name == "decompress_pipeline_data":
         try:
             manifest_id = args.get("manifest_id")
-            # Try to get from cache first
             cached = get_cached_pipeline_data(manifest_id) if manifest_id else None
             if cached:
                 result = decompress_pipeline_data(
@@ -634,7 +810,6 @@ def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
                     item_indices=args.get("item_indices"),
                 )
             else:
-                # If not cached, data should be in args
                 pipeline_data = args.get("pipeline_data", {})
                 result = decompress_pipeline_data(
                     pipeline_data,
@@ -649,7 +824,6 @@ def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
     if name == "search_pipeline_manifest":
         try:
             manifest_id = args.get("manifest_id")
-            # Try to get manifest from cache
             cached = get_cached_pipeline_data(manifest_id) if manifest_id else None
             manifest = cached.get("manifest", {}) if cached else args.get("manifest", {})
             result = search_manifest(
@@ -664,9 +838,7 @@ def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
             _logger.error(f"Pipeline manifest search error: {exc}")
             return json.dumps({"error": str(exc)})
 
-    # ──────────────────────────────────────────────────────────────────
-    # v4.1: Standalone read_webpage tool (Search-Decide-Read pattern)
-    # ──────────────────────────────────────────────────────────────────
+    # ── read_webpage (v4.1) ──
     if name == "read_webpage":
         try:
             from med_affairs_data import read_webpage
@@ -679,9 +851,47 @@ def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
             _logger.error(f"read_webpage error: {exc}")
             return json.dumps({"status": "error", "error": str(exc)})
 
-    # ──────────────────────────────────────────────────────────────────
-    # Standard data tools with hybrid pipeline integration (v1.1)
-    # ──────────────────────────────────────────────────────────────────
+    # ── Statistical analysis tools ──
+    if name == "run_statistical_analysis":
+        try:
+            from mc_bayesian_backend import handle_statistical_analysis_function_call
+            result = handle_statistical_analysis_function_call(args)
+            return result if isinstance(result, str) else json.dumps(result)
+        except Exception as exc:
+            _logger.error(f"Statistical analysis error: {exc}")
+            return json.dumps({"error": str(exc)})
+
+    if name == "monte_carlo_simulation":
+        try:
+            from mc_bayesian_backend import run_statistical_analysis
+            parameters = {
+                "therapy_area": args.get("therapy_area", "general"),
+                "region": args.get("region", "US"),
+                "lifecycle_phase": args.get("lifecycle_phase", "launch"),
+                "iterations": args.get("iterations", 1000),
+                "scenarios": args.get("scenarios"),
+            }
+            result = run_statistical_analysis("monte_carlo", parameters)
+            return json.dumps(result)
+        except Exception as exc:
+            _logger.error(f"Monte Carlo error: {exc}")
+            return json.dumps({"error": str(exc)})
+
+    if name == "bayesian_analysis":
+        try:
+            from mc_bayesian_backend import run_statistical_analysis
+            parameters = {
+                "therapy_area": args.get("therapy_area", "general"),
+                "evidence": args.get("evidence", {}),
+                "priors": args.get("priors"),
+            }
+            result = run_statistical_analysis("bayesian_inference", parameters)
+            return json.dumps(result)
+        except Exception as exc:
+            _logger.error(f"Bayesian analysis error: {exc}")
+            return json.dumps({"error": str(exc)})
+
+    # ── Standard data tools with hybrid pipeline ──
     if name in {
         "get_med_affairs_data",
         "get_pubmed_data",
@@ -690,44 +900,36 @@ def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
         "get_core_data",
         "get_who_data",
         "tavily_tool",
-        "aggregated_search",  # Multi-source search with refinement suggestions
+        "aggregated_search",
     }:
         try:
             res = get_medaffairs_data(name, args)
-            # v3.0: Truncate results with intent-aware context preservation
             query_text = args.get("query", "")
             res = _truncate_search_results(res, query=query_text)
 
-            # v3.3 / v1.1: Hybrid pipeline with automatic strategy selection
-            use_pipeline = args.get("use_pipeline", True)  # Enable by default
+            use_pipeline = args.get("use_pipeline", True)
             serialized_check = json.dumps(res)
             size_bytes = len(serialized_check.encode('utf-8'))
 
             if use_pipeline and size_bytes > MAX_UNCOMPRESSED_OUTPUT:
-                # Select strategy based on size
                 strategy = select_pipeline_strategy(size_bytes)
                 _logger.info(f"Hybrid pipeline for {name}: {size_bytes} bytes -> {strategy.value}")
 
                 if strategy == PipelineStrategy.VECTOR_STORE:
-                    # Use vector store for very large results
-                    vector_store_id = args.get("vector_store_id")  # Optional existing VS
+                    vector_store_id = args.get("vector_store_id")
                     res = process_with_hybrid_pipeline(
                         res, query=query_text, vector_store_id=vector_store_id
                     )
-                    # Cache vector store info for cleanup
                     manifest_id = res.get("manifest", {}).get("manifest_id")
                     if manifest_id and res.get("vector_store"):
                         cache_vector_store_info(manifest_id, res.get("vector_store"))
                 else:
-                    # Use compression for medium results
                     res = process_through_pipeline(res, query=query_text)
 
-                # Cache for potential decompression requests
                 manifest_id = res.get("manifest", {}).get("manifest_id")
                 if manifest_id:
                     cache_pipeline_data(manifest_id, res)
             else:
-                # v3.2: CRITICAL - Enforce output size limit to prevent agent silent failures
                 res = _enforce_output_size_limit(res, query=query_text)
 
             return json.dumps(res)
@@ -738,244 +940,268 @@ def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
     return json.dumps({"error": f"Unknown function {name}"})
 
 
-def _submit_tool_outputs(thread_id: str, run_id: str, outs: List[Dict[str, str]]) -> None:
-    openai.beta.threads.runs.submit_tool_outputs(
-        thread_id=thread_id, run_id=run_id, tool_outputs=outs
-    )
+# ──────────────────────────────────────────────────────────────────────
+#  Responses API Helpers
+# ──────────────────────────────────────────────────────────────────────
+
+def _extract_response_text(response) -> str:
+    """Extract text content from a Responses API response object."""
+    if not hasattr(response, "output") or not response.output:
+        return "[No response generated]"
+
+    text_parts: List[str] = []
+    for item in response.output:
+        if getattr(item, "type", None) == "message":
+            for content_block in getattr(item, "content", []):
+                if getattr(content_block, "type", None) == "output_text":
+                    text_parts.append(content_block.text)
+    return "\n".join(text_parts) if text_parts else "[No response generated]"
 
 
-def _process_tool_calls(tool_calls, *, thread_id: str, run_id: str, router):
-    outs = []
-    for call in tool_calls:
-        try:
-            args = json.loads(call.function.arguments)
-        except json.JSONDecodeError as exc:
-            outs.append({"tool_call_id": call.id, "output": json.dumps({"error": str(exc)})})
-            continue
-        outs.append({"tool_call_id": call.id, "output": router(call.function.name, args)})
-    _submit_tool_outputs(thread_id, run_id, outs)
+def _get_tool_calls(response) -> list:
+    """Extract function_call items from a Responses API response."""
+    calls = []
+    if not hasattr(response, "output") or not response.output:
+        return calls
+    for item in response.output:
+        if getattr(item, "type", None) == "function_call":
+            calls.append(item)
+    return calls
+
 
 # ──────────────────────────────────────────────────────────────────────
-#  Blocking runner (for Streamlit wrapper)
+#  Blocking runner – Responses API (replaces run_assistant_sync)
 # ──────────────────────────────────────────────────────────────────────
-def run_assistant_sync(
+def run_responses_sync(
     *,
-    thread_id: str,
-    assistant_id: str,
-    prompt: str,
-    attachments: Optional[List[Dict[str, Any]]] = None,
+    model: str = DEFAULT_MODEL,
+    input_messages: Optional[List[dict]] = None,
+    input_text: Optional[str] = None,
+    instructions: str = SYSTEM_INSTRUCTIONS,
+    previous_response_id: Optional[str] = None,
     tool_router: Callable[[str, Dict[str, Any]], str] = _default_tool_router,
-    poll: float = 0.5,  # Faster polling for GPT-4.1
     timeout: int = 600,
-) -> str:
+    max_tool_rounds: int = 20,
+    on_tool_call: Optional[Callable[[str, dict], None]] = None,
+) -> Tuple[str, Optional[str], List[dict]]:
     """
-    Synchronous assistant runner with improved race condition handling.
-    GPT-4.1 optimized with faster polling and better message retrieval.
+    Synchronous runner using the OpenAI Responses API.
+
+    Returns:
+        (response_text, response_id, tool_call_log)
+        - response_text: The assistant's final text output
+        - response_id: The response ID for conversation continuity
+        - tool_call_log: List of {name, args, output} dicts for audit
     """
-    # Validate thread exists before proceeding
-    is_valid, validation_error = validate_thread_exists(thread_id)
-    if not is_valid:
-        raise RuntimeError(validation_error)
+    client = get_client()
+    tools = get_tools()
 
-    # CRITICAL: Wait for any active runs to complete before creating new message
-    # This prevents the "run already active" 400 error
-    wait_for_idle_thread(thread_id, timeout=120)
+    # Build input
+    if input_text and not input_messages:
+        api_input = input_text
+    elif input_messages:
+        api_input = input_messages
+    else:
+        raise ValueError("Either input_text or input_messages must be provided")
 
-    # Record start time BEFORE creating message (for accurate message filtering)
-    start_timestamp = time.time()
-
-    # Create message with error handling for BadRequestError (400)
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            msg = openai.beta.threads.messages.create(
-                thread_id=thread_id, role="user", content=prompt, attachments=attachments
-            )
-            user_message_id = msg.id  # Track the user message ID
-            break
-        except openai.BadRequestError as e:
-            error_str = str(e).lower()
-            # If run is active, wait and retry
-            if "run" in error_str and "active" in error_str:
-                time.sleep(2)
-                wait_for_idle_thread(thread_id, timeout=60)
-                continue
-            # If file-related error and we have attachments, retry without them
-            if ("file" in error_str or "attachment" in error_str) and attachments:
-                attachments = None
-                continue
-            # If thread-related error, don't retry
-            if "thread" in error_str:
-                raise RuntimeError(f"Thread error (400): {str(e)} - please start a new session")
-            # For other 400 errors, retry once more then fail
-            if attempt == max_retries - 1:
-                raise RuntimeError(f"Message creation failed after {max_retries} attempts: {str(e)}")
-            time.sleep(0.5 * (attempt + 1))
-        except openai.NotFoundError as e:
-            raise RuntimeError(f"Thread {thread_id} not found: {str(e)} - please start a new session")
-        except openai.RateLimitError as e:
-            if attempt < max_retries - 1:
-                time.sleep(2 ** attempt)
-                continue
-            raise
-
-    # Create run with error handling and retry for active run conflicts
-    run = None
-    for attempt in range(max_retries):
-        try:
-            run = openai.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
-            break
-        except openai.BadRequestError as e:
-            error_str = str(e).lower()
-            if "run" in error_str and "active" in error_str:
-                # Another run is still active - wait for it
-                time.sleep(2)
-                wait_for_idle_thread(thread_id, timeout=60)
-                continue
-            raise RuntimeError(f"Failed to create run (400): {str(e)}")
-        except openai.NotFoundError as e:
-            raise RuntimeError(f"Thread or assistant not found: {str(e)}")
-
-    if run is None:
-        raise RuntimeError("Failed to create run after retries")
-
-    # Poll for completion
+    tool_call_log: List[dict] = []
     start = time.time()
-    while True:
+
+    # Create initial response
+    try:
+        kwargs = {
+            "model": model,
+            "input": api_input,
+            "tools": tools,
+        }
+        if instructions:
+            kwargs["instructions"] = instructions
+        if previous_response_id:
+            kwargs["previous_response_id"] = previous_response_id
+
+        response = client.responses.create(**kwargs)
+    except openai.BadRequestError as e:
+        raise RuntimeError(f"API error (400): {str(e)}")
+    except openai.NotFoundError as e:
+        raise RuntimeError(f"Resource not found: {str(e)}")
+    except openai.RateLimitError as e:
+        # Retry once after backoff
+        time.sleep(2)
         try:
-            status = openai.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-        except openai.BadRequestError as e:
-            # Handle transient errors during polling
-            if time.time() - start > timeout:
-                raise TimeoutError(f"Assistant run exceeded {timeout}s")
-            time.sleep(poll)
-            continue
+            response = client.responses.create(**kwargs)
+        except Exception:
+            raise RuntimeError(f"Rate limited: {str(e)}")
+    except openai.APIConnectionError as e:
+        raise RuntimeError(f"Connection error: {str(e)}")
 
-        if status.status == "requires_action":
-            _process_tool_calls(
-                status.required_action.submit_tool_outputs.tool_calls,
-                thread_id=thread_id,
-                run_id=run.id,
-                router=tool_router,
-            )
-        elif status.status == "completed":
+    # Tool call loop – keep going until we get a text response or hit limits
+    for round_num in range(max_tool_rounds):
+        if time.time() - start > timeout:
+            raise TimeoutError(f"Response exceeded {timeout}s timeout")
+
+        tool_calls = _get_tool_calls(response)
+
+        if not tool_calls:
+            # No tool calls – we have a final text response
             break
-        elif status.status in {"failed", "cancelled", "expired"}:
-            error_msg = f"Run ended with status {status.status}"
-            if hasattr(status, 'last_error') and status.last_error:
-                error_msg += f": {status.last_error.message}"
-            raise RuntimeError(error_msg)
-        elif time.time() - start > timeout:
-            raise TimeoutError(f"Assistant run exceeded {timeout}s")
-        time.sleep(poll)
 
-    # IMPROVED: Get messages in descending order (newest first) and find the response
-    msgs = openai.beta.threads.messages.list(thread_id=thread_id, order="desc", limit=10)
-    for m in msgs.data:
-        # Find assistant message that was created after our user message
-        if m.role == "assistant":
-            # Check if this message's run_id matches our run
-            if hasattr(m, 'run_id') and m.run_id == run.id:
-                if m.content and len(m.content) > 0:
-                    return m.content[0].text.value
-            # Fallback: use timestamp comparison (convert created_at to comparable format)
-            elif m.created_at >= int(start_timestamp):
-                if m.content and len(m.content) > 0:
-                    return m.content[0].text.value
+        # Process each tool call
+        tool_outputs: List[dict] = []
+        for call in tool_calls:
+            fn_name = call.name
+            call_id = call.call_id
+            try:
+                args = json.loads(call.arguments)
+            except json.JSONDecodeError as exc:
+                args = {}
+                _logger.error(f"Failed to parse args for {fn_name}: {exc}")
 
-    return "[No response generated]"
+            # Notify callback if provided (for UI spinners etc.)
+            if on_tool_call:
+                on_tool_call(fn_name, args)
+
+            # Execute tool
+            try:
+                output = tool_router(fn_name, args)
+            except Exception as exc:
+                _logger.error(f"Tool execution error for {fn_name}: {exc}")
+                output = json.dumps({"error": str(exc)})
+
+            tool_outputs.append({
+                "type": "function_call_output",
+                "call_id": call_id,
+                "output": output,
+            })
+
+            tool_call_log.append({
+                "name": fn_name,
+                "args": args,
+                "output_size": len(output),
+                "round": round_num,
+            })
+
+        # Continue conversation with tool outputs
+        try:
+            response = client.responses.create(
+                model=model,
+                previous_response_id=response.id,
+                input=tool_outputs,
+                tools=tools,
+                instructions=instructions,
+            )
+        except openai.BadRequestError as e:
+            raise RuntimeError(f"Tool output submission failed (400): {str(e)}")
+        except openai.RateLimitError:
+            time.sleep(2)
+            response = client.responses.create(
+                model=model,
+                previous_response_id=response.id,
+                input=tool_outputs,
+                tools=tools,
+                instructions=instructions,
+            )
+
+    # Extract final text
+    text = _extract_response_text(response)
+    response_id = response.id if hasattr(response, "id") else None
+
+    return text, response_id, tool_call_log
+
 
 # ──────────────────────────────────────────────────────────────────────
-#  Async runner (CLI / batch)
+#  Async runner – Responses API (replaces run_assistant_async)
 # ──────────────────────────────────────────────────────────────────────
-async def run_assistant_async(
+async def run_responses_async(
     *,
-    thread_id: str,
-    assistant_id: str,
-    prompt: str,
-    attachments: Optional[List[Dict[str, Any]]] = None,
-    tool_router_async: Callable[[str, Dict[str, Any]], Coroutine[Any, Any, str]] | None = None,
-    poll: float = 1.0,
+    model: str = DEFAULT_MODEL,
+    input_messages: Optional[List[dict]] = None,
+    input_text: Optional[str] = None,
+    instructions: str = SYSTEM_INSTRUCTIONS,
+    previous_response_id: Optional[str] = None,
+    tool_router_async: Optional[Callable[[str, Dict[str, Any]], Coroutine[Any, Any, str]]] = None,
     timeout: int = 600,
-) -> str:
+    max_tool_rounds: int = 20,
+) -> Tuple[str, Optional[str], List[dict]]:
+    """
+    Async runner using the OpenAI Responses API.
+
+    Returns:
+        (response_text, response_id, tool_call_log)
+    """
     import asyncio
+
     tool_router_async = tool_router_async or (
         lambda n, a: asyncio.get_running_loop().run_in_executor(None, _default_tool_router, n, a)
     )
 
-    # Validate thread exists before proceeding
-    is_valid, validation_error = await asyncio.to_thread(validate_thread_exists, thread_id)
-    if not is_valid:
-        raise RuntimeError(validation_error)
+    client = get_client()
+    tools = get_tools()
 
-    await asyncio.to_thread(wait_for_idle_thread, thread_id)
+    if input_text and not input_messages:
+        api_input = input_text
+    elif input_messages:
+        api_input = input_messages
+    else:
+        raise ValueError("Either input_text or input_messages must be provided")
 
-    # Create message with error handling for BadRequestError (400)
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            await asyncio.to_thread(
-                openai.beta.threads.messages.create,
-                thread_id=thread_id, role="user", content=prompt, attachments=attachments,
-            )
-            break
-        except openai.BadRequestError as e:
-            error_str = str(e).lower()
-            if ("file" in error_str or "attachment" in error_str) and attachments:
-                attachments = None
-                continue
-            if "thread" in error_str:
-                raise RuntimeError(f"Thread error (400): {str(e)} - please start a new session")
-            if attempt == max_retries - 1:
-                raise RuntimeError(f"Message creation failed after {max_retries} attempts: {str(e)}")
-            await asyncio.sleep(0.5 * (attempt + 1))
-        except openai.NotFoundError as e:
-            raise RuntimeError(f"Thread {thread_id} not found: {str(e)} - please start a new session")
-        except openai.RateLimitError as e:
-            if attempt < max_retries - 1:
-                await asyncio.sleep(2 ** attempt)
-                continue
-            raise
-
-    # Create run with error handling
-    try:
-        run = await asyncio.to_thread(
-            openai.beta.threads.runs.create, thread_id=thread_id, assistant_id=assistant_id
-        )
-    except openai.BadRequestError as e:
-        raise RuntimeError(f"Failed to create run (400): {str(e)}")
-    except openai.NotFoundError as e:
-        raise RuntimeError(f"Thread or assistant not found: {str(e)}")
-
+    tool_call_log: List[dict] = []
     start = time.time()
-    while True:
-        status = await asyncio.to_thread(
-            openai.beta.threads.runs.retrieve, thread_id=thread_id, run_id=run.id
-        )
-        if status.status == "requires_action":
-            calls = status.required_action.submit_tool_outputs.tool_calls
 
-            async def _one(call):
-                try:
-                    args = json.loads(call.function.arguments)
-                except json.JSONDecodeError as exc:
-                    return {"tool_call_id": call.id, "output": json.dumps({"error": str(exc)})}
-                out = await tool_router_async(call.function.name, args)
-                return {"tool_call_id": call.id, "output": out}
+    # Initial response (run in thread pool since sync client)
+    kwargs = {
+        "model": model,
+        "input": api_input,
+        "tools": tools,
+    }
+    if instructions:
+        kwargs["instructions"] = instructions
+    if previous_response_id:
+        kwargs["previous_response_id"] = previous_response_id
 
-            outs = await asyncio.gather(*[_one(c) for c in calls])
-            await asyncio.to_thread(_submit_tool_outputs, thread_id, run.id, outs)
+    response = await asyncio.to_thread(client.responses.create, **kwargs)
 
-        elif status.status == "completed":
+    # Tool call loop
+    for round_num in range(max_tool_rounds):
+        if time.time() - start > timeout:
+            raise TimeoutError(f"Response exceeded {timeout}s timeout")
+
+        tool_calls = _get_tool_calls(response)
+
+        if not tool_calls:
             break
-        elif status.status in {"failed", "cancelled", "expired"}:
-            raise RuntimeError(f"Run ended with status {status.status}")
-        elif time.time() - start > timeout:
-            raise TimeoutError(f"Assistant run exceeded {timeout}s")
-        await asyncio.sleep(poll)
 
-    msgs = await asyncio.to_thread(openai.beta.threads.messages.list, thread_id=thread_id)
-    for m in msgs.data:
-        if m.role == "assistant" and m.created_at > start:
-            return m.content[0].text.value
-    return "[No response generated]"
+        async def _one(call):
+            fn_name = call.name
+            call_id = call.call_id
+            try:
+                args = json.loads(call.arguments)
+            except json.JSONDecodeError:
+                args = {}
+            output = await tool_router_async(fn_name, args)
+            tool_call_log.append({
+                "name": fn_name,
+                "args": args,
+                "output_size": len(output),
+                "round": round_num,
+            })
+            return {
+                "type": "function_call_output",
+                "call_id": call_id,
+                "output": output,
+            }
+
+        tool_outputs = await asyncio.gather(*[_one(c) for c in tool_calls])
+
+        response = await asyncio.to_thread(
+            client.responses.create,
+            model=model,
+            previous_response_id=response.id,
+            input=list(tool_outputs),
+            tools=tools,
+            instructions=instructions,
+        )
+
+    text = _extract_response_text(response)
+    response_id = response.id if hasattr(response, "id") else None
+
+    return text, response_id, tool_call_log

@@ -1,18 +1,19 @@
-# assistant_config.py - GPT-4.1 Thread-based Context Configuration
+# assistant_config.py - GPT-4.1 Responses API Configuration
 # ────────────────────────────────────────────────────────────────
-# This file contains configuration snippets for GPT-4.1 integration.
+# v5.0 – Responses API Migration
 # GPT-4.1 features: 1M token context, improved instruction following,
 # better function calling, and enhanced reasoning capabilities.
 #
-# Thread-based context management:
-# - OpenAI threads store full conversation history server-side
-# - thread_id is the primary context reference
+# Responses API context management:
+# - Conversation continuity via previous_response_id
+# - Instructions passed directly to each API call
+# - No server-side thread storage (stateless API)
 # - Token budgets define how much local context to include in prompts
 # ────────────────────────────────────────────────────────────────
 
 # Sidebar Context Management Settings (for main.py integration)
 """
-st.sidebar.markdown("### 🧠 Context Management")
+st.sidebar.markdown("### Context Management")
 context_mode = st.sidebar.selectbox("Context Mode:", [
     "Fast (24k tokens) - GPT-4.1 Standard",
     "Extended (48k tokens) - GPT-4.1 Extended",
@@ -31,19 +32,19 @@ else:
 st.session_state["token_budget"] = token_budget
 
 # GPT-4.1 Status Indicator
-st.sidebar.markdown("### ⚡ API Status")
-st.sidebar.success("🚀 GPT-4.1 Active - Thread-based Context")
-st.sidebar.caption("Thread manages full history, local context is supplementary")
+st.sidebar.markdown("### API Status")
+st.sidebar.success("GPT-4.1 Active - Responses API")
+st.sidebar.caption("Conversation continuity via response chaining")
 
 if st.session_state["history"]:
     total_exchanges = len(st.session_state["history"])
     estimated_tokens = sum(len(msg["content"]) // 4 for msg in st.session_state["history"])
-    st.sidebar.caption(f"📊 Total: {total_exchanges} exchanges (~{estimated_tokens:,} tokens)")
-    st.sidebar.caption(f"🎯 Budget: {token_budget:,} tokens per request")
+    st.sidebar.caption(f"Total: {total_exchanges} exchanges (~{estimated_tokens:,} tokens)")
+    st.sidebar.caption(f"Budget: {token_budget:,} tokens per request")
 
     # Context utilization
     utilization = (estimated_tokens / 1_000_000) * 100
-    st.sidebar.caption(f"📈 Context Used: {utilization:.2f}% of 1M")
+    st.sidebar.caption(f"Context Used: {utilization:.2f}% of 1M")
 
 # Initialize session start time for tracking
 if "session_start" not in st.session_state:
@@ -56,28 +57,33 @@ if "session_start" not in st.session_state:
 
 GPT41_CONFIG = {
     "model": "gpt-4.1",
-    "model_checkpoint": "gpt-4.1",  # Use full model for checkpoints too
+    "model_checkpoint": "gpt-4.1",
     "max_context_tokens": 1_000_000,
     "max_output_tokens": 32_768,
-    "default_token_budget": 24_000,   # Balanced responses (increased from 16k)
-    "extended_token_budget": 48_000,  # Complex queries (increased from 32k)
-    "maximum_token_budget": 96_000,   # Deep analysis (increased from 64k)
-    # Thread-based context: OpenAI threads manage full history server-side
-    "thread_based_context": True,
+    "default_token_budget": 24_000,
+    "extended_token_budget": 48_000,
+    "maximum_token_budget": 96_000,
+    # Responses API: stateless, no server-side history
+    "api": "responses",
 }
 
 # ────────────────────────────────────────────────────────────────
-# Run Configuration for GPT-4.1
+# Responses API Configuration
 # ────────────────────────────────────────────────────────────────
 
-def get_run_config(token_budget: int = 24000) -> dict:
-    """Get optimized run configuration for GPT-4.1 with thread-based context."""
+def get_responses_config(token_budget: int = 24000) -> dict:
+    """Get optimized configuration for GPT-4.1 Responses API calls.
+
+    Responses API is stateless:
+    - Instructions passed per-request
+    - Conversation continuity via previous_response_id
+    - No thread/run management overhead
+    """
     return {
+        "model": "gpt-4.1",
+        "max_output_tokens": 12_000,
         "tool_choice": "auto",
-        "max_prompt_tokens": min(token_budget, 48_000),  # Increased for richer context
-        "max_completion_tokens": 12_000,  # Increased for GPT-4.1 capacity
-        "truncation_strategy": {"type": "auto"},
-        # Thread-based: OpenAI handles context management via thread_id
+        "token_budget": token_budget,
     }
 
 
@@ -89,28 +95,21 @@ def adaptive_medcomms_context(history, token_budget=24000):
     """
     Smart context that adapts to token budget - optimized for GPT-4.1.
 
-    Thread-based Context:
-    - OpenAI threads store full conversation history server-side
-    - This function provides supplementary local context
+    Responses API Context:
+    - Conversation continuity via previous_response_id chain
+    - This function provides supplementary local context for prompt enrichment
     - Prioritizes: Recent + Document analysis + Key decisions
-
-    GPT-4.1 Optimization:
-    - Default budget increased to 24k for richer responses
-    - Last 8 exchanges included for good continuity (increased from 6)
-    - Balances context quality with response speed
     """
     if not history:
         return []
 
-    # Include last 8 exchanges for good continuity (thread has full history)
     must_include = history[-8:] if len(history) >= 8 else history
     remaining_budget = token_budget - estimate_tokens_simple(must_include)
 
     if len(history) <= 8:
         return must_include
 
-    # Categorization logic continues...
-    return must_include  # Placeholder
+    return must_include
 
 
 def estimate_tokens_simple(messages):
@@ -128,12 +127,11 @@ def create_context_prompt_with_budget(
     user_input, output_type, response_tone, compliance_level,
     user_role, user_client, history, token_budget
 ):
-    """Create context-aware prompt optimized for GPT-4.1 with thread-based context.
+    """Create context-aware prompt optimized for GPT-4.1 Responses API.
 
-    Thread-based context management:
-    - OpenAI threads store full conversation history server-side via thread_id
+    Responses API context management:
+    - Conversation continuity via previous_response_id chain
     - This prompt includes supplementary local context for immediate reference
-    - Model: GPT-4.1 throughout
     """
     from datetime import datetime
     import json
@@ -141,14 +139,12 @@ def create_context_prompt_with_budget(
     current_date = datetime.now().strftime("%Y-%m-%d")
     date_today = datetime.now().strftime("%B %d, %Y")
 
-    # Use adaptive context management - thread has full history
     context_history = adaptive_medcomms_context(history, token_budget=token_budget)
 
-    # Create summary if we trimmed content
     summary = None
     if len(context_history) < len(history):
         trimmed_count = len(history) - len(context_history)
-        summary = f"Prior {trimmed_count} exchanges stored in thread (full history preserved server-side)."
+        summary = f"Prior {trimmed_count} exchanges available via response chain (conversation preserved)."
 
     context = {
         "current_date": current_date,
@@ -156,11 +152,11 @@ def create_context_prompt_with_budget(
             "timestamp": datetime.now().isoformat(),
             "total_exchanges": len(history),
             "context_exchanges": len(context_history),
-            "context_mode": f"gpt41_thread_based_{token_budget}tokens",
+            "context_mode": f"gpt41_responses_api_{token_budget}tokens",
             "token_budget": token_budget,
             "model": "gpt-4.1",
             "max_context": "1M tokens",
-            "thread_based": True  # OpenAI thread manages full history
+            "api": "responses",
         },
         "user_profile": {
             "role": user_role,
@@ -187,9 +183,9 @@ INSTRUCTIONS:
 - Output Type: {output_type}
 - Response Tone: {response_tone}
 - Compliance Level: {compliance_level}
-- Context: GPT-4.1 Thread-based MedComms ({token_budget:,} tokens)
+- Context: GPT-4.1 Responses API MedComms ({token_budget:,} tokens)
 - Model: GPT-4.1
-- Note: Full conversation history is maintained in the OpenAI thread
+- Note: Conversation continuity maintained via response chain
 
 Focus on the most relevant recent context for high-quality responses.
 
