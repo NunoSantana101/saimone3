@@ -93,6 +93,32 @@ FILE_REGISTRY: Dict[str, Dict[str, str]] = {
         "filename": "authoritative_sources_speyside_starter_v1_1.json",
         "description": "Source credibility rankings, primary/secondary classifications",
     },
+    "comparison_guide": {
+        "file_id": "",
+        "filename": "comparison_guide_similarity_engine.json",
+        "description": (
+            "Dynamic multi-dimensional similarity matching engine for "
+            "pharmaceutical launch comparison — constraint-based matching, "
+            "feature extraction schema, similarity scoring, cascade effects"
+        ),
+    },
+    "pricing_market_access": {
+        "file_id": "",
+        "filename": "pricing_market_access_v2.json",
+        "description": (
+            "Pricing & market access module — pricing strategies, managed "
+            "entry agreements, tender dynamics, Monte Carlo-ready uncertainty "
+            "models, cross-country dependencies"
+        ),
+    },
+    "competitive_intelligence": {
+        "file_id": "",
+        "filename": "competitive_intelligence_v1.json",
+        "description": (
+            "Competitive intelligence schema — war gaming, threat assessment, "
+            "comparative simulation, predictive timeline modelling"
+        ),
+    },
 }
 
 # Datasets that the LLM can request via query_hard_logic
@@ -226,9 +252,17 @@ class HardLogicStore:
 
         Returns the file text, or None if the download fails.
         Handles the 'purpose=assistants' restriction gracefully.
+        Skips files without a valid file_id (local-only datasets).
         """
+        file_id = meta.get("file_id", "")
+        if not file_id:
+            _logger.info(
+                "No file_id for %s — local-only dataset, skipping OpenAI download",
+                meta["filename"],
+            )
+            return None
         try:
-            raw_bytes = client.files.content(meta["file_id"])
+            raw_bytes = client.files.content(file_id)
             return raw_bytes.read().decode("utf-8")
         except Exception as exc:
             err_str = str(exc)
@@ -295,6 +329,9 @@ class HardLogicStore:
         describe      – pandas .describe() statistical summary
         cross_ref     – return rows from *dataset* that reference *filter_value*
                         in any column (useful for pillar↔tactic mapping)
+        raw_json      – return the complete original parsed JSON for *dataset*
+                        (use when full content is needed for code interpreter
+                        processing, similarity scoring, or cascade analysis)
 
         Returns a JSON-serialisable dict.
         """
@@ -307,6 +344,16 @@ class HardLogicStore:
         df = self._frames[dataset]
 
         try:
+            if operation == "raw_json":
+                raw = self._raw.get(dataset)
+                if raw is None:
+                    return {"error": f"No raw JSON available for '{dataset}'"}
+                return {
+                    "dataset": dataset,
+                    "format": "raw_json",
+                    "content": raw,
+                }
+
             if operation == "schema":
                 return _op_schema(df, dataset)
 
@@ -571,9 +618,13 @@ QUERY_HARD_LOGIC_TOOL: dict = {
     "description": (
         "Query the in-memory Hard Logic DataFrames that hold all JSON "
         "config data (pillars, metrics, tactics, stakeholders, roles, "
-        "KOLs, data sources, authoritative sources, value realisation). "
+        "KOLs, data sources, authoritative sources, value realisation, "
+        "comparison guide / similarity engine, pricing & market access, "
+        "competitive intelligence). "
         "This is faster and more reliable than file_search for structured "
-        "config data. Use file_search only for PDFs and free-text docs."
+        "config data. Use file_search only for PDFs and free-text docs. "
+        "Use operation='raw_json' to retrieve the full original JSON "
+        "content for code interpreter processing or similarity scoring."
     ),
     "parameters": {
         "type": "object",
@@ -593,11 +644,13 @@ QUERY_HARD_LOGIC_TOOL: dict = {
                     "lookup (exact-match on column), "
                     "search (full-text across all string columns), "
                     "cross_ref (rows referencing a value in any column), "
-                    "describe (statistical summary)."
+                    "describe (statistical summary), "
+                    "raw_json (full original JSON — use for code interpreter "
+                    "processing, similarity scoring, or cascade analysis)."
                 ),
                 "enum": [
                     "schema", "list_all", "filter", "lookup",
-                    "search", "cross_ref", "describe",
+                    "search", "cross_ref", "describe", "raw_json",
                 ],
             },
             "filter_column": {
