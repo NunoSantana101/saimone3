@@ -151,7 +151,7 @@ DEFAULT_TEMPERATURE = 0.7
 VECTOR_STORE_ID = "vs_693fe785b1a081918f82e9f903e008ed"
 
 # ──────────────────────────────────────────────────────────────────────
-#  Code Interpreter – mc_rng.py file registration
+#  Code Interpreter – file registration (mc_rng.py + JSON configs)
 # ──────────────────────────────────────────────────────────────────────
 MC_RNG_FILE_ID = "file-P2EgMJJmLDWSJqZnKBoiBJ"
 
@@ -159,9 +159,104 @@ _ci_container_id: Optional[str] = None
 _ci_container_attempts: int = 0
 _CI_MAX_RETRIES: int = 3  # stop retrying after this many failures
 
+# Cache for JSON files uploaded to OpenAI during this session
+# (files without pre-existing file_ids in the registry)
+_uploaded_json_file_ids: Dict[str, str] = {}
+
+
+def _ensure_json_file_ids() -> Dict[str, str]:
+    """Upload local JSON files that lack OpenAI file IDs.
+
+    Returns a mapping of filename → file_id for all JSON configs
+    that have valid IDs (either from the Hard Logic registry or
+    freshly uploaded during this session).
+
+    Files already registered with a file_id are used directly.
+    Local-only files (empty file_id) are uploaded to OpenAI so they
+    can be loaded into the code interpreter container.
+    """
+    from hard_logic import FILE_REGISTRY, LOCAL_DATA_DIR
+
+    all_ids: Dict[str, str] = {}
+    client = get_client()
+
+    for key, meta in FILE_REGISTRY.items():
+        filename = meta["filename"]
+
+        # Already has a file_id in registry
+        existing_id = meta.get("file_id", "")
+        if existing_id:
+            all_ids[filename] = existing_id
+            continue
+
+        # Already uploaded this session
+        if filename in _uploaded_json_file_ids:
+            all_ids[filename] = _uploaded_json_file_ids[filename]
+            continue
+
+        # Try to upload from local file
+        local_path = LOCAL_DATA_DIR / filename
+        if not local_path.exists():
+            _logger.warning("No local file for %s at %s", key, local_path)
+            continue
+
+        try:
+            with open(local_path, "rb") as f:
+                fobj = client.files.create(
+                    file=(filename, f),
+                    purpose="assistants",
+                )
+            _uploaded_json_file_ids[filename] = fobj.id
+            all_ids[filename] = fobj.id
+            _logger.info("Uploaded %s → %s for CI container", filename, fobj.id)
+        except Exception as exc:
+            _logger.warning("Could not upload %s to OpenAI: %s", filename, exc)
+
+    return all_ids
+
+
+def _get_all_container_file_ids() -> List[str]:
+    """Collect all file IDs to load into the code interpreter container.
+
+    Includes mc_rng.py plus every JSON config file that has a valid
+    OpenAI file ID (pre-existing or freshly uploaded).
+    """
+    file_ids = [MC_RNG_FILE_ID]
+
+    try:
+        json_ids = _ensure_json_file_ids()
+        file_ids.extend(json_ids.values())
+    except Exception as exc:
+        _logger.warning("Could not resolve JSON file IDs for container: %s", exc)
+
+    return list(set(file_ids))  # deduplicate
+
+
+def get_container_file_map() -> Dict[str, str]:
+    """Return a mapping of OpenAI file_id → friendly filename for all
+    files loaded (or to be loaded) into the code interpreter container.
+
+    Used to generate the file-copy initialisation script in system
+    instructions so the agent can reference files by name.
+    """
+    from hard_logic import FILE_REGISTRY
+
+    fmap: Dict[str, str] = {MC_RNG_FILE_ID: "mc_rng.py"}
+
+    for _key, meta in FILE_REGISTRY.items():
+        filename = meta["filename"]
+        fid = meta.get("file_id", "")
+        if fid:
+            fmap[fid] = filename
+        elif filename in _uploaded_json_file_ids:
+            fmap[_uploaded_json_file_ids[filename]] = filename
+
+    return fmap
+
 
 def _get_code_interpreter_container() -> Optional[str]:
-    """Lazy-create a sandbox container with mc_rng.py for code interpreter.
+    """Lazy-create a sandbox container with mc_rng.py and all JSON config
+    files for the code interpreter.
 
     Returns the container ID, or None if creation fails (falls back to
     system-instructions-based file loading).  After *_CI_MAX_RETRIES*
@@ -174,16 +269,18 @@ def _get_code_interpreter_container() -> Optional[str]:
         return _ci_container_id or None  # "" sentinel → None
     try:
         client = get_client()
+        all_file_ids = _get_all_container_file_ids()
         container = client.containers.create(
-            name="saimone-mc-rng",
-            file_ids=[MC_RNG_FILE_ID],
+            name="saimone-ci",
+            file_ids=all_file_ids,
         )
         _ci_container_id = container.id
         _ci_container_attempts = 0
         _logger.info(
-            "Created CI container %s with mc_rng.py (%s)",
+            "Created CI container %s with %d files (mc_rng.py + %d JSON configs)",
             _ci_container_id,
-            MC_RNG_FILE_ID,
+            len(all_file_ids),
+            len(all_file_ids) - 1,
         )
         return _ci_container_id
     except Exception as exc:
@@ -285,11 +382,12 @@ def build_tools_list() -> List[dict]:
         "vector_store_ids": [VECTOR_STORE_ID],
     })
 
-    # 3. OpenAI built-in code_interpreter (v7.3)
+    # 3. OpenAI built-in code_interpreter (v7.5)
     #    - Sandboxed Python execution environment
     #    - Used for Monte Carlo simulations, Bayesian inference,
-    #      statistical modelling, and data visualisation
-    #    - mc_rng.py (MC_RNG_FILE_ID) registered via container for sandbox access
+    #      statistical modelling, data visualisation, and similarity scoring
+    #    - mc_rng.py + all JSON config files registered via container
+    #    - JSON files available at /mnt/data/ for direct import/loading
     #    - No function_call routing needed; execution is server-side
     ci_tool: dict = {"type": "code_interpreter"}
     _container = _get_code_interpreter_container()
