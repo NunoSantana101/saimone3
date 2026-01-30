@@ -10,6 +10,13 @@ v5.0 – OpenAI Responses API Migration:
 - Conversation continuity via previous_response_id
 - All data processing / truncation / pipeline logic preserved
 
+v6.0 – GPT-5.2 Upgrade:
+- Model upgraded from gpt-4.1 to gpt-5.2
+- 400K token context window (up from 1M effective)
+- 128K max output tokens (up from 32K)
+- Adaptive reasoning with dynamic compute allocation
+- Knowledge cutoff: August 31, 2025
+
 Key changes from v4.x:
 - No threads, no runs, no polling
 - response_id replaces thread_id for continuity
@@ -101,7 +108,7 @@ def reset_client():
 # ──────────────────────────────────────────────────────────────────────
 #  Default model
 # ──────────────────────────────────────────────────────────────────────
-DEFAULT_MODEL = "gpt-4.1"
+DEFAULT_MODEL = "gpt-5.2"
 
 # ──────────────────────────────────────────────────────────────────────
 #  Tool Definitions for Responses API
@@ -338,44 +345,18 @@ def get_tools() -> List[dict]:
 
 # ──────────────────────────────────────────────────────────────────────
 #  System Instructions for Responses API
+#  Loaded from system_instructions.txt (same file used by workflow_agents.py)
 # ──────────────────────────────────────────────────────────────────────
 
-SYSTEM_INSTRUCTIONS = """You are sAImone, an expert Medical Affairs AI assistant powered by GPT-4.1.
+_INSTRUCTIONS_PATH = os.path.join(os.path.dirname(__file__), "system_instructions.txt")
 
-CORE CAPABILITIES:
-- Search 70+ medical/regulatory databases worldwide (PubMed, FDA, EMA, ClinicalTrials.gov, WHO, ANVISA, PMDA, NMPA, etc.)
-- Analyse clinical data, regulatory filings, and safety reports
-- Discover and profile Key Opinion Leaders (KOLs) globally
-- Run statistical analyses (Monte Carlo, Bayesian inference)
-- Read and extract content from web pages for deeper analysis
-
-ACCURACY & VALIDATION:
-- Provide medically accurate, evidence-based responses only
-- Distinguish VERIFIED FACTS vs INFERENCES/ASSUMPTIONS
-- Validate clinical data and regulatory timelines against primary sources via search
-- Flag uncertainty with "Requires verification"
-
-SOURCE VERIFICATION:
-- Prioritize: FDA/EMA filings, peer-reviewed publications
-- Cross-reference claims against multiple sources
-- For time-sensitive info, verify current status via live search
-- Always provide hyperlinks in reference sections
-- Always search regulatory agencies (EMA, FDA, country-specific) for system context
-
-COMPLIANCE:
-- Include regulatory considerations
-- Distinguish approved indications vs investigational uses
-- Note geographic regulatory variations
-
-DATA INTEGRATION:
-- Search internal files first for baseline
-- Combine internal data with live searches for updates
-- Note source recency when conflicts arise
-
-SEARCH STRATEGY:
-- When search results include URLs and content is truncated, use read_webpage on the most relevant 1-2 URLs to get full page text
-- Use fallback_sources when primary source returns few results
-- For comprehensive coverage, search multiple complementary sources"""
+try:
+    with open(_INSTRUCTIONS_PATH, encoding="utf-8") as _f:
+        SYSTEM_INSTRUCTIONS = _f.read()
+    _logger.info("Loaded system instructions from %s (%d chars)", _INSTRUCTIONS_PATH, len(SYSTEM_INSTRUCTIONS))
+except FileNotFoundError:
+    _logger.warning("system_instructions.txt not found at %s – using fallback", _INSTRUCTIONS_PATH)
+    SYSTEM_INSTRUCTIONS = "You are sAImone, an expert Medical Affairs AI assistant powered by GPT-5.2."
 
 
 # ──────────────────────────────────────────────────────────────────────

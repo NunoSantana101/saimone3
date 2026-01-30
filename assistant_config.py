@@ -1,8 +1,8 @@
-# assistant_config.py - GPT-4.1 Responses API Configuration
+# assistant_config.py - GPT-5.2 Responses API Configuration
 # ────────────────────────────────────────────────────────────────
-# v5.0 – Responses API Migration
-# GPT-4.1 features: 1M token context, improved instruction following,
-# better function calling, and enhanced reasoning capabilities.
+# v6.0 – GPT-5.2 Upgrade
+# GPT-5.2 features: 400K token context, 128K max output, adaptive
+# reasoning, improved function calling, and enhanced coding/science.
 #
 # Responses API context management:
 # - Conversation continuity via previous_response_id
@@ -15,13 +15,13 @@
 """
 st.sidebar.markdown("### Context Management")
 context_mode = st.sidebar.selectbox("Context Mode:", [
-    "Fast (24k tokens) - GPT-4.1 Standard",
-    "Extended (48k tokens) - GPT-4.1 Extended",
-    "Maximum (96k tokens) - GPT-4.1 Maximum",
+    "Fast (24k tokens) - GPT-5.2 Standard",
+    "Extended (48k tokens) - GPT-5.2 Extended",
+    "Maximum (96k tokens) - GPT-5.2 Maximum",
 ], index=0)
 
 if "24k" in context_mode:
-    token_budget = 24000   # GPT-4.1 optimized default - balanced responses
+    token_budget = 24000   # GPT-5.2 optimized default - balanced responses
 elif "48k" in context_mode:
     token_budget = 48000   # Extended for complex queries
 elif "96k" in context_mode:
@@ -31,9 +31,9 @@ else:
 
 st.session_state["token_budget"] = token_budget
 
-# GPT-4.1 Status Indicator
+# GPT-5.2 Status Indicator
 st.sidebar.markdown("### API Status")
-st.sidebar.success("GPT-4.1 Active - Responses API")
+st.sidebar.success("GPT-5.2 Active - Responses API")
 st.sidebar.caption("Conversation continuity via response chaining")
 
 if st.session_state["history"]:
@@ -43,8 +43,8 @@ if st.session_state["history"]:
     st.sidebar.caption(f"Budget: {token_budget:,} tokens per request")
 
     # Context utilization
-    utilization = (estimated_tokens / 1_000_000) * 100
-    st.sidebar.caption(f"Context Used: {utilization:.2f}% of 1M")
+    utilization = (estimated_tokens / 400_000) * 100
+    st.sidebar.caption(f"Context Used: {utilization:.2f}% of 400K")
 
 # Initialize session start time for tracking
 if "session_start" not in st.session_state:
@@ -52,14 +52,14 @@ if "session_start" not in st.session_state:
 """
 
 # ────────────────────────────────────────────────────────────────
-# GPT-4.1 Model Configuration
+# GPT-5.2 Model Configuration
 # ────────────────────────────────────────────────────────────────
 
-GPT41_CONFIG = {
-    "model": "gpt-4.1",
-    "model_checkpoint": "gpt-4.1",
-    "max_context_tokens": 1_000_000,
-    "max_output_tokens": 32_768,
+GPT52_CONFIG = {
+    "model": "gpt-5.2",
+    "model_checkpoint": "gpt-5.2",
+    "max_context_tokens": 400_000,
+    "max_output_tokens": 128_000,
     "default_token_budget": 24_000,
     "extended_token_budget": 48_000,
     "maximum_token_budget": 96_000,
@@ -72,7 +72,7 @@ GPT41_CONFIG = {
 # ────────────────────────────────────────────────────────────────
 
 def get_responses_config(token_budget: int = 24000) -> dict:
-    """Get optimized configuration for GPT-4.1 Responses API calls.
+    """Get optimized configuration for GPT-5.2 Responses API calls.
 
     Responses API is stateless:
     - Instructions passed per-request
@@ -80,7 +80,7 @@ def get_responses_config(token_budget: int = 24000) -> dict:
     - No thread/run management overhead
     """
     return {
-        "model": "gpt-4.1",
+        "model": "gpt-5.2",
         "max_output_tokens": 12_000,
         "tool_choice": "auto",
         "token_budget": token_budget,
@@ -88,12 +88,12 @@ def get_responses_config(token_budget: int = 24000) -> dict:
 
 
 # ────────────────────────────────────────────────────────────────
-# Adaptive Context Function (GPT-4.1 Optimized)
+# Adaptive Context Function (GPT-5.2 Optimized)
 # ────────────────────────────────────────────────────────────────
 
 def adaptive_medcomms_context(history, token_budget=24000):
     """
-    Smart context that adapts to token budget - optimized for GPT-4.1.
+    Smart context that adapts to token budget - optimized for GPT-5.2.
 
     Responses API Context:
     - Conversation continuity via previous_response_id chain
@@ -120,14 +120,14 @@ def estimate_tokens_simple(messages):
 
 
 # ────────────────────────────────────────────────────────────────
-# Context Prompt Builder (GPT-4.1 Optimized)
+# Context Prompt Builder (GPT-5.2 Optimized)
 # ────────────────────────────────────────────────────────────────
 
 def create_context_prompt_with_budget(
     user_input, output_type, response_tone, compliance_level,
     user_role, user_client, history, token_budget
 ):
-    """Create context-aware prompt optimized for GPT-4.1 Responses API.
+    """Create context-aware prompt optimized for GPT-5.2 Responses API.
 
     Responses API context management:
     - Conversation continuity via previous_response_id chain
@@ -152,10 +152,10 @@ def create_context_prompt_with_budget(
             "timestamp": datetime.now().isoformat(),
             "total_exchanges": len(history),
             "context_exchanges": len(context_history),
-            "context_mode": f"gpt41_responses_api_{token_budget}tokens",
+            "context_mode": f"gpt52_responses_api_{token_budget}tokens",
             "token_budget": token_budget,
-            "model": "gpt-4.1",
-            "max_context": "1M tokens",
+            "model": "gpt-5.2",
+            "max_context": "400K tokens",
             "api": "responses",
         },
         "user_profile": {
@@ -183,8 +183,8 @@ INSTRUCTIONS:
 - Output Type: {output_type}
 - Response Tone: {response_tone}
 - Compliance Level: {compliance_level}
-- Context: GPT-4.1 Responses API MedComms ({token_budget:,} tokens)
-- Model: GPT-4.1
+- Context: GPT-5.2 Responses API MedComms ({token_budget:,} tokens)
+- Model: GPT-5.2
 - Note: Conversation continuity maintained via response chain
 
 Focus on the most relevant recent context for high-quality responses.

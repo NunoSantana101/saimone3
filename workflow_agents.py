@@ -83,10 +83,10 @@ def build_agent(model: str) -> Agent:
     )
 
 
-def run_workflow_sync(text: str, *, model: str = "gpt-4.1") -> str:
+def run_workflow_sync(text: str, *, model: str = "gpt-5.2") -> str:
     """
     Runs the workflow and returns the final output text.
-    Uses GPT-4.1 for consistency across the system.
+    Uses GPT-5.2 for consistency across the system.
     If anything fails, returns a visible error string (so Streamlit doesn't appear stuck).
     """
     try:
