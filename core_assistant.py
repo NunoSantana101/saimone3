@@ -3,12 +3,17 @@ core_assistant.py
 Pure-python engine shared by the Streamlit UI (assistant.py) and any CLI or
 batch runner.  NO Streamlit or console I/O; it just raises exceptions.
 
+v7.2 – Code Interpreter:
+- Activates OpenAI's built-in code_interpreter tool so the model can
+  execute Python code in a sandboxed environment for quantitative analysis,
+  Monte Carlo simulations, Bayesian inference, and data visualisation
+- All 6 tools: web_search_preview, file_search, code_interpreter,
+  run_statistical_analysis, monte_carlo_simulation, bayesian_analysis
+
 v7.1 – Vector Store file_search:
 - Connects vector store vs_693fe785b1a081918f82e9f903e008ed via built-in
   file_search tool so the Responses API can retrieve config JSONs, PDFs,
   and proprietary reference files at runtime
-- All 5 tools: web_search_preview, file_search, run_statistical_analysis,
-  monte_carlo_simulation, bayesian_analysis
 
 v7.0 – OpenAI Built-in Web Search (test):
 - Replaces custom med_affairs_data / Tavily backend with OpenAI's
@@ -112,9 +117,10 @@ def reset_client():
 
 
 # ──────────────────────────────────────────────────────────────────────
-#  Default model
+#  Default model & temperature
 # ──────────────────────────────────────────────────────────────────────
 DEFAULT_MODEL = "gpt-5.2"
+DEFAULT_TEMPERATURE = 0.7
 
 # ──────────────────────────────────────────────────────────────────────
 #  Vector Store – OpenAI file_search
@@ -132,6 +138,10 @@ VECTOR_STORE_ID = "vs_693fe785b1a081918f82e9f903e008ed"
 def build_tools_list() -> List[dict]:
     """
     Build the complete tools list for Responses API.
+
+    v7.2: Added code_interpreter tool for sandboxed Python execution.
+    Enables the model to run Monte Carlo simulations, Bayesian inference,
+    statistical analysis, and data visualisation directly.
 
     v7.1: Added file_search tool connected to vector store
     vs_693fe785b1a081918f82e9f903e008ed for config JSONs, PDFs, and
@@ -162,7 +172,17 @@ def build_tools_list() -> List[dict]:
         "vector_store_ids": [VECTOR_STORE_ID],
     })
 
-    # 3. run_statistical_analysis – Monte Carlo & Bayesian (function tool)
+    # 3. OpenAI built-in code_interpreter (v7.2)
+    #    - Sandboxed Python execution environment
+    #    - Used for Monte Carlo simulations, Bayesian inference,
+    #      statistical modelling, and data visualisation
+    #    - Has access to files uploaded to the vector store (e.g. mc_rng.py)
+    #    - No function_call routing needed; execution is server-side
+    tools.append({
+        "type": "code_interpreter",
+    })
+
+    # 4. run_statistical_analysis – Monte Carlo & Bayesian (function tool)
     tools.append({
         "type": "function",
         "name": "run_statistical_analysis",
@@ -191,7 +211,7 @@ def build_tools_list() -> List[dict]:
         },
     })
 
-    # 4. monte_carlo_simulation – specific MC function
+    # 5. monte_carlo_simulation – specific MC function
     tools.append({
         "type": "function",
         "name": "monte_carlo_simulation",
@@ -229,7 +249,7 @@ def build_tools_list() -> List[dict]:
         },
     })
 
-    # 5. bayesian_analysis – specific Bayesian function
+    # 6. bayesian_analysis – specific Bayesian function
     tools.append({
         "type": "function",
         "name": "bayesian_analysis",
@@ -790,6 +810,7 @@ def _get_tool_calls(response) -> list:
 def run_responses_sync(
     *,
     model: str = DEFAULT_MODEL,
+    temperature: float = DEFAULT_TEMPERATURE,
     input_messages: Optional[List[dict]] = None,
     input_text: Optional[str] = None,
     instructions: str = SYSTEM_INSTRUCTIONS,
@@ -826,6 +847,7 @@ def run_responses_sync(
     try:
         kwargs = {
             "model": model,
+            "temperature": temperature,
             "input": api_input,
             "tools": tools,
         }
@@ -899,6 +921,7 @@ def run_responses_sync(
         try:
             response = client.responses.create(
                 model=model,
+                temperature=temperature,
                 previous_response_id=response.id,
                 input=tool_outputs,
                 tools=tools,
@@ -910,6 +933,7 @@ def run_responses_sync(
             time.sleep(2)
             response = client.responses.create(
                 model=model,
+                temperature=temperature,
                 previous_response_id=response.id,
                 input=tool_outputs,
                 tools=tools,
@@ -929,6 +953,7 @@ def run_responses_sync(
 async def run_responses_async(
     *,
     model: str = DEFAULT_MODEL,
+    temperature: float = DEFAULT_TEMPERATURE,
     input_messages: Optional[List[dict]] = None,
     input_text: Optional[str] = None,
     instructions: str = SYSTEM_INSTRUCTIONS,
@@ -965,6 +990,7 @@ async def run_responses_async(
     # Initial response (run in thread pool since sync client)
     kwargs = {
         "model": model,
+        "temperature": temperature,
         "input": api_input,
         "tools": tools,
     }
@@ -1010,6 +1036,7 @@ async def run_responses_async(
         response = await asyncio.to_thread(
             client.responses.create,
             model=model,
+            temperature=temperature,
             previous_response_id=response.id,
             input=list(tool_outputs),
             tools=tools,
