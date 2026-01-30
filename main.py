@@ -24,14 +24,11 @@ from html import escape
 import unicodedata
 import textwrap
 
-# -- Import your backend utility functions
-from assistant import run_assistant, handle_file_upload, validate_file_exists, _handle_function_call
-from core_assistant import wait_for_idle_thread, validate_thread_exists
+# -- Import your backend utility functions (v5.0 Responses API)
+from assistant import run_assistant, run_simple, handle_file_upload, validate_file_exists
 
 # -- Import improved session management (cost-optimized, resilient)
 from session_manager import (
-    validate_thread_exists_cached,
-    invalidate_thread_cache,
     get_optimized_context,
     create_checkpoint_summary,
     get_silent_instructions,
@@ -104,24 +101,20 @@ def get_api_keys():
     try:
         return {
             'openai_api_key': st.secrets["OPENAI_API_KEY"],
-            'assistant_id': st.secrets["ASSISTANT_ID"],
             'tavily_api_key': st.secrets.get("TAVILY_API_KEY", "")
         }
     except Exception:
         openai_key = os.getenv("OPENAI_API_KEY")
-        assistant_id = os.getenv("ASSISTANT_ID")
-        if not openai_key or not assistant_id:
-            st.error("🔑 Missing API keys! Set OPENAI_API_KEY and ASSISTANT_ID in secrets or environment variables.")
+        if not openai_key:
+            st.error("🔑 Missing API key! Set OPENAI_API_KEY in secrets or environment variables.")
             st.stop()
         return {
             'openai_api_key': openai_key,
-            'assistant_id': assistant_id,
             'tavily_api_key': os.getenv("TAVILY_API_KEY", "")
         }
 
 api_keys = get_api_keys()
 openai.api_key = api_keys['openai_api_key']
-ASSISTANT_ID = api_keys['assistant_id']
 
 st.markdown("""
 <style>
@@ -1052,7 +1045,7 @@ def create_comprehensive_json_export():
                 'login_time': user_info['login_time'] if user_info else ''
             },
             'thread_info': {
-                'thread_id': st.session_state.get('thread_id', ''),
+                'response_id': st.session_state.get('last_response_id', ''),
                 'user_thread_registry': st.session_state.get('user_thread_registry', {})
             },
             'conversation_data': {
@@ -1094,7 +1087,7 @@ def create_comprehensive_json_export():
                 'checkpoints': 'array',
                 'last_checkpoint_turn': 'number',
                 'recent_history': 'last 8 messages',
-                'thread_id': 'string',
+                'response_id': 'string',
                 'user_profile': 'object'
             }
         }
@@ -1127,126 +1120,38 @@ def generate_json_download():
         st.error(f"Error generating JSON: {str(e)}")
         return None, None
 
-def _fetch_run_steps(thread_id, run_id):
-    """Fetch all run steps from the OpenAI API and return parsed tool-call data.
+def _enrich_last_search_entry():
+    """Attach tool call log data to the most recent search_history entry.
 
-    Returns a list of step dicts, each containing the full tool call details
-    (function name, arguments, output/results) with no capping or truncation.
-    """
-    try:
-        steps_page = openai.beta.threads.runs.steps.list(
-            thread_id=thread_id,
-            run_id=run_id,
-            limit=100,
-        )
-        actions = []
-        for step in steps_page.data:
-            if step.type == "tool_calls":
-                tool_calls_data = []
-                for tc in step.step_details.tool_calls:
-                    call_entry = {"id": tc.id, "type": tc.type}
-                    if tc.type == "function":
-                        call_entry["function_name"] = tc.function.name
-                        try:
-                            call_entry["arguments"] = json.loads(tc.function.arguments) if tc.function.arguments else {}
-                        except (json.JSONDecodeError, TypeError):
-                            call_entry["arguments"] = tc.function.arguments
-                        # Full output returned to the agent
-                        try:
-                            call_entry["output"] = json.loads(tc.function.output) if tc.function.output else None
-                        except (json.JSONDecodeError, TypeError):
-                            call_entry["output"] = tc.function.output
-                    elif tc.type == "file_search":
-                        fs = getattr(tc, "file_search", None)
-                        call_entry["results"] = []
-                        if fs and hasattr(fs, "results") and fs.results:
-                            for r in fs.results:
-                                call_entry["results"].append({
-                                    "file_id": getattr(r, "file_id", None),
-                                    "file_name": getattr(r, "file_name", None),
-                                    "score": getattr(r, "score", None),
-                                    "content": getattr(r, "content", None),
-                                })
-                    elif tc.type == "code_interpreter":
-                        ci = getattr(tc, "code_interpreter", None)
-                        if ci:
-                            call_entry["input"] = getattr(ci, "input", None)
-                            call_entry["outputs"] = []
-                            if hasattr(ci, "outputs") and ci.outputs:
-                                for o in ci.outputs:
-                                    call_entry["outputs"].append({
-                                        "type": getattr(o, "type", None),
-                                        "text": getattr(o, "text", None) if hasattr(o, "text") else None,
-                                        "image_file_id": getattr(o.image, "file_id", None) if hasattr(o, "image") and o.image else None,
-                                    })
-                    elif tc.type == "web_search":
-                        ws = getattr(tc, "web_search", None)
-                        if ws and hasattr(ws, "results") and ws.results:
-                            call_entry["results"] = []
-                            for r in ws.results:
-                                call_entry["results"].append({
-                                    "url": getattr(r, "url", None),
-                                    "title": getattr(r, "title", None),
-                                    "snippet": getattr(r, "snippet", None),
-                                })
-                        else:
-                            call_entry["raw"] = str(ws)
-                    tool_calls_data.append(call_entry)
-
-                actions.append({
-                    "step_id": step.id,
-                    "type": step.type,
-                    "status": step.status,
-                    "created_at": step.created_at,
-                    "completed_at": getattr(step, "completed_at", None),
-                    "tool_calls": tool_calls_data,
-                })
-            elif step.type == "message_creation":
-                actions.append({
-                    "step_id": step.id,
-                    "type": step.type,
-                    "status": step.status,
-                    "created_at": step.created_at,
-                    "completed_at": getattr(step, "completed_at", None),
-                    "message_id": getattr(step.step_details.message_creation, "message_id", None),
-                })
-        return actions
-    except Exception as e:
-        return [{"error": f"Failed to fetch run steps: {str(e)}"}]
-
-
-def _enrich_last_search_entry(thread_id):
-    """Attach full run-steps data to the most recent search_history entry.
-
-    Works for both improved_assistant_run() (which pre-stores _last_run_id/steps)
-    and run_assistant() (falls back to querying the thread for the latest run).
+    v5.0: Uses tool_call_log from Responses API (no thread/run steps).
+    The tool_call_log is captured inline during run_responses_sync().
     """
     if not st.session_state.get("search_history"):
         return
 
     entry = st.session_state["search_history"][-1]
 
-    # Check if improved_assistant_run() already captured the data
-    run_id = st.session_state.pop("_last_run_id", None)
-    run_steps = st.session_state.pop("_last_run_steps", None)
+    # Get tool call log from last response (stored by the run functions)
+    tool_call_log = st.session_state.pop("_last_tool_call_log", [])
+    response_id = st.session_state.get("last_response_id", "")
 
-    if not run_id:
-        # Fallback: get the most recent completed run from the thread
-        try:
-            runs = openai.beta.threads.runs.list(
-                thread_id=thread_id, limit=1, order="desc"
-            )
-            if runs.data:
-                run_id = runs.data[0].id
-        except Exception:
-            return
+    # Convert tool_call_log to agent_actions format for compatibility
+    actions = []
+    for tc in tool_call_log:
+        actions.append({
+            "type": "tool_calls",
+            "status": "completed",
+            "tool_calls": [{
+                "type": "function",
+                "function_name": tc.get("name", "unknown"),
+                "arguments": tc.get("args", {}),
+                "output_size": tc.get("output_size", 0),
+                "round": tc.get("round", 0),
+            }],
+        })
 
-    if run_id and not run_steps:
-        run_steps = _fetch_run_steps(thread_id, run_id)
-
-    entry["thread_id"] = thread_id
-    entry["run_id"] = run_id
-    entry["agent_actions"] = run_steps or []
+    entry["response_id"] = response_id
+    entry["agent_actions"] = actions
 
 
 def generate_search_history_json():
@@ -1273,7 +1178,7 @@ def generate_search_history_json():
             "export_metadata": {
                 "export_timestamp": datetime.now().isoformat(),
                 "session_id": get_session_id(),
-                "thread_id": st.session_state.get("thread_id", ""),
+                "response_id": st.session_state.get("last_response_id", ""),
                 "export_type": "search_history_full",
                 "total_user_searches": len(search_entries),
                 "total_agent_tool_calls": total_tool_calls,
@@ -1388,7 +1293,7 @@ def save_medical_context():
         "checkpoints": st.session_state.get("checkpoints", []),
         "last_checkpoint_turn": st.session_state.get("last_checkpoint_turn", 0),
         "recent_history": st.session_state.get("history", [])[-8:],
-        "thread_id": st.session_state.get("thread_id", ""),
+        "response_id": st.session_state.get("last_response_id", ""),
         "user_profile": {
             "name": user_info['name'] if user_info else "",
             "email": user_info['email'] if user_info else "",
@@ -1409,8 +1314,8 @@ def load_medical_context():
             st.session_state["last_checkpoint_turn"] = stored_data["last_checkpoint_turn"]
         if "recent_history" in stored_data and not st.session_state.get("history"):
             st.session_state["history"] = stored_data["recent_history"]
-        if "thread_id" in stored_data and not st.session_state.get("thread_id"):
-            st.session_state["thread_id"] = stored_data["thread_id"]
+        if "last_response_id" in stored_data and not st.session_state.get("last_response_id"):
+            st.session_state["last_response_id"] = stored_data["last_response_id"]
         if "user_profile" in stored_data:
             profile = stored_data["user_profile"]
             # Don't override authenticated user info with stored data
@@ -1420,38 +1325,11 @@ def load_medical_context():
         return True
     return False
 
-# --- USER/THREAD LOGIC ---
+# --- USER/SESSION LOGIC (v5.0 Responses API) ---
+# No threads needed – conversation continuity via previous_response_id
 user_id = user_info['email'] if user_info else "anonymous"
-if "user_thread_registry" not in st.session_state:
-    st.session_state["user_thread_registry"] = {}
-
-# Check if user has an existing thread, and validate it still exists
-if user_id in st.session_state["user_thread_registry"]:
-    existing_thread_id = st.session_state["user_thread_registry"][user_id]
-    # Validate the thread using cached validation (reduces API calls)
-    is_valid, validation_error = validate_thread_exists_cached(existing_thread_id)
-    if not is_valid:
-        # Thread is invalid/expired - create a new one
-        try:
-            thread = openai.beta.threads.create()
-            st.session_state["user_thread_registry"][user_id] = thread.id
-            # Invalidate cache for old thread
-            invalidate_thread_cache(existing_thread_id)
-            # Clear history since thread was reset
-            if "history" in st.session_state:
-                st.session_state["history"] = []
-        except Exception as e:
-            st.error(f"Failed to create new thread: {e}")
-else:
-    # No existing thread - create new one
-    try:
-        thread = openai.beta.threads.create()
-        st.session_state["user_thread_registry"][user_id] = thread.id
-    except Exception as e:
-        st.error(f"Failed to create thread: {e}")
-
-thread_id = st.session_state["user_thread_registry"].get(user_id, "")
-st.session_state["thread_id"] = thread_id
+if "last_response_id" not in st.session_state:
+    st.session_state["last_response_id"] = None
 
 # --- SESSION STATE INIT WITH PERSISTENCE ---
 context_loaded = load_medical_context()
@@ -1552,151 +1430,41 @@ def checkpoint(history_slice):
     checkpoint_data = create_checkpoint_summary(history_slice, user_email)
     return checkpoint_data.get("summary", f"Summary unavailable. Session covers {len(history_slice)} exchanges.")
         
-def improved_assistant_run(thread_id, assistant_id, message):
-    """Run assistant with improved error handling for 400 errors and thread validation.
+def improved_assistant_run(message):
+    """Run assistant using Responses API with improved error handling.
 
-    Uses cached thread validation to reduce API calls and circuit breaker for resilience.
+    v5.0: Uses stateless Responses API – no threads, no polling.
+    Conversation continuity via previous_response_id chain.
     """
-    # Validate thread exists using cached validation (reduces redundant API calls)
-    is_valid, validation_error = validate_thread_exists_cached(thread_id)
-    if not is_valid:
-        st.error(f"❌ Thread validation failed: {validation_error}")
-        st.warning("💡 Please click 'Reset Session' in the sidebar to start fresh.")
-        # Clear invalid thread from registry
-        if "user_thread_registry" in st.session_state:
-            user_id = st.session_state.get("user_email", "anonymous")
-            if user_id in st.session_state["user_thread_registry"]:
-                del st.session_state["user_thread_registry"][user_id]
-        return f"Session error: {validation_error}"
-
     for attempt in range(RETRY_ATTEMPTS):
         try:
             context = assemble_medical_context()
             enhanced_message = f"{message}\n\n--- CONTEXT FOR CONTINUITY ---\n{context}" if context else message
 
-            if attempt == 0:
-                wait_for_idle_thread(thread_id, poll=POLLING_INTERVAL, timeout=MAX_WAIT)
-                try:
-                    openai.beta.threads.messages.create(
-                        thread_id=thread_id,
-                        role="user",
-                        content=enhanced_message
-                    )
-                except openai.BadRequestError as e:
-                    error_str = str(e).lower()
-                    if "thread" in error_str:
-                        st.error(f"❌ Thread error (400): {e}")
-                        st.warning("💡 Please click 'Reset Session' to start fresh.")
-                        return f"Thread error: {e}"
-                    raise  # Re-raise for other BadRequestErrors
-                except openai.NotFoundError as e:
-                    st.error(f"❌ Thread not found: {e}")
-                    st.warning("💡 Please click 'Reset Session' to start fresh.")
-                    return f"Thread not found: {e}"
+            response_text, response_id, tool_call_log = run_simple(
+                enhanced_message,
+                previous_response_id=st.session_state.get("last_response_id"),
+            )
 
-            try:
-                run = openai.beta.threads.runs.create(
-                    thread_id=thread_id,
-                    assistant_id=assistant_id
-                )
-            except openai.BadRequestError as e:
-                st.error(f"❌ Failed to create run (400): {e}")
-                return f"Run creation failed: {e}"
-            except openai.NotFoundError as e:
-                st.error(f"❌ Thread or assistant not found: {e}")
-                return f"Resource not found: {e}"
+            if response_id:
+                st.session_state["last_response_id"] = response_id
+            if tool_call_log:
+                st.session_state["_last_tool_call_log"] = tool_call_log
 
-            start_time = time.time()
-            status_placeholder = st.empty()
-
-            while True:
-                try:
-                    run_status = openai.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-                    elapsed = time.time() - start_time
-
-                    if int(elapsed) % 5 == 0:
-                        status_placeholder.info(f"🗽 Processing... ({elapsed:.0f}s) - Status: {run_status.status}")
-
-                    if run_status.status == "requires_action":
-                        _handle_function_call(run_status, thread_id, run.id)
-                    elif run_status.status == "completed":
-                        # Capture full run steps (tool calls + outputs) for search history export
-                        st.session_state["_last_run_id"] = run.id
-                        st.session_state["_last_run_steps"] = _fetch_run_steps(thread_id, run.id)
-
-                        # Use run_id filtering to get the correct assistant message
-                        messages = openai.beta.threads.messages.list(thread_id=thread_id, order="desc", limit=10)
-                        status_placeholder.empty()
-                        for m in messages.data:
-                            if m.role == "assistant":
-                                # Primary: match by run_id
-                                if hasattr(m, 'run_id') and m.run_id == run.id:
-                                    if m.content and len(m.content) > 0:
-                                        return m.content[0].text.value
-                                # Fallback: use timestamp comparison
-                                elif m.created_at >= int(start_time):
-                                    if m.content and len(m.content) > 0:
-                                        return m.content[0].text.value
-                        return "No response received"
-                    elif run_status.status in ["failed", "cancelled", "expired"]:
-                        status_placeholder.empty()
-                        if attempt < RETRY_ATTEMPTS - 1:
-                            st.warning(f"Run {run_status.status}, retrying...")
-                            try:
-                                openai.beta.threads.runs.cancel(thread_id=thread_id, run_id=run.id)
-                            except:
-                                pass
-                            break
-                        else:
-                            return f"Assistant run {run_status.status} after {RETRY_ATTEMPTS} attempts"
-                    elif elapsed > MAX_WAIT:
-                        status_placeholder.empty()
-                        if attempt < RETRY_ATTEMPTS - 1:
-                            st.warning(f"Timeout after {MAX_WAIT}s, cancelling and retrying...")
-                            try:
-                                openai.beta.threads.runs.cancel(thread_id=thread_id, run_id=run.id)
-                            except:
-                                pass
-                            break
-                        else:
-                            return f"Request timed out after {MAX_WAIT} seconds and {RETRY_ATTEMPTS} attempts."
-
-                    time.sleep(POLLING_INTERVAL)
-
-                except openai.RateLimitError:
-                    st.warning("Rate limit hit, waiting 10 seconds...")
-                    time.sleep(10)
-                    continue
-                except openai.BadRequestError as e:
-                    st.error(f"❌ API error during processing (400): {e}")
-                    return f"Processing error: {e}"
-
-            time.sleep(3)
-
-        except openai.BadRequestError as e:
-            error_msg = str(e)
-            st.error(f"❌ API error (400): {error_msg}")
-            if "thread" in error_msg.lower():
-                st.warning("💡 Please click 'Reset Session' to start fresh.")
-                return f"Thread error: {error_msg}"
-            if attempt < RETRY_ATTEMPTS - 1:
-                st.warning(f"Retrying... (attempt {attempt + 1})")
-                time.sleep(2)
+            if response_text and not response_text.startswith("❌"):
+                return response_text
+            elif attempt < RETRY_ATTEMPTS - 1:
+                st.warning(f"Response failed, retrying... ({response_text})")
+                time.sleep(2 ** attempt)
                 continue
-            return f"API error after {RETRY_ATTEMPTS} attempts: {error_msg}"
-        except openai.NotFoundError as e:
-            st.error(f"❌ Resource not found: {e}")
-            st.warning("💡 Please click 'Reset Session' to start fresh.")
-            return f"Not found error: {e}"
+            else:
+                return response_text
+
         except Exception as e:
             error_msg = str(e)
-            if "while a run" in error_msg and "is active" in error_msg:
-                st.warning(f"Waiting for active run to clear... (attempt {attempt + 1})")
-                time.sleep(5)
-                continue
-            elif attempt < RETRY_ATTEMPTS - 1:
+            if attempt < RETRY_ATTEMPTS - 1:
                 st.warning(f"Attempt {attempt + 1} failed: {error_msg}. Retrying...")
-                time.sleep(2)
+                time.sleep(2 ** attempt)
                 continue
             else:
                 return f"Error after {RETRY_ATTEMPTS} attempts: {error_msg}"
@@ -1743,59 +1511,23 @@ The welcome should:
 Be warm but professional. Do NOT include any system instructions or meta-commentary in your response."""
 
             with st.spinner("Preparing your personalized session..."):
-                # Direct API call for welcome - bypass context assembly
-                is_valid, validation_error = validate_thread_exists_cached(thread_id)
-                if is_valid:
-                    wait_for_idle_thread(thread_id, poll=POLLING_INTERVAL, timeout=MAX_WAIT)
-                    openai.beta.threads.messages.create(
-                        thread_id=thread_id,
-                        role="user",
-                        content=welcome_prompt
-                    )
-                    run = openai.beta.threads.runs.create(
-                        thread_id=thread_id,
-                        assistant_id=ASSISTANT_ID
-                    )
+                # v5.0: Use Responses API for welcome (no threads needed)
+                welcome_response, response_id, _ = run_simple(welcome_prompt)
 
-                    # Poll for completion
-                    start_time = time.time()
-                    while time.time() - start_time < 60:  # 60s timeout for welcome
-                        run_status = openai.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-                        if run_status.status == "completed":
-                            # Use run_id filtering to get the correct assistant message
-                            messages = openai.beta.threads.messages.list(thread_id=thread_id, order="desc", limit=10)
-                            welcome_response = None
-                            for m in messages.data:
-                                if m.role == "assistant":
-                                    # Primary: match by run_id
-                                    if hasattr(m, 'run_id') and m.run_id == run.id:
-                                        if m.content and len(m.content) > 0:
-                                            welcome_response = m.content[0].text.value
-                                            break
-                                    # Fallback: use timestamp (welcome is first run, so any assistant msg works)
-                                    elif m.created_at >= int(start_time):
-                                        if m.content and len(m.content) > 0:
-                                            welcome_response = m.content[0].text.value
-                                            break
-                            if welcome_response:
-                                st.session_state["history"].append({
-                                    "role": "assistant",
-                                    "content": welcome_response
-                                })
-                                st.session_state["welcome_sent"] = True
-                                save_medical_context()
-                                log_user_action("welcome_generated", {
-                                    "user": user_info.get('email'),
-                                    "role": user_info.get('role')
-                                })
-                            break
-                        elif run_status.status in ["failed", "cancelled", "expired"]:
-                            break
-                        elif run_status.status == "requires_action":
-                            _handle_function_call(run_status, thread_id, run.id)
-                        time.sleep(0.5)
-                else:
-                    st.session_state["welcome_sent"] = True  # Skip welcome on validation failure
+                if response_id:
+                    st.session_state["last_response_id"] = response_id
+
+                if welcome_response and not welcome_response.startswith("❌"):
+                    st.session_state["history"].append({
+                        "role": "assistant",
+                        "content": welcome_response
+                    })
+                    st.session_state["welcome_sent"] = True
+                    save_medical_context()
+                    log_user_action("welcome_generated", {
+                        "user": user_info.get('email'),
+                        "role": user_info.get('role')
+                    })
 
         except Exception as e:
             # Don't block on welcome failure
@@ -1835,50 +1567,29 @@ with st.sidebar:
     if st.button("🆕 New Chat"):
         log_user_action("new_chat", "User started new chat session")
         st.session_state["history"] = []
-        user_id = user_info["email"] if user_info else "anonymous"
-        thread = openai.beta.threads.create()
-
-        if "user_thread_registry" not in st.session_state:
-            st.session_state["user_thread_registry"] = {}
-        st.session_state["user_thread_registry"][user_id] = thread.id
-        st.session_state["thread_id"] = thread.id
+        st.session_state["last_response_id"] = None
+        st.session_state.pop("welcome_sent", None)
         st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)  # close Auth section
 
-        # ───────────────────── RESET SESSION ────────────────────────
-    if st.button("🔁 Reset Session (delete thread)"):
+    # ───────────────────── RESET SESSION ────────────────────────
+    if st.button("🔁 Reset Session"):
         try:
-            # 1) capture and pre-create a new thread so UI never goes threadless
-            old_thread_id = st.session_state.get("thread_id")
-            new_thread = openai.beta.threads.create()
-            
-            # 2) try to delete old thread (ignore failures)
-            if old_thread_id:
-                try:
-                    openai.beta.threads.delete(old_thread_id)
-                    log_user_action("thread_deleted", f"Deleted thread {old_thread_id}")
-                except Exception as e:
-                    log_user_action("thread_delete_failed", f"{e}")
-            
-            # 3) clear local session state (but keep registry shell)
+            # Clear local session state
             st.session_state["history"] = []
             st.session_state["checkpoints"] = []
             st.session_state["uploaded_file_ids"] = []
             st.session_state["last_checkpoint_turn"] = 0
             st.session_state["checkpoint_pending"] = False
-            
-            # 4) update registry and active thread
-            user_id = user_info["email"] if user_info else "anonymous"
-            if "user_thread_registry" not in st.session_state:
-                st.session_state["user_thread_registry"] = {}
-            st.session_state["user_thread_registry"][user_id] = new_thread.id
-            st.session_state["thread_id"] = new_thread.id
+            st.session_state["last_response_id"] = None
+            st.session_state.pop("welcome_sent", None)
 
-            # 5) persist a clean context snapshot (overwrites localStorage key)
+            # Persist a clean context snapshot
             save_medical_context()
 
-            st.success("Session reset. New thread created.")
+            log_user_action("session_reset", "Session reset by user")
+            st.success("Session reset successfully.")
             st.rerun()
         except Exception as e:
             st.error(f"Reset failed: {e}")
@@ -1908,7 +1619,7 @@ with st.sidebar:
                 "source": "deep_dive",
                 "timestamp": datetime.now().isoformat(),
                 "user": user_info.get("email", "unknown") if user_info else "unknown",
-                "thread_id": st.session_state.get("thread_id", ""),
+                "response_id": st.session_state.get("last_response_id", ""),
             })
             # Create the silent prompt
             expand_prompt = f"Expand on: {deep_dive_term}. always run live data search and regulatory validation. Please provide the information in a matrix or tabular format if applicable."
@@ -1944,7 +1655,7 @@ with st.sidebar:
                 "source": "fact_check",
                 "timestamp": datetime.now().isoformat(),
                 "user": user_info.get("email", "unknown") if user_info else "unknown",
-                "thread_id": st.session_state.get("thread_id", ""),
+                "response_id": st.session_state.get("last_response_id", ""),
             })
             # Create the fact-check prompt with specialized instructions
             fact_check_prompt = f"""Fact-check and validate the following claim:
@@ -2042,15 +1753,16 @@ Output format:
                         "3) medical‑affairs insights."
                     )
                     with st.spinner("🔍 Parsing file content…"):
-                        parse_response = run_assistant(
+                        parse_response, resp_id, _ = run_assistant(
                             user_input=parse_prompt,
                             output_type="brief_summary",
                             response_tone="professional",
                             compliance_level="strict",
-                            thread_id=thread_id,
-                            assistant_id=ASSISTANT_ID,
-                            uploaded_file_ids=[file_id],      # only this file
+                            previous_response_id=st.session_state.get("last_response_id"),
+                            uploaded_file_ids=[file_id],
                         )
+                        if resp_id:
+                            st.session_state["last_response_id"] = resp_id
 
                     if parse_response and not parse_response.startswith("❌"):
                         # cache summary
@@ -2099,15 +1811,16 @@ Output format:
                                     f"Please provide a fresh analysis of '{file_info['name']}' "
                                     "focusing on medical‑affairs insights, key data, and recommendations."
                                 )
-                                repl = run_assistant(
+                                repl, resp_id, _ = run_assistant(
                                     user_input=reanalyse_prompt,
                                     output_type="detailed_analysis",
                                     response_tone="professional",
                                     compliance_level="strict",
-                                    thread_id=thread_id,
-                                    assistant_id=ASSISTANT_ID,
+                                    previous_response_id=st.session_state.get("last_response_id"),
                                     uploaded_file_ids=[file_id],
                                 )
+                                if resp_id:
+                                    st.session_state["last_response_id"] = resp_id
                             if repl and not repl.startswith("❌"):
                                 st.info(f"**Updated Analysis:**\n\n{repl[:300]}…")
                             else:
@@ -2317,7 +2030,7 @@ Output format:
                             "source": "quick_action",
                             "timestamp": datetime.now().isoformat(),
                             "user": user_info.get("email", "unknown") if user_info else "unknown",
-                            "thread_id": st.session_state.get("thread_id", ""),
+                            "response_id": st.session_state.get("last_response_id", ""),
                         })
                         st.session_state["silent_prompt_to_run"] = silent_prompt
                         st.rerun()
@@ -2538,7 +2251,7 @@ Output format:
                                 "source": "automated_function",
                                 "timestamp": datetime.now().isoformat(),
                                 "user": user_info.get("email", "unknown") if user_info else "unknown",
-                                "thread_id": st.session_state.get("thread_id", ""),
+                                "response_id": st.session_state.get("last_response_id", ""),
                             })
                             st.session_state["silent_prompt_to_run"] = automated_prompt
                             st.rerun()
@@ -2565,8 +2278,8 @@ Output format:
         if metrics['duplicate_rate'] > 0.05:
             st.caption(f"⚠️ Duplicates: {metrics['duplicate_rate']:.1%}")
 
-        if tid := st.session_state.get("thread_id", ""):
-            st.caption(f"Thread: {tid[:8]}…")
+        if rid := st.session_state.get("last_response_id", ""):
+            st.caption(f"Response chain: {rid[:12]}…")
 
         if user_info and user_info.get("login_time"):
             try:
@@ -2667,11 +2380,11 @@ if "silent_prompt_to_run" in st.session_state:
     else:
         with st.spinner("🔄 Processing quick action..."):
             try:
-                response = improved_assistant_run(thread_id, ASSISTANT_ID, silent_prompt)
+                response = improved_assistant_run(silent_prompt)
                 if response and response != "All attempts failed":
                     st.session_state["history"].append({"role": "assistant", "content": response})
                     # Attach full run steps (tool calls + results) to search history
-                    _enrich_last_search_entry(thread_id)
+                    _enrich_last_search_entry()
                     save_medical_context()
                     st.success("✅ Quick action completed!")
                     log_user_action("quick_action_completed", f"Successfully completed: {silent_prompt[:50]}...")
@@ -2820,7 +2533,7 @@ if send and user_input.strip():
             "source": "chat",
             "timestamp": datetime.now().isoformat(),
             "user": user_info.get("email", "unknown") if user_info else "unknown",
-            "thread_id": st.session_state.get("thread_id", ""),
+            "response_id": st.session_state.get("last_response_id", ""),
         })
 
         date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -2857,23 +2570,27 @@ if send and user_input.strip():
                 uploaded_file_ids = st.session_state.get("uploaded_file_ids", [])
                 
                 # Send the FULL PROMPT (with silent instructions) to the assistant
-                response = run_assistant(
-                    user_input=full_prompt,  # <- This now includes silent instructions
+                response, resp_id, tool_log = run_assistant(
+                    user_input=full_prompt,
                     output_type="detailed_analysis",
                     response_tone="professional",
                     compliance_level="strict",
-                    thread_id=thread_id,
-                    assistant_id=ASSISTANT_ID,
+                    previous_response_id=st.session_state.get("last_response_id"),
                     uploaded_file_ids=uploaded_file_ids if uploaded_file_ids else None
                 )
-                
+
+                if resp_id:
+                    st.session_state["last_response_id"] = resp_id
+                if tool_log:
+                    st.session_state["_last_tool_call_log"] = tool_log
+
                 if response and not response.startswith("❌"):
                     st.session_state["history"].append({
                         "role": "assistant",
                         "content": response
                     })
-                    # Attach full run steps (tool calls + results) to search history
-                    _enrich_last_search_entry(thread_id)
+                    # Attach tool call data to search history
+                    _enrich_last_search_entry()
                     save_medical_context()
                     st.success("✅ Response received!")
                     log_user_action("message_completed", f"Successfully processed message with {len(response)} characters")

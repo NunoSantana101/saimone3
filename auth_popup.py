@@ -146,11 +146,11 @@ def capture_user_info():
                 help="Your company or organization (optional)"
             )
 
-        # Add Thread ID field for restoring previous sessions
-        thread_id_input = st.text_input(
-            "Restore from Thread ID (optional)",
-            placeholder="paste existing thread id to resume an older session",
-            help="If you have a prior thread id (from another session), paste it here to reuse it."
+        # Add Response ID field for restoring previous sessions
+        response_id_input = st.text_input(
+            "Restore from Response ID (optional)",
+            placeholder="paste existing response id to resume an older session",
+            help="If you have a prior response id (from another session), paste it here to continue the conversation chain."
         )
 
         # Compliance certification
@@ -182,9 +182,9 @@ def capture_user_info():
                     "certified_at": datetime.utcnow().isoformat() + "Z"
                 }
                 
-                # If user provided a thread id, store it in session_state
-                if thread_id_input and isinstance(thread_id_input, str) and thread_id_input.strip():
-                    st.session_state["thread_id"] = thread_id_input.strip()
+                # If user provided a response id, store it in session_state
+                if response_id_input and isinstance(response_id_input, str) and response_id_input.strip():
+                    st.session_state["last_response_id"] = response_id_input.strip()
                 
                 st.session_state["user_info"] = user_info
                 st.session_state["user_captured"] = True
@@ -284,7 +284,7 @@ def get_user_info():
         "disclaimer_timestamp": st.session_state.get("disclaimer_timestamp"),
         "auth_method": user_info.get("method", "honor_system"),
         "login_time": st.session_state.get("login_time", datetime.now().isoformat()),
-        "thread_id": st.session_state.get("thread_id", "")   # Expose thread ID
+        "response_id": st.session_state.get("last_response_id", "")   # Expose response chain ID
     }
 
 
