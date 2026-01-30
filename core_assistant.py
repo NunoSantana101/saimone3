@@ -912,6 +912,7 @@ def run_responses_sync(
 
         response = client.responses.create(**kwargs)
     except openai.BadRequestError as e:
+        # previous_response_id may be stale/invalid — signal caller to clear it
         raise RuntimeError(f"API error (400): {str(e)}")
     except openai.NotFoundError as e:
         raise RuntimeError(f"Resource not found: {str(e)}")
@@ -924,6 +925,10 @@ def run_responses_sync(
             raise RuntimeError(f"Rate limited: {str(e)}")
     except openai.APIConnectionError as e:
         raise RuntimeError(f"Connection error: {str(e)}")
+    except openai.APITimeoutError as e:
+        raise RuntimeError(f"API timeout: {str(e)}")
+    except openai.APIStatusError as e:
+        raise RuntimeError(f"API status error ({e.status_code}): {str(e)}")
 
     # Tool call loop – keep going until we get a text response or hit limits
     for round_num in range(max_tool_rounds):
@@ -985,14 +990,32 @@ def run_responses_sync(
             raise RuntimeError(f"Tool output submission failed (400): {str(e)}")
         except openai.RateLimitError:
             time.sleep(2)
-            response = client.responses.create(
-                model=model,
-                temperature=temperature,
-                previous_response_id=response.id,
-                input=tool_outputs,
-                tools=tools,
-                instructions=instructions,
-            )
+            try:
+                response = client.responses.create(
+                    model=model,
+                    temperature=temperature,
+                    previous_response_id=response.id,
+                    input=tool_outputs,
+                    tools=tools,
+                    instructions=instructions,
+                )
+            except Exception as retry_exc:
+                raise RuntimeError(f"Tool output submission failed after rate-limit retry: {retry_exc}")
+        except (openai.APIConnectionError, openai.APITimeoutError) as e:
+            # Retry once on transient network errors
+            _logger.warning(f"Transient error during tool output submission: {e}, retrying...")
+            time.sleep(2)
+            try:
+                response = client.responses.create(
+                    model=model,
+                    temperature=temperature,
+                    previous_response_id=response.id,
+                    input=tool_outputs,
+                    tools=tools,
+                    instructions=instructions,
+                )
+            except Exception as retry_exc:
+                raise RuntimeError(f"Tool output submission failed after retry: {retry_exc}")
 
     # Extract final text
     text = _extract_response_text(response)

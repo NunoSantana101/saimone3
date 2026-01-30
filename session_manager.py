@@ -511,7 +511,7 @@ ACCURACY: Evidence-based only. Mark INFERENCES explicitly. Validate via live sea
 SOURCES: Prioritize FDA/EMA/PubMed. Cross-reference claims. Cite with hyperlinks.
 COMPLIANCE: Include regulatory context. Distinguish approved vs investigational.
 DATA: Search internal files first. Use stakeholder_taxonomy_v2.json, tactics_taxonomy_v2.json, pillars_v2.json, metrics_v2.json.
-Available tools: get_med_affairs_data, get_pubmed_data, get_fda_data, get_ema_data, tavily_tool"""
+Available tools: web_search_preview, file_search, code_interpreter, run_statistical_analysis, monte_carlo_simulation, bayesian_analysis"""
 
 FULL_SILENT_INSTRUCTIONS = """=== RESPONSE GUIDELINES ===
 
@@ -524,7 +524,7 @@ ACCURACY & VALIDATION:
 
 SOURCE VERIFICATION:
 - Prioritize: FDA/EMA filings, peer-reviewed publications, investor relations
-- Tools: get_med_affairs_data, get_pubmed_data, get_fda_data, get_ema_data, tavily_tool
+- Tools: web_search_preview, file_search, code_interpreter, run_statistical_analysis, monte_carlo_simulation, bayesian_analysis
 - Cross-reference claims against multiple sources
 - For time-sensitive info, verify current status via live search
 - Always provide hyperlinks in reference section

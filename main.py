@@ -1461,14 +1461,20 @@ def improved_assistant_run(message):
             if response_text and not response_text.startswith("❌"):
                 return response_text
             elif attempt < RETRY_ATTEMPTS - 1:
+                # Clear stale response ID before retry — a broken chain
+                # causes repeated 400 errors on every subsequent request
+                st.session_state["last_response_id"] = None
                 st.warning(f"Response failed, retrying... ({response_text})")
                 time.sleep(2 ** attempt)
                 continue
             else:
+                st.session_state["last_response_id"] = None
                 return response_text
 
         except Exception as e:
             error_msg = str(e)
+            # Clear stale response ID so the chain can recover
+            st.session_state["last_response_id"] = None
             if attempt < RETRY_ATTEMPTS - 1:
                 st.warning(f"Attempt {attempt + 1} failed: {error_msg}. Retrying...")
                 time.sleep(2 ** attempt)
@@ -2361,7 +2367,7 @@ st.markdown(f"""
 <div class="main-header">
     <div class="main-title">sAïmone</div>
     <div class="main-subtitle">your medaffairs assistant</div>
-    <div class="main-subtitle">Powered by ChatGPT 4.1</div>
+    <div class="main-subtitle">Powered by GPT-5.2</div>
     <div style="color: var(--light-blue); font-size: 0.9rem; margin-top: 1rem;">
         Welcome back, {user_info['name'] if user_info else 'User'} | {user_info['role'] if user_info else 'Unknown Role'}
     </div>
@@ -2387,6 +2393,9 @@ if "silent_prompt_to_run" in st.session_state:
     else:
         with st.spinner("🔄 Processing quick action..."):
             try:
+                # Record the user action in history so the conversation flow
+                # includes both sides (prevents incoherent context assembly)
+                st.session_state["history"].append({"role": "user", "content": f"[Quick Action] {silent_prompt}"})
                 response = improved_assistant_run(silent_prompt)
                 if response and response != "All attempts failed":
                     st.session_state["history"].append({"role": "assistant", "content": response})
@@ -2602,6 +2611,9 @@ if send and user_input.strip():
                     st.success("✅ Response received!")
                     log_user_action("message_completed", f"Successfully processed message with {len(response)} characters")
                 else:
+                    # Clear stale response ID so the next request can start fresh
+                    # instead of repeatedly failing with the same broken chain
+                    st.session_state["last_response_id"] = None
                     st.error(f"❌ Error: {response}")
                     log_user_action("message_failed", f"Assistant error: {response}")
 
