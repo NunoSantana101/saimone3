@@ -1393,6 +1393,8 @@ if "last_save" not in st.session_state:
     st.session_state["last_save"] = time.time()
 if "search_history" not in st.session_state:
     st.session_state["search_history"] = []
+if "_is_processing" not in st.session_state:
+    st.session_state["_is_processing"] = False
 
 # Pre-populate user info from authentication
 if user_info:
@@ -1503,14 +1505,17 @@ def improved_assistant_run(message):
             if response_text and not response_text.startswith("❌"):
                 return response_text
             elif attempt < RETRY_ATTEMPTS - 1:
-                # Clear stale response ID before retry — a broken chain
-                # causes repeated 400 errors on every subsequent request
+                # Clear stale response ID AND container before retry.
+                # The response chain may be broken (→ repeated 400 errors)
+                # and/or the code-interpreter container may have expired.
                 st.session_state["last_response_id"] = None
+                reset_container()
                 st.warning(f"Response failed, retrying... ({response_text})")
                 time.sleep(2 ** attempt)
                 continue
             else:
                 st.session_state["last_response_id"] = None
+                reset_container()
                 return response_text
 
         except Exception as e:
@@ -1640,7 +1645,11 @@ with st.sidebar:
             st.session_state["last_checkpoint_turn"] = 0
             st.session_state["checkpoint_pending"] = False
             st.session_state["last_response_id"] = None
+            st.session_state["_is_processing"] = False
             st.session_state.pop("welcome_sent", None)
+
+            # Reset container so stale server-side state doesn't persist
+            reset_container()
 
             # Persist a clean context snapshot
             save_medical_context()
@@ -1841,6 +1850,9 @@ Output format:
                         st.info(f"📄 **File Summary:**\n\n{parse_response[:200]}…")
                         log_user_action("file_parsed", f"Parsed {uploaded_file.name}")
                     else:
+                        # Clear stale response chain so next request starts fresh
+                        st.session_state["last_response_id"] = None
+                        reset_container()
                         st.warning("File uploaded but parsing failed. File is still available as reference.")
                         log_user_action("file_parse_failed", f"Failed to parse {uploaded_file.name}")
                         st.session_state["last_processed_upload"] = None
@@ -1883,6 +1895,9 @@ Output format:
                             if repl and not repl.startswith("❌"):
                                 st.info(f"**Updated Analysis:**\n\n{repl[:300]}…")
                             else:
+                                # Clear stale state so next request starts fresh
+                                st.session_state["last_response_id"] = None
+                                reset_container()
                                 st.error("Re‑analysis failed")
         
                     # Copy ID
@@ -2638,46 +2653,44 @@ if send and user_input.strip():
         if need_checkpoint:
             st.session_state["checkpoint_pending"] = True
         
-        with st.spinner("🗽 Processing your request..."):
+        # ── Guard: prevent double-submissions while processing ──
+        if st.session_state.get("_is_processing"):
+            st.warning("⏳ Still processing your previous request…")
+        else:
+            st.session_state["_is_processing"] = True
             try:
-                # Get uploaded file IDs for the assistant
-                uploaded_file_ids = st.session_state.get("uploaded_file_ids", [])
-                
-                # Send the FULL PROMPT (with silent instructions) to the assistant
-                response, resp_id, tool_log = run_assistant(
-                    user_input=full_prompt,
-                    output_type="detailed_analysis",
-                    response_tone="professional",
-                    compliance_level="strict",
-                    previous_response_id=st.session_state.get("last_response_id"),
-                    uploaded_file_ids=uploaded_file_ids if uploaded_file_ids else None
-                )
+                with st.spinner("🗽 Processing your request..."):
+                    # Use improved_assistant_run for automatic retry (3 attempts)
+                    # with exponential backoff, container reset, and response-chain
+                    # recovery — the same resilience the sidebar quick actions get.
+                    response = improved_assistant_run(full_prompt)
 
-                if resp_id:
-                    st.session_state["last_response_id"] = resp_id
-                if tool_log:
-                    st.session_state["_last_tool_call_log"] = tool_log
-
-                if response and not response.startswith("❌"):
-                    st.session_state["history"].append({
-                        "role": "assistant",
-                        "content": response
-                    })
-                    # Attach tool call data to search history
-                    _enrich_last_search_entry()
-                    save_medical_context()
-                    st.success("✅ Response received!")
-                    log_user_action("message_completed", f"Successfully processed message with {len(response)} characters")
-                else:
-                    # Clear stale response ID so the next request can start fresh
-                    # instead of repeatedly failing with the same broken chain
-                    st.session_state["last_response_id"] = None
-                    st.error(f"❌ Error: {response}")
-                    log_user_action("message_failed", f"Assistant error: {response}")
+                    if response and not response.startswith("❌") and response != "All attempts failed":
+                        st.session_state["history"].append({
+                            "role": "assistant",
+                            "content": response
+                        })
+                        # Attach tool call data to search history
+                        _enrich_last_search_entry()
+                        save_medical_context()
+                        st.success("✅ Response received!")
+                        log_user_action("message_completed", f"Successfully processed message with {len(response)} characters")
+                    else:
+                        # Clear all stale state so the next request can start fresh
+                        st.session_state["last_response_id"] = None
+                        reset_container()
+                        st.error(f"❌ Error: {response}")
+                        log_user_action("message_failed", f"Assistant error: {response}")
 
             except Exception as e:
+                # Clear stale response chain AND container on unexpected errors
+                # to prevent permanent unresponsiveness
+                st.session_state["last_response_id"] = None
+                reset_container()
                 st.error(f"❌ Error: {str(e)}")
                 log_user_action("message_error", f"Error processing message: {str(e)}")
+            finally:
+                st.session_state["_is_processing"] = False
         
         st.rerun()
 
