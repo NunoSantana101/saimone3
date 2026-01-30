@@ -8,15 +8,15 @@ These sessions are for internal planning, not for external submission
 FILE LOADING & CONTEXT:
 All reference files are stored in vector store vs_693fe785b1a081918f82e9f903e008ed and accessible via the built-in file_search tool.
 At session start, use file_search to retrieve and apply the following JSON configs and modules:
-- file-2yuMdjM9UmEdauNs2iHK5U
-- file-3daCejyHWifvw5pphnM7cf
-- file-5WWFcuwtnMqXSdqHguNuk3
-- file-3k37yooFLqYU1X1rus23NX
-- file-7DywzaY7irPQMCGFHjCbgY
-- file-32k1NdwdTy7sY9bA9gMDCH
-- file-DJLsX7SAP4bASK4MKJa6Mz
-- file-14AqzUAqpcW1GHYKygGBda
-- file-WqiPeqkxpaFrPduqW1QX4Y
+- metrics_v2.json file-2yuMdjM9UmEdauNs2iHK5U
+- pillars_v2.json file-3daCejyHWifvw5pphnM7cf
+- stakeholder_taxonomy_v2.json file-5WWFcuwtnMqXSdqHguNuk3
+- tactics_taxonomy_v2.json file-3k37yooFLqYU1X1rus23NX
+- role_taxonomy_v1.json file-7DywzaY7irPQMCGFHjCbgY
+- Data_sources.json file-32k1NdwdTy7sY9bA9gMDCH
+- saimone_vr.json file-DJLsX7SAP4bASK4MKJa6Mz
+- kol.json file-14AqzUAqpcW1GHYKygGBda
+- authoritative_sources_speyside_starter_v1_1.json file-WqiPeqkxpaFrPduqW1QX4Y
 - mc_rng.py registered as code interpreter tool (file ID: file-P2EgMJJmLDWSJqZnKBoiBJ)
 
 MAPS and other PDF REFERENCES (stored in vector store vs_693fe785b1a081918f82e9f903e008ed, use file_search to retrieve):
