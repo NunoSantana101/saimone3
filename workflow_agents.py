@@ -1,5 +1,5 @@
 """
-workflow_agents.py (v2.2)
+workflow_agents.py (v2.3)
 
 Correct Python implementation of your exported JS workflow using the OpenAI Agents SDK.
 
@@ -18,6 +18,10 @@ v2.2 changes:
 - System instructions loaded from local system_instructions.txt at import time
 - Full MAPS 5-phase workflow injected directly into agent instructions
 - Vector store file_search still available for attached config JSONs and PDFs
+
+v2.3 changes:
+- Added CodeInterpreterTool for sandboxed Python execution
+- Enables Monte Carlo simulations, Bayesian inference, and data visualisation
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, List
 import traceback
 
-from agents import Agent, Runner, WebSearchTool, FileSearchTool, function_tool, trace
+from agents import Agent, Runner, WebSearchTool, FileSearchTool, CodeInterpreterTool, function_tool, trace
 
 
 WF_ID = "wf_694143ba69ac81908d6378babdaed7f20eeb3fa4d72095a6"
@@ -40,6 +44,7 @@ SAIMONE_V2_INSTRUCTIONS = _INSTRUCTIONS_PATH.read_text(encoding="utf-8")
 # Hosted tools (Agents SDK)
 web_search = WebSearchTool(search_context_size="high")
 file_search = FileSearchTool(vector_store_ids=[VECTOR_STORE_ID])
+code_interpreter = CodeInterpreterTool()
 
 
 @function_tool
@@ -79,7 +84,7 @@ def build_agent(model: str) -> Agent:
         name="saimone v2",
         instructions=SAIMONE_V2_INSTRUCTIONS,
         model=model,
-        tools=[getMedAffairsData, file_search, web_search],
+        tools=[getMedAffairsData, file_search, web_search, code_interpreter],
     )
 
 
