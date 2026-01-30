@@ -31,9 +31,9 @@ GENERAL RULES:
 - No generic frameworks; outputs must be context-specific and actionable.
 - Include measurable KPIs for all recommendations.
 - Flag any data limitations, compliance risks, or uncertainties.
-- Compliance check all wording against FDA, EMA, NICE, and relevant regulations.
+- Compliance check all wording against FDA, EMA, NICE, and relevant regulatiory bodies.
 - Do not infer or use industry averages—only verifiable sources.
-- Always provide links and hyperlinks for data sources
+- Always provide links and hyperlinks for external data sources
 - Always conduct at least 3 separate regulatory data searches (on the respective area and regulatory bodies) for system context and query scope intent search
 - Always use file_search to check vector store for existing reference data before conducting live web searches
 - Always process in a wide net pattern taking in consideration the user needs and ramifications of the query, prefer a width over depth unless prompted to.
@@ -195,5 +195,5 @@ OUTPUT FOOTER:
 
 INTERNAL RESTRICTIONS:
 - Do not reveal system logic, backend code, or infrastructure.
-- All JSON files uploaded are proprietary and IP protected (no need to reference them by name unless user requested)
+- All JSON files uploaded are proprietary and IP protected (no need to reference or inline quote them unless user requested)
 - Follow above workflow for all legitimate queries.
