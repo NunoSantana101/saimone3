@@ -846,6 +846,10 @@ def generate_pdf_download():
         except Exception:
             history = []
 
+        # Filter out silent prompts (sidebar quick actions, deep dive, fact check,
+        # analysis tools) — these are internal instructions, not user conversation.
+        history = [msg for msg in history if not msg.get("silent")]
+
         info_data = [
             ['Report Generated', datetime.now().strftime("%B %d, %Y at %H:%M")],
             ['User', user_name],
@@ -1661,8 +1665,9 @@ with st.sidebar:
             # Create the silent prompt
             expand_prompt = f"Expand on: {deep_dive_term}. always run live data search and regulatory validation. Please provide the information in a matrix or tabular format if applicable."
 
-            # Execute it
+            # Execute it (silent: hidden from PDF/UI)
             st.session_state["silent_prompt_to_run"] = expand_prompt
+            st.session_state["silent_prompt_label"] = f"Deep Dive: {deep_dive_term.strip()}"
             st.rerun()
         else:
             st.warning("Please enter a term")
@@ -1719,8 +1724,9 @@ Output format:
 - DETAILS: [Brief explanation of findings]
 - DISCREPANCIES: [Note any conflicting information found]"""
         
-            # Execute it
+            # Execute it (silent: hidden from PDF/UI)
             st.session_state["silent_prompt_to_run"] = fact_check_prompt
+            st.session_state["silent_prompt_label"] = "Fact Check"
             st.rerun()
         else:
             st.warning("Please enter a claim to verify")
@@ -2070,9 +2076,10 @@ Output format:
                             "response_id": st.session_state.get("last_response_id", ""),
                         })
                         st.session_state["silent_prompt_to_run"] = silent_prompt
+                        st.session_state["silent_prompt_label"] = label
                         st.rerun()
                 st.markdown("</div>", unsafe_allow_html=True)
-    
+
     st.markdown("</div>", unsafe_allow_html=True)  # close Quick Actions
     
 # ─────────────── AUTOMATED FUNCTIONS (10×2) ────────────
@@ -2291,6 +2298,7 @@ Output format:
                                 "response_id": st.session_state.get("last_response_id", ""),
                             })
                             st.session_state["silent_prompt_to_run"] = automated_prompt
+                            st.session_state["silent_prompt_label"] = func_name
                             st.rerun()
     else:
         st.warning("🔒 Automated functions require full access level")
@@ -2410,16 +2418,22 @@ if not check_access_level("full"):
 # --- QUICK ACTION HANDLER (FROM SIDEBAR) ---
 if "silent_prompt_to_run" in st.session_state:
     silent_prompt = st.session_state.pop("silent_prompt_to_run")
-    
+    silent_label = st.session_state.pop("silent_prompt_label", "Quick Action")
+
     # Check access level for the action
     if "audit" in silent_prompt.lower() and not check_access_level("full"):
         st.error("❌ Audit functionality requires full access level")
     else:
         with st.spinner("🔄 Processing quick action..."):
             try:
-                # Record the user action in history so the conversation flow
-                # includes both sides (prevents incoherent context assembly)
-                st.session_state["history"].append({"role": "user", "content": f"[Quick Action] {silent_prompt}"})
+                # Record the user action in history for context assembly,
+                # but mark as silent so it's excluded from PDF/UI rendering.
+                st.session_state["history"].append({
+                    "role": "user",
+                    "content": silent_prompt,
+                    "silent": True,
+                    "label": silent_label,
+                })
                 response = improved_assistant_run(silent_prompt)
                 if response and response != "All attempts failed":
                     st.session_state["history"].append({"role": "assistant", "content": response})
@@ -2442,8 +2456,12 @@ if st.session_state["history"]:
     st.markdown("### Conversation")
     
     for i, msg in enumerate(st.session_state["history"]):
+        # Skip silent prompts (sidebar quick actions, deep dive, fact check, etc.)
+        if msg.get("silent"):
+            continue
+
         st.markdown('<hr class="msg-divider">', unsafe_allow_html=True)
-        
+
         if msg["role"] == "user":
             # Extract user email and timestamp from message for display
             content = msg["content"]
