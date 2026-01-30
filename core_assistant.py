@@ -117,9 +117,10 @@ def reset_client():
 
 
 # ──────────────────────────────────────────────────────────────────────
-#  Default model
+#  Default model & temperature
 # ──────────────────────────────────────────────────────────────────────
 DEFAULT_MODEL = "gpt-5.2"
+DEFAULT_TEMPERATURE = 0.7
 
 # ──────────────────────────────────────────────────────────────────────
 #  Vector Store – OpenAI file_search
@@ -809,6 +810,7 @@ def _get_tool_calls(response) -> list:
 def run_responses_sync(
     *,
     model: str = DEFAULT_MODEL,
+    temperature: float = DEFAULT_TEMPERATURE,
     input_messages: Optional[List[dict]] = None,
     input_text: Optional[str] = None,
     instructions: str = SYSTEM_INSTRUCTIONS,
@@ -845,6 +847,7 @@ def run_responses_sync(
     try:
         kwargs = {
             "model": model,
+            "temperature": temperature,
             "input": api_input,
             "tools": tools,
         }
@@ -918,6 +921,7 @@ def run_responses_sync(
         try:
             response = client.responses.create(
                 model=model,
+                temperature=temperature,
                 previous_response_id=response.id,
                 input=tool_outputs,
                 tools=tools,
@@ -929,6 +933,7 @@ def run_responses_sync(
             time.sleep(2)
             response = client.responses.create(
                 model=model,
+                temperature=temperature,
                 previous_response_id=response.id,
                 input=tool_outputs,
                 tools=tools,
@@ -948,6 +953,7 @@ def run_responses_sync(
 async def run_responses_async(
     *,
     model: str = DEFAULT_MODEL,
+    temperature: float = DEFAULT_TEMPERATURE,
     input_messages: Optional[List[dict]] = None,
     input_text: Optional[str] = None,
     instructions: str = SYSTEM_INSTRUCTIONS,
@@ -984,6 +990,7 @@ async def run_responses_async(
     # Initial response (run in thread pool since sync client)
     kwargs = {
         "model": model,
+        "temperature": temperature,
         "input": api_input,
         "tools": tools,
     }
@@ -1029,6 +1036,7 @@ async def run_responses_async(
         response = await asyncio.to_thread(
             client.responses.create,
             model=model,
+            temperature=temperature,
             previous_response_id=response.id,
             input=list(tool_outputs),
             tools=tools,
