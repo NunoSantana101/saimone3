@@ -78,10 +78,10 @@
       },
       "max_results": {
         "type": "integer",
-        "description": "Maximum results to return. IMPORTANT: Lower values (20-50) are recommended to prevent output size issues that cause silent agent failures. Default: 30. Maximum: 80. Backend enforces a 200KB output limit with progressive truncation.",
-        "default": 30,
+        "description": "Maximum results to return. Default: 40. Maximum: 100. Backend enforces a 200KB output limit with progressive truncation and tiered content depth.",
+        "default": 40,
         "minimum": 1,
-        "maximum": 80
+        "maximum": 100
       },
       "compact_output": {
         "type": "boolean",
