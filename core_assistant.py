@@ -3,6 +3,13 @@ core_assistant.py
 Pure-python engine shared by the Streamlit UI (assistant.py) and any CLI or
 batch runner.  NO Streamlit or console I/O; it just raises exceptions.
 
+v7.1 – Vector Store file_search:
+- Connects vector store vs_693fe785b1a081918f82e9f903e008ed via built-in
+  file_search tool so the Responses API can retrieve config JSONs, PDFs,
+  and proprietary reference files at runtime
+- All 5 tools: web_search_preview, file_search, run_statistical_analysis,
+  monte_carlo_simulation, bayesian_analysis
+
 v7.0 – OpenAI Built-in Web Search (test):
 - Replaces custom med_affairs_data / Tavily backend with OpenAI's
   built-in web_search_preview tool (search_context_size="high")
@@ -110,6 +117,11 @@ def reset_client():
 DEFAULT_MODEL = "gpt-5.2"
 
 # ──────────────────────────────────────────────────────────────────────
+#  Vector Store – OpenAI file_search
+# ──────────────────────────────────────────────────────────────────────
+VECTOR_STORE_ID = "vs_693fe785b1a081918f82e9f903e008ed"
+
+# ──────────────────────────────────────────────────────────────────────
 #  Tool Definitions for Responses API
 # ──────────────────────────────────────────────────────────────────────
 
@@ -120,6 +132,10 @@ DEFAULT_MODEL = "gpt-5.2"
 def build_tools_list() -> List[dict]:
     """
     Build the complete tools list for Responses API.
+
+    v7.1: Added file_search tool connected to vector store
+    vs_693fe785b1a081918f82e9f903e008ed for config JSONs, PDFs, and
+    proprietary reference files.
 
     v7.0: Uses OpenAI's built-in web_search_preview tool instead of custom
     med_affairs_data / Tavily backend.  The model manages all web search
@@ -137,7 +153,16 @@ def build_tools_list() -> List[dict]:
         "search_context_size": "high",
     })
 
-    # 2. run_statistical_analysis – Monte Carlo & Bayesian
+    # 2. OpenAI built-in file_search (v7.1)
+    #    - Searches the vector store for attached config JSONs, PDFs,
+    #      system instructions, and any previously uploaded content
+    #    - Vector store: vs_693fe785b1a081918f82e9f903e008ed
+    tools.append({
+        "type": "file_search",
+        "vector_store_ids": [VECTOR_STORE_ID],
+    })
+
+    # 3. run_statistical_analysis – Monte Carlo & Bayesian (function tool)
     tools.append({
         "type": "function",
         "name": "run_statistical_analysis",
@@ -166,7 +191,7 @@ def build_tools_list() -> List[dict]:
         },
     })
 
-    # 3. monte_carlo_simulation – specific MC function
+    # 4. monte_carlo_simulation – specific MC function
     tools.append({
         "type": "function",
         "name": "monte_carlo_simulation",
@@ -204,7 +229,7 @@ def build_tools_list() -> List[dict]:
         },
     })
 
-    # 4. bayesian_analysis – specific Bayesian function
+    # 5. bayesian_analysis – specific Bayesian function
     tools.append({
         "type": "function",
         "name": "bayesian_analysis",
