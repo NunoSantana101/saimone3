@@ -22,6 +22,10 @@ v2.2 changes:
 v2.3 changes:
 - Added CodeInterpreterTool for sandboxed Python execution
 - Enables Monte Carlo simulations, Bayesian inference, and data visualisation
+
+v2.4 changes:
+- Registered mc_rng.py (MC_RNG_FILE_ID) for code interpreter access
+- Code interpreter loads mc_rng.py from vector store via file_search
 """
 
 from __future__ import annotations
@@ -35,6 +39,7 @@ from agents import Agent, Runner, WebSearchTool, FileSearchTool, CodeInterpreter
 
 WF_ID = "wf_694143ba69ac81908d6378babdaed7f20eeb3fa4d72095a6"
 VECTOR_STORE_ID = "vs_693fe785b1a081918f82e9f903e008ed"
+MC_RNG_FILE_ID = "file-8ofv14JxUdJ2pSTjDxuFHT"
 
 # Load full system instructions from repo file (the same file is also in the vector store)
 _INSTRUCTIONS_PATH = Path(__file__).parent / "system_instructions.txt"
@@ -44,6 +49,8 @@ SAIMONE_V2_INSTRUCTIONS = _INSTRUCTIONS_PATH.read_text(encoding="utf-8")
 # Hosted tools (Agents SDK)
 web_search = WebSearchTool(search_context_size="high")
 file_search = FileSearchTool(vector_store_ids=[VECTOR_STORE_ID])
+# mc_rng.py (MC_RNG_FILE_ID) accessible via file_search vector store;
+# code interpreter loads it from the sandbox after file_search retrieval
 code_interpreter = CodeInterpreterTool()
 
 

@@ -3,6 +3,14 @@ core_assistant.py
 Pure-python engine shared by the Streamlit UI (assistant.py) and any CLI or
 batch runner.  NO Streamlit or console I/O; it just raises exceptions.
 
+v7.3 – mc_rng.py Code Interpreter Registration:
+- Registers mc_rng.py (file-8ofv14JxUdJ2pSTjDxuFHT) as a code interpreter
+  file via a sandbox container for direct import in Python execution
+- Container is lazily created and cached; falls back to system instructions
+  file loading if container API is unavailable
+- All 6 tools: web_search_preview, file_search, code_interpreter,
+  run_statistical_analysis, monte_carlo_simulation, bayesian_analysis
+
 v7.2 – Code Interpreter:
 - Activates OpenAI's built-in code_interpreter tool so the model can
   execute Python code in a sandboxed environment for quantitative analysis,
@@ -128,6 +136,45 @@ DEFAULT_TEMPERATURE = 0.7
 VECTOR_STORE_ID = "vs_693fe785b1a081918f82e9f903e008ed"
 
 # ──────────────────────────────────────────────────────────────────────
+#  Code Interpreter – mc_rng.py file registration
+# ──────────────────────────────────────────────────────────────────────
+MC_RNG_FILE_ID = "file-8ofv14JxUdJ2pSTjDxuFHT"
+
+_ci_container_id: Optional[str] = None
+
+
+def _get_code_interpreter_container() -> Optional[str]:
+    """Lazy-create a sandbox container with mc_rng.py for code interpreter.
+
+    Returns the container ID, or None if creation fails (falls back to
+    system-instructions-based file loading).
+    """
+    global _ci_container_id
+    if _ci_container_id is not None:
+        return _ci_container_id
+    try:
+        client = get_client()
+        container = client.containers.create(
+            name="saimone-mc-rng",
+            file_ids=[MC_RNG_FILE_ID],
+        )
+        _ci_container_id = container.id
+        _logger.info(
+            "Created CI container %s with mc_rng.py (%s)",
+            _ci_container_id,
+            MC_RNG_FILE_ID,
+        )
+        return _ci_container_id
+    except Exception as exc:
+        _logger.warning(
+            "Could not create CI container: %s – "
+            "mc_rng.py loaded via instructions fallback",
+            exc,
+        )
+        return None
+
+
+# ──────────────────────────────────────────────────────────────────────
 #  Tool Definitions for Responses API
 # ──────────────────────────────────────────────────────────────────────
 
@@ -138,6 +185,11 @@ VECTOR_STORE_ID = "vs_693fe785b1a081918f82e9f903e008ed"
 def build_tools_list() -> List[dict]:
     """
     Build the complete tools list for Responses API.
+
+    v7.3: Registers mc_rng.py (MC_RNG_FILE_ID) with the code_interpreter
+    tool via a sandbox container so the file is directly importable in
+    the Python execution environment.  Falls back to the system-instructions
+    file-copy protocol if container creation is unavailable.
 
     v7.2: Added code_interpreter tool for sandboxed Python execution.
     Enables the model to run Monte Carlo simulations, Bayesian inference,
@@ -172,15 +224,17 @@ def build_tools_list() -> List[dict]:
         "vector_store_ids": [VECTOR_STORE_ID],
     })
 
-    # 3. OpenAI built-in code_interpreter (v7.2)
+    # 3. OpenAI built-in code_interpreter (v7.3)
     #    - Sandboxed Python execution environment
     #    - Used for Monte Carlo simulations, Bayesian inference,
     #      statistical modelling, and data visualisation
-    #    - Has access to files uploaded to the vector store (e.g. mc_rng.py)
+    #    - mc_rng.py (MC_RNG_FILE_ID) registered via container for sandbox access
     #    - No function_call routing needed; execution is server-side
-    tools.append({
-        "type": "code_interpreter",
-    })
+    ci_tool: dict = {"type": "code_interpreter"}
+    _container = _get_code_interpreter_container()
+    if _container:
+        ci_tool["container"] = _container
+    tools.append(ci_tool)
 
     # 4. run_statistical_analysis – Monte Carlo & Bayesian (function tool)
     tools.append({
