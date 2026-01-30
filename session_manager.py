@@ -150,9 +150,13 @@ def get_circuit_breaker(name: str) -> CircuitBreaker:
 # ────────────────────────────────────────────────────────────────
 
 def _hash_message(msg: Dict[str, str]) -> str:
-    """Create a hash of a message for deduplication."""
+    """Create a hash of a message for deduplication.
+
+    Uses SHA-256 instead of MD5 for pharma-audit-grade integrity
+    (collision resistance matters when hashes appear in audit trails).
+    """
     content = f"{msg.get('role', '')}:{msg.get('content', '')[:500]}"
-    return hashlib.md5(content.encode()).hexdigest()
+    return hashlib.sha256(content.encode()).hexdigest()
 
 
 def deduplicate_history(history: List[Dict[str, str]]) -> List[Dict[str, str]]:
@@ -357,7 +361,7 @@ class LazyContextManager:
         if not history:
             return "empty"
         last_content = history[-1].get("content", "")[:100] if history else ""
-        return f"{len(history)}:{hashlib.md5(last_content.encode()).hexdigest()}"
+        return f"{len(history)}:{hashlib.sha256(last_content.encode()).hexdigest()}"
 
     def get_context(
         self,
