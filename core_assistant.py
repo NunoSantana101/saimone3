@@ -220,6 +220,21 @@ def _cleanup_container() -> None:
 atexit.register(_cleanup_container)
 
 
+def reset_container() -> None:
+    """Reset the cached container ID and tools list.
+
+    Called when a 400 error suggests the server-side container has expired.
+    The next call to get_tools() / build_tools_list() will lazily create a
+    fresh container.
+    """
+    global _ci_container_id, _ci_container_attempts, _cached_tools
+    old = _ci_container_id
+    _ci_container_id = None
+    _ci_container_attempts = 0
+    _cached_tools = None
+    _logger.info("Reset stale CI container (was %s); will recreate on next call", old)
+
+
 # ──────────────────────────────────────────────────────────────────────
 #  Tool Definitions for Responses API
 # ──────────────────────────────────────────────────────────────────────
@@ -1036,8 +1051,19 @@ def run_responses_sync(
 
         response = client.responses.create(**kwargs)
     except openai.BadRequestError as e:
-        # previous_response_id may be stale/invalid — signal caller to clear it
-        raise RuntimeError(f"API error (400): {str(e)}")
+        # 400 can be caused by a stale previous_response_id OR an expired
+        # code-interpreter container.  Reset the container & tools cache
+        # and retry once with a fresh tools list (and no response chain)
+        # before giving up.
+        _logger.warning("BadRequestError on initial call — resetting container and retrying: %s", e)
+        reset_container()
+        tools = get_tools()
+        kwargs["tools"] = tools
+        kwargs.pop("previous_response_id", None)
+        try:
+            response = client.responses.create(**kwargs)
+        except openai.BadRequestError:
+            raise RuntimeError(f"API error (400): {str(e)}")
     except openai.NotFoundError as e:
         raise RuntimeError(f"Resource not found: {str(e)}")
     except openai.RateLimitError as e:
@@ -1111,7 +1137,21 @@ def run_responses_sync(
                 instructions=instructions,
             )
         except openai.BadRequestError as e:
-            raise RuntimeError(f"Tool output submission failed (400): {str(e)}")
+            # Container may have expired mid-loop; reset and retry once
+            _logger.warning("BadRequestError during tool loop — resetting container: %s", e)
+            reset_container()
+            tools = get_tools()
+            try:
+                response = client.responses.create(
+                    model=model,
+                    temperature=temperature,
+                    previous_response_id=response.id,
+                    input=tool_outputs,
+                    tools=tools,
+                    instructions=instructions,
+                )
+            except openai.BadRequestError:
+                raise RuntimeError(f"Tool output submission failed (400): {str(e)}")
         except openai.RateLimitError:
             time.sleep(2)
             try:

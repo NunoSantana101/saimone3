@@ -26,6 +26,7 @@ import textwrap
 
 # -- Import your backend utility functions (v5.0 Responses API)
 from assistant import run_assistant, run_simple, handle_file_upload, validate_file_exists
+from core_assistant import reset_container
 
 # -- Import Hard Logic layer (v7.4 – pandas DataFrames for JSON configs)
 from hard_logic import get_store as get_hard_logic_store
@@ -1354,8 +1355,13 @@ def load_medical_context():
             st.session_state["last_checkpoint_turn"] = stored_data["last_checkpoint_turn"]
         if "recent_history" in stored_data and not st.session_state.get("history"):
             st.session_state["history"] = stored_data["recent_history"]
-        if "last_response_id" in stored_data and not st.session_state.get("last_response_id"):
-            st.session_state["last_response_id"] = stored_data["last_response_id"]
+        # Restore response_id — saved under key "response_id" by save_medical_context().
+        # Intentionally NOT restored: a response_id that survived a browser
+        # close/reopen is almost certainly expired server-side (OpenAI
+        # garbage-collects response chains).  Restoring it would cause
+        # immediate 400 errors.  Start a fresh chain instead.
+        # (The key mismatch was "response_id" vs "last_response_id" — fixed
+        # by explicitly skipping restoration.)
         if "user_profile" in stored_data:
             profile = stored_data["user_profile"]
             # Don't override authenticated user info with stored data
@@ -1509,8 +1515,10 @@ def improved_assistant_run(message):
 
         except Exception as e:
             error_msg = str(e)
-            # Clear stale response ID so the chain can recover
+            # Clear stale response ID AND container so the retry
+            # starts fresh (handles both expired chains and containers)
             st.session_state["last_response_id"] = None
+            reset_container()
             if attempt < RETRY_ATTEMPTS - 1:
                 st.warning(f"Attempt {attempt + 1} failed: {error_msg}. Retrying...")
                 time.sleep(2 ** attempt)
