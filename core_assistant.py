@@ -3,6 +3,12 @@ core_assistant.py
 Pure-python engine shared by the Streamlit UI (assistant.py) and any CLI or
 batch runner.  NO Streamlit or console I/O; it just raises exceptions.
 
+v7.5.1 – Reasoning & Verbosity Controls:
+- Added reasoning.effort to all API calls (default: medium, auto-high for MC/stats)
+- Added text.verbosity to all API calls (default: medium)
+- Removed dead max_output_tokens cap (was never passed to API)
+- Both sync and async runners now accept reasoning_effort and verbosity params
+
 v7.4 – Hard Logic (pandas DataFrames):
 - JSON configs loaded into pandas DataFrames at session start via hard_logic.py
 - New query_hard_logic function tool for deterministic, instant structured queries
@@ -95,6 +101,13 @@ from tool_config import (
     get_truncation_limits,
     get_preserve_fields,
     should_extract_clinical_outcomes,
+)
+
+from assistant_config import (
+    DEFAULT_REASONING_EFFORT,
+    HIGH_REASONING_EFFORT,
+    DEFAULT_VERBOSITY,
+    needs_high_reasoning,
 )
 
 from hard_logic import (
@@ -1110,9 +1123,19 @@ def run_responses_sync(
     timeout: int = 600,
     max_tool_rounds: int = 20,
     on_tool_call: Optional[Callable[[str, dict], None]] = None,
+    reasoning_effort: Optional[str] = None,
+    verbosity: Optional[str] = None,
 ) -> Tuple[str, Optional[str], List[dict]]:
     """
     Synchronous runner using the OpenAI Responses API.
+
+    Args:
+        reasoning_effort: "none"|"low"|"medium"|"high"|"xhigh".
+            Defaults to DEFAULT_REASONING_EFFORT ("medium").
+            Auto-escalated to "high" for MC/stats queries when not
+            explicitly overridden.
+        verbosity: "low"|"medium"|"high".  Maps to text.verbosity.
+            Defaults to DEFAULT_VERBOSITY ("medium").
 
     Returns:
         (response_text, response_id, tool_call_log)
@@ -1131,6 +1154,21 @@ def run_responses_sync(
     else:
         raise ValueError("Either input_text or input_messages must be provided")
 
+    # Resolve reasoning effort — auto-escalate for MC/stats queries
+    _effort = reasoning_effort or DEFAULT_REASONING_EFFORT
+    if _effort == DEFAULT_REASONING_EFFORT:
+        query_text = input_text or ""
+        if input_messages:
+            query_text = " ".join(
+                m.get("content", "") for m in input_messages
+                if isinstance(m, dict)
+            )
+        if needs_high_reasoning(query_text):
+            _effort = HIGH_REASONING_EFFORT
+            _logger.info("Auto-escalated reasoning effort to '%s' for MC/stats query", _effort)
+
+    _verbosity = verbosity or DEFAULT_VERBOSITY
+
     tool_call_log: List[dict] = []
     start = time.time()
 
@@ -1141,6 +1179,8 @@ def run_responses_sync(
             "temperature": temperature,
             "input": api_input,
             "tools": tools,
+            "reasoning": {"effort": _effort},
+            "text": {"verbosity": _verbosity},
         }
         if instructions:
             kwargs["instructions"] = instructions
@@ -1225,42 +1265,32 @@ def run_responses_sync(
             })
 
         # Continue conversation with tool outputs
+        continuation_kwargs = {
+            "model": model,
+            "temperature": temperature,
+            "previous_response_id": response.id,
+            "input": tool_outputs,
+            "tools": tools,
+            "instructions": instructions,
+            "reasoning": {"effort": _effort},
+            "text": {"verbosity": _verbosity},
+        }
         try:
-            response = client.responses.create(
-                model=model,
-                temperature=temperature,
-                previous_response_id=response.id,
-                input=tool_outputs,
-                tools=tools,
-                instructions=instructions,
-            )
+            response = client.responses.create(**continuation_kwargs)
         except openai.BadRequestError as e:
             # Container may have expired mid-loop; reset and retry once
             _logger.warning("BadRequestError during tool loop — resetting container: %s", e)
             reset_container()
             tools = get_tools()
+            continuation_kwargs["tools"] = tools
             try:
-                response = client.responses.create(
-                    model=model,
-                    temperature=temperature,
-                    previous_response_id=response.id,
-                    input=tool_outputs,
-                    tools=tools,
-                    instructions=instructions,
-                )
+                response = client.responses.create(**continuation_kwargs)
             except openai.BadRequestError:
                 raise RuntimeError(f"Tool output submission failed (400): {str(e)}")
         except openai.RateLimitError:
             time.sleep(2)
             try:
-                response = client.responses.create(
-                    model=model,
-                    temperature=temperature,
-                    previous_response_id=response.id,
-                    input=tool_outputs,
-                    tools=tools,
-                    instructions=instructions,
-                )
+                response = client.responses.create(**continuation_kwargs)
             except Exception as retry_exc:
                 raise RuntimeError(f"Tool output submission failed after rate-limit retry: {retry_exc}")
         except (openai.APIConnectionError, openai.APITimeoutError) as e:
@@ -1268,14 +1298,7 @@ def run_responses_sync(
             _logger.warning(f"Transient error during tool output submission: {e}, retrying...")
             time.sleep(2)
             try:
-                response = client.responses.create(
-                    model=model,
-                    temperature=temperature,
-                    previous_response_id=response.id,
-                    input=tool_outputs,
-                    tools=tools,
-                    instructions=instructions,
-                )
+                response = client.responses.create(**continuation_kwargs)
             except Exception as retry_exc:
                 raise RuntimeError(f"Tool output submission failed after retry: {retry_exc}")
 
@@ -1300,6 +1323,8 @@ async def run_responses_async(
     tool_router_async: Optional[Callable[[str, Dict[str, Any]], Coroutine[Any, Any, str]]] = None,
     timeout: int = 600,
     max_tool_rounds: int = 20,
+    reasoning_effort: Optional[str] = None,
+    verbosity: Optional[str] = None,
 ) -> Tuple[str, Optional[str], List[dict]]:
     """
     Async runner using the OpenAI Responses API.
@@ -1323,6 +1348,20 @@ async def run_responses_async(
     else:
         raise ValueError("Either input_text or input_messages must be provided")
 
+    # Resolve reasoning effort — auto-escalate for MC/stats queries
+    _effort = reasoning_effort or DEFAULT_REASONING_EFFORT
+    if _effort == DEFAULT_REASONING_EFFORT:
+        query_text = input_text or ""
+        if input_messages:
+            query_text = " ".join(
+                m.get("content", "") for m in input_messages
+                if isinstance(m, dict)
+            )
+        if needs_high_reasoning(query_text):
+            _effort = HIGH_REASONING_EFFORT
+
+    _verbosity = verbosity or DEFAULT_VERBOSITY
+
     tool_call_log: List[dict] = []
     start = time.time()
 
@@ -1332,6 +1371,8 @@ async def run_responses_async(
         "temperature": temperature,
         "input": api_input,
         "tools": tools,
+        "reasoning": {"effort": _effort},
+        "text": {"verbosity": _verbosity},
     }
     if instructions:
         kwargs["instructions"] = instructions
@@ -1380,6 +1421,8 @@ async def run_responses_async(
             input=list(tool_outputs),
             tools=tools,
             instructions=instructions,
+            reasoning={"effort": _effort},
+            text={"verbosity": _verbosity},
         )
 
     text = _extract_response_text(response)
