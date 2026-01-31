@@ -3,6 +3,17 @@ core_assistant.py
 Pure-python engine shared by the Streamlit UI (assistant.py) and any CLI or
 batch runner.  NO Streamlit or console I/O; it just raises exceptions.
 
+v7.6 – Soft Integration (Medical Links URI Provider):
+- New search_medical_links function tool for "Link-First" medical API access
+- PubMed: ESearch → ESummary → Markdown links (~50 tokens/result vs ~400)
+- FDA: openFDA → DailyMed/Drugs@FDA links with deduplication
+- EMA: Medicines dataset → product page links
+- Supports "all" source to query PubMed + FDA + EMA in one call
+- Model uses web_search_preview to deep-dive into specific links when needed
+- All 8 tools: web_search_preview, file_search, code_interpreter,
+  run_statistical_analysis, monte_carlo_simulation, bayesian_analysis,
+  query_hard_logic, search_medical_links
+
 v7.5.1 – Reasoning & Verbosity Controls:
 - Added reasoning.effort to all API calls (default: medium, auto-high for MC/stats)
 - Added text.verbosity to all API calls (default: medium)
@@ -679,6 +690,66 @@ def build_tools_list() -> List[dict]:
     #    loaded into pandas DataFrames at session start.
     tools.append(QUERY_HARD_LOGIC_TOOL)
 
+    # 8. search_medical_links – Soft Integration URI provider (v7.6)
+    #    "Link-First" architecture: returns clean Markdown links (~50 tokens/result)
+    #    instead of full abstracts/labels (~500-1000 tokens/result).
+    #    The model can deep-dive into specific links via web_search_preview.
+    #    Sources: PubMed (NCBI), FDA (openFDA/DailyMed), EMA
+    tools.append({
+        "type": "function",
+        "name": "search_medical_links",
+        "description": (
+            "Search PubMed, FDA, or EMA and return Markdown-formatted links with "
+            "minimal metadata. Use this for literature discovery, drug lookups, and "
+            "regulatory product searches. Returns direct URLs to source pages that "
+            "can be browsed for full details. Much more token-efficient than full "
+            "abstract retrieval — use this first, then deep-dive into specific "
+            "links with web_search_preview when needed."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "Data source to search.",
+                    "enum": ["pubmed", "fda", "ema", "all"],
+                },
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "Natural language search query. Can be a drug name, "
+                        "disease/condition, therapeutic area, or research topic."
+                    ),
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum links to return per source. Default: 20, max: 100.",
+                    "default": 20,
+                },
+                "date_range": {
+                    "type": "string",
+                    "description": (
+                        "Optional date filter in format 'YYYY/MM/DD-YYYY/MM/DD'. "
+                        "Example: '2023/01/01-2025/12/31'."
+                    ),
+                },
+                "sort": {
+                    "type": "string",
+                    "description": "Sort order for PubMed results.",
+                    "enum": ["relevance", "date"],
+                    "default": "relevance",
+                },
+                "collection": {
+                    "type": "string",
+                    "description": "FDA collection to search. Default: 'drug/label'.",
+                    "enum": ["drug/label", "drug/event", "drug/enforcement"],
+                    "default": "drug/label",
+                },
+            },
+            "required": ["source", "query"],
+        },
+    })
+
     return tools
 
 
@@ -1244,6 +1315,22 @@ def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
             return json.dumps(result)
         except Exception as exc:
             _logger.error(f"Bayesian analysis error: {exc}")
+            return json.dumps({"error": str(exc)})
+
+    # ── Soft Integration – Medical Links URI provider (v7.6) ──
+    if name == "search_medical_links":
+        try:
+            from soft_integration import search_medical_links
+            return search_medical_links(
+                source=args.get("source", "all"),
+                query=args.get("query", ""),
+                max_results=args.get("max_results", 20),
+                date_range=args.get("date_range"),
+                sort=args.get("sort", "relevance"),
+                collection=args.get("collection"),
+            )
+        except Exception as exc:
+            _logger.error(f"Soft integration error: {exc}")
             return json.dumps({"error": str(exc)})
 
     return json.dumps({"error": f"Unknown function {name}"})
