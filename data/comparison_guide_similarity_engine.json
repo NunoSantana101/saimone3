@@ -5,6 +5,39 @@
   "last_updated": "2026-01-05",
   "size_estimate": "~95KB",
   
+  "context_mode": {
+    "description": "Selects the launch context to adjust feature extraction, discovery queries, and empirical extraction targets. Default is drug_launch (US/FDA-centric). Switch to service_line_launch for medical affairs service deployments (e.g., APAC market).",
+    "active_mode": "drug_launch",
+    "modes": {
+      "drug_launch": {
+        "description": "Traditional pharmaceutical product launch (FDA/EMA approval, pricing & reimbursement, HCP adoption)",
+        "regulatory_anchors": ["FDA", "EMA", "PMDA"],
+        "extraction_focus": "approval pathway, clinical evidence, payer coverage, guideline integration, patient adoption",
+        "discovery_query_style": "drug approvals, clinical trials, payer coverage decisions, guideline updates"
+      },
+      "service_line_launch": {
+        "description": "Medical affairs or commercial service-line deployment (e.g., field medical teams, HEOR capabilities, RWE platforms in APAC)",
+        "regulatory_anchors": ["local_procurement_regulations", "compliance_frameworks", "data_privacy_local"],
+        "extraction_focus": "procurement cycle time, compliance incident rate, MLR throughput, stakeholder reach, EWI metrics, capability build timelines",
+        "discovery_query_style": "medical affairs service launches, APAC pharma capability buildout, field team deployment timelines, RWE platform adoption",
+        "alternative_extraction_targets": {
+          "replaces_fda_approval_timeline": "procurement_and_compliance_clearance_timeline",
+          "replaces_cms_coverage": "local_payer_or_institutional_formulary_listing",
+          "replaces_guideline_integration": "local_treatment_protocol_adoption",
+          "replaces_patient_adoption": "stakeholder_reach_and_engagement_rate",
+          "additional_metrics": [
+            "field_team_deployment_velocity",
+            "mlr_review_cycle_time",
+            "compliance_incident_rate",
+            "cross_functional_alignment_score",
+            "ewi_leading_indicator_hit_rate"
+          ]
+        }
+      }
+    },
+    "usage": "Set active_mode before execution. The search_execution_protocol and empirical_extraction_schema should adapt query templates and target metrics based on active_mode."
+  },
+
   "taxonomy_anchoring": {
     "description": "This schema extends existing JSON taxonomies, not replaces them",
     "primary_constraint_source": "pricing_market_access_v2.json, stakeholder_taxonomy_v2.json, pillars_v2.json, tactics_taxonomy_v2.json, metrics_v2.json",
@@ -40,7 +73,8 @@
           "format": "Object mapping constraint_id to criticality_score (0.0-1.0)"
         }
       },
-      "similarity_weight": 0.35,
+      "similarity_weight_reference": 0.35,
+      "similarity_weight_note": "DOCUMENTATION ONLY — the authoritative runtime weight is in similarity_scoring_algorithm.dimension_weights.constraint_profile_match. Do not consume this field for scoring; it exists for schema readability.",
       "matching_logic": "Jaccard similarity on constraint sets, weighted by criticality",
       "rationale": "MOST IMPORTANT - launches with same binding constraints face same challenges regardless of other differences"
     },
@@ -72,7 +106,8 @@
           "psychiatry",
           "other_specify"
         ],
-        "similarity_weight": 0.20,
+        "similarity_weight_reference": 0.20,
+        "similarity_weight_note": "DOCUMENTATION ONLY — authoritative weight is in similarity_scoring_algorithm.dimension_weights.therapeutic_area_match",
         "matching_logic": {
           "exact_match": 1.0,
           "related_match": 0.5,
@@ -100,7 +135,8 @@
           "combination_therapy_established",
           "reformulation_delivery"
         ],
-        "similarity_weight": 0.12,
+        "similarity_weight_reference": 0.12,
+        "similarity_weight_note": "DOCUMENTATION ONLY — authoritative weight is in similarity_scoring_algorithm.dimension_weights.mechanism_novelty_match",
         "matching_logic": "Exact match 1.0, adjacent category 0.4, distant 0.0",
         "rationale": "Novelty affects HCP adoption speed, payer evidence requirements, KOL influence patterns"
       },
@@ -121,7 +157,8 @@
             "weight": 0.3
           }
         },
-        "similarity_weight": 0.08,
+        "similarity_weight_reference": 0.08,
+        "similarity_weight_note": "DOCUMENTATION ONLY — authoritative weight is in similarity_scoring_algorithm.dimension_weights.disease_characteristics_match",
         "matching_logic": "Weighted average of dimension matches",
         "rationale": "Disease severity affects risk tolerance, prevalence affects payer budget impact"
       }
@@ -140,7 +177,8 @@
           "conditional_approval_ema",
           "combination_pathways"
         ],
-        "similarity_weight": 0.15,
+        "similarity_weight_reference": 0.15,
+        "similarity_weight_note": "DOCUMENTATION ONLY — authoritative weight is in similarity_scoring_algorithm.dimension_weights.approval_pathway_match",
         "matching_logic": {
           "accelerated_approval": "High weight - fundamentally changes payer dynamics",
           "standard_approval": "Moderate weight",
@@ -172,7 +210,8 @@
             "weight": 0.2
           }
         },
-        "similarity_weight": 0.10,
+        "similarity_weight_reference": 0.10,
+        "similarity_weight_note": "DOCUMENTATION ONLY — authoritative weight is in similarity_scoring_algorithm.dimension_weights.evidence_profile_match",
         "matching_logic": "Weighted dimension similarity",
         "rationale": "Evidence strength determines payer evidence threshold risk, KOL conviction level"
       }
@@ -189,7 +228,8 @@
           "differentiated_positioning",
           "undifferentiated_commodity"
         ],
-        "similarity_weight": 0.08,
+        "similarity_weight_reference": 0.08,
+        "similarity_weight_note": "DOCUMENTATION ONLY — authoritative weight is in similarity_scoring_algorithm.dimension_weights.competitive_intensity_match",
         "matching_logic": "Match competitive dynamics pattern",
         "rationale": "Competition affects adoption urgency, pricing power, KOL engagement strategy"
       },
@@ -204,7 +244,8 @@
           "extreme_cost_>500K_annual",
           "curative_single_dose_gene_therapy"
         ],
-        "similarity_weight": 0.12,
+        "similarity_weight_reference": 0.12,
+        "similarity_weight_note": "DOCUMENTATION ONLY — authoritative weight is in similarity_scoring_algorithm.dimension_weights.pricing_tier_match",
         "matching_logic": {
           "same_tier": 1.0,
           "adjacent_tier": 0.5,
@@ -229,7 +270,8 @@
             "weight": 0.2
           }
         },
-        "similarity_weight": 0.08,
+        "similarity_weight_reference": 0.08,
+        "similarity_weight_note": "DOCUMENTATION ONLY — authoritative weight is in similarity_scoring_algorithm.dimension_weights.access_complexity_match",
         "matching_logic": "Weighted dimension similarity",
         "rationale": "Access complexity affects adoption velocity, infrastructure requirements, cascade patterns"
       }
@@ -245,7 +287,8 @@
           "consensus_driven_societies",
           "fragmented_conflicting_opinions"
         ],
-        "similarity_weight": 0.06,
+        "similarity_weight_reference": 0.06,
+        "similarity_weight_note": "DOCUMENTATION ONLY — authoritative weight is in similarity_scoring_algorithm.dimension_weights.kol_structure_match",
         "matching_logic": "Match KOL landscape structure",
         "rationale": "KOL concentration affects consensus-building speed, cascade multiplier effects"
       },
@@ -258,7 +301,8 @@
           "guideline_helpful_validator",
           "guideline_minimal_impact"
         ],
-        "similarity_weight": 0.06,
+        "similarity_weight_reference": 0.06,
+        "similarity_weight_note": "DOCUMENTATION ONLY — authoritative weight is in similarity_scoring_algorithm.dimension_weights.guideline_dependency_match",
         "matching_logic": "Match dependency level",
         "rationale": "Guideline dependency determines timeline criticality, society engagement priority"
       }
@@ -266,8 +310,8 @@
   },
   
   "similarity_scoring_algorithm": {
-    "description": "Multi-dimensional weighted similarity calculation",
-    "method": "weighted_cosine_similarity",
+    "description": "Weighted sum of per-dimension similarity functions (Jaccard, categorical match, etc.) normalized for missingness. Not cosine similarity — no explicit feature vectorization or dot-product/norm construction.",
+    "method": "weighted_composite_similarity",
     
     "dimension_weights": {
       "constraint_profile_match": 0.35,
@@ -283,7 +327,13 @@
       "disease_characteristics_match": 0.08
     },
     
-    "note": "Weights sum to >1.0 because some dimensions may not be extractable for all cases - normalization happens at scoring time",
+    "note": "Weights sum to >1.0 because some dimensions may not be extractable for all cases - normalization happens at scoring time by dividing the weighted sum by the sum of weights for dimensions actually present.",
+
+    "weight_governance": {
+      "single_source_of_truth": "dimension_weights (this block) is the ONLY authoritative source for scoring weights at runtime",
+      "feature_schema_references": "The similarity_weight_reference fields in feature_extraction_schema are documentation-only mirrors. They exist for readability and MUST NOT be consumed for scoring. If values diverge, dimension_weights governs.",
+      "maintenance_rule": "When updating weights, update dimension_weights FIRST, then optionally sync the _reference fields in the feature schema for consistency"
+    },
     
     "constraint_matching_logic": {
       "description": "Most important dimension - constraint profile similarity",
@@ -317,21 +367,22 @@
     },
     
     "match_quality_thresholds": {
+      "boundary_rules": "Boundaries are inclusive-lower: excellent = [0.80, 1.0], good = [0.70, 0.80), moderate = [0.60, 0.70), poor = [0.0, 0.60). Evaluate top-down; first match wins.",
       "excellent": {
-        "threshold": 0.80,
+        "range": ">=0.80",
         "interpretation": "Strong multi-dimensional match, high confidence in pattern transfer"
       },
       "good": {
-        "threshold": 0.70,
+        "range": ">=0.70 and <0.80",
         "interpretation": "Solid match, reasonable confidence in pattern transfer"
       },
       "moderate": {
-        "threshold": 0.60,
+        "range": ">=0.60 and <0.70",
         "interpretation": "Acceptable match, use with caution and explicit uncertainty"
       },
       "poor": {
-        "threshold": 0.60,
-        "interpretation": "Below threshold - exclude from analysis, search for better matches"
+        "range": "<0.60",
+        "interpretation": "Below threshold - exclude from primary analysis, search for better matches. May be retained as supplementary context only if explicitly flagged."
       }
     },
     
@@ -344,6 +395,7 @@
   
   "search_execution_protocol": {
     "description": "How to discover and evaluate candidate launches",
+    "context_mode_note": "Query templates below are defaults for drug_launch mode. When context_mode.active_mode is 'service_line_launch', adapt queries per context_mode.modes.service_line_launch.discovery_query_style.",
     
     "phase1_discovery": {
       "objective": "Build candidate pool of potentially comparable launches",
@@ -356,7 +408,41 @@
       ],
       "variable_substitution": "Use extracted features from new strategy",
       "expected_yield": "10-30 candidate launches identified",
-      "extraction": "Drug name, approval year, indication, company - just enough to proceed to phase 2"
+      "extraction": "Drug name, approval year, indication, company - just enough to proceed to phase 2",
+
+      "backoff_strategy": {
+        "description": "Progressive relaxation when viable candidates fall below minimum threshold after feature extraction. Many candidates discovered in phase 1 will be dropped in phase 2 (feature extraction quality gate), so the effective pool is often much smaller than the discovery yield.",
+        "trigger": "viable_candidates_after_phase2 < minimum_viable_pool",
+        "minimum_viable_pool": 5,
+        "relaxation_sequence": [
+          {
+            "level": 1,
+            "action": "broaden_time_window",
+            "description": "Expand approval year range by ±5 years from initial window",
+            "example": "If initial search was 2015-2024, broaden to 2010-2024"
+          },
+          {
+            "level": 2,
+            "action": "widen_therapeutic_relatedness",
+            "description": "Accept related_match therapeutic areas (0.5 similarity) instead of requiring exact_match",
+            "example": "If searching oncology_solid_tumor, also accept oncology_hematologic"
+          },
+          {
+            "level": 3,
+            "action": "relax_non_critical_dimensions",
+            "description": "Drop matching requirements on lowest-weight dimensions (kol_structure, guideline_dependency, disease_characteristics)",
+            "never_relax": ["constraint_profile_match", "therapeutic_area_match"],
+            "rationale": "Constraint profile and therapeutic area are fundamental to comparison validity — relaxing them produces misleading matches"
+          },
+          {
+            "level": 4,
+            "action": "lower_feature_extraction_gate",
+            "description": "Reduce required feature coverage from >=60% to >=40% of dimensions, but flag these candidates as 'limited_data'",
+            "confidence_impact": "Downgrade match confidence by one tier (e.g., good → moderate)"
+          }
+        ],
+        "halt_condition": "If after all relaxation levels viable_candidates < 2, flag as 'insufficient_comparables' and proceed with taxonomy-only analysis (no empirical calibration)"
+      }
     },
     
     "phase2_candidate_evaluation": {
@@ -406,6 +492,7 @@
   
   "empirical_extraction_schema": {
     "description": "What metrics to extract from matched historical launches",
+    "context_mode_note": "The targets below are defaults for drug_launch mode. When context_mode.active_mode is 'service_line_launch', substitute metrics per context_mode.modes.service_line_launch.alternative_extraction_targets.",
     
     "adoption_velocity": {
       "target_metrics": {
