@@ -25,7 +25,10 @@ import unicodedata
 import textwrap
 
 # -- Import your backend utility functions (v5.0 Responses API)
-from assistant import run_assistant, run_simple, handle_file_upload, validate_file_exists
+from assistant import (
+    run_assistant, run_simple, handle_file_upload, validate_file_exists,
+    remove_file_from_vector_store, cleanup_uploaded_vector_store_files,
+)
 from core_assistant import reset_container
 
 # -- Import Hard Logic layer (v7.4 – pandas DataFrames for JSON configs)
@@ -1747,15 +1750,21 @@ with st.sidebar:
     # ───────────────────── RESET SESSION ────────────────────────
     if st.button("🔁 Reset Session"):
         try:
+            # Clean up user-uploaded files from vector store (v8.0)
+            cleanup_uploaded_vector_store_files()
+
             # Clear local session state
             st.session_state["history"] = []
             st.session_state["checkpoints"] = []
             st.session_state["uploaded_file_ids"] = []
+            st.session_state["uploaded_files_info"] = []
+            st.session_state["parsed_files"] = {}
             st.session_state["last_checkpoint_turn"] = 0
             st.session_state["checkpoint_pending"] = False
             st.session_state["last_response_id"] = None
             st.session_state["_is_processing"] = False
             st.session_state.pop("welcome_sent", None)
+            st.session_state["last_processed_upload"] = None
 
             # Reset container so stale server-side state doesn't persist
             reset_container()
@@ -1920,12 +1929,20 @@ Output format:
                             "uploaded_at": datetime.now().isoformat(),
                         }
                     )
-                    st.success(f"✅ {uploaded_file.name} uploaded successfully!")
+                    vs_indexed = upload_result.get("vector_store_indexed", False)
+                    if vs_indexed:
+                        st.success(f"✅ {uploaded_file.name} uploaded and indexed for search!")
+                    else:
+                        st.warning(
+                            f"⚠️ {uploaded_file.name} uploaded but vector store indexing "
+                            "failed — file_search may not find its content."
+                        )
 
                     # -------- One‑off parsing run --------
                     parse_prompt = (
                         f"I've uploaded the file '{uploaded_file.name}'. "
-                        "Please provide: 1) brief acknowledgment, "
+                        "Use the file_search tool to retrieve and read its content, then "
+                        "provide: 1) brief acknowledgment, "
                         "2) 2–3 sentence summary, "
                         "3) medical‑affairs insights."
                     )
@@ -1988,8 +2005,9 @@ Output format:
                         if st.button("🔍", key=f"rean_{file_id_short}"):
                             with st.spinner("Re‑analysing…"):
                                 reanalyse_prompt = (
-                                    f"Please provide a fresh analysis of '{file_info['name']}' "
-                                    "focusing on medical‑affairs insights, key data, and recommendations."
+                                    f"Use file_search to retrieve the content of '{file_info['name']}' "
+                                    "and provide a fresh analysis focusing on medical‑affairs insights, "
+                                    "key data, and recommendations."
                                 )
                                 repl, resp_id, _ = run_assistant(
                                     user_input=reanalyse_prompt,
@@ -2023,14 +2041,17 @@ Output format:
                                         f for f in st.session_state["uploaded_files_info"] if f["id"] != file_id
                                     ]
                                     st.session_state["parsed_files"].pop(file_id, None)
-        
+
+                                    # Remove from vector store first (v8.0)
+                                    remove_file_from_vector_store(file_id)
+
                                     import openai
                                     try:
                                         openai.files.delete(file_id)
                                         msg = "File removed from OpenAI storage"
                                     except Exception:
                                         msg = "File removed from session (will auto‑expire)"
-        
+
                                     st.success(f"✅ {file_info['name']} deleted! {msg}")
                                     log_user_action("file_deleted", f"Deleted {file_info['name']}")
                                     st.session_state.pop(confirm_key)  # Reset confirmation
