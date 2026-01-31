@@ -1,5 +1,10 @@
 # assistant_config.py - GPT-5.2 Responses API Configuration
 # ────────────────────────────────────────────────────────────────
+# v6.2 – Reasoning & Verbosity Controls
+# - Added reasoning.effort: medium (default), high (MC/stats queries)
+# - Added text.verbosity: low | medium | high (native API control)
+# - Removed dead get_responses_config() / max_output_tokens cap
+#
 # v6.0 – GPT-5.2 Upgrade
 # GPT-5.2 features: 400K token context, 128K max output, adaptive
 # reasoning, improved function calling, and enhanced coding/science.
@@ -59,7 +64,6 @@ GPT52_CONFIG = {
     "model": "gpt-5.2",
     "model_checkpoint": "gpt-5.2",
     "max_context_tokens": 400_000,
-    "max_output_tokens": 128_000,
     "default_token_budget": 24_000,
     "extended_token_budget": 48_000,
     "maximum_token_budget": 96_000,
@@ -68,27 +72,27 @@ GPT52_CONFIG = {
 }
 
 # ────────────────────────────────────────────────────────────────
-# Responses API Configuration
+# GPT-5.2 Reasoning & Verbosity Defaults
 # ────────────────────────────────────────────────────────────────
+# GPT-5.2 reasoning.effort values: none | low | medium | high | xhigh
+# GPT-5.2 text.verbosity values:   low | medium | high
+#
+# Default reasoning is "none" if omitted, so we pin to "medium".
+# MC / Bayesian / statistical analysis queries get "high".
+DEFAULT_REASONING_EFFORT = "medium"
+HIGH_REASONING_EFFORT = "high"
 
-def get_responses_config(token_budget: int = 24000) -> dict:
-    """Get optimized configuration for GPT-5.2 Responses API calls.
+DEFAULT_VERBOSITY = "medium"
 
-    Responses API is stateless:
-    - Instructions passed per-request
-    - Conversation continuity via previous_response_id
-    - No thread/run management overhead
-    """
-    return {
-        "model": "gpt-5.2",
-        "max_output_tokens": 12_000,
-        "tool_choice": "auto",
-        "token_budget": token_budget,
-    }
+# Keywords that trigger high reasoning effort (MC sims, stats, Bayesian)
+HIGH_REASONING_KEYWORDS = [
+    "monte carlo", "simulation", "bayesian", "statistical analysis",
+    "sensitivity analysis", "probability", "scenario analysis",
+    "confidence interval", "hypothesis", "p-value", "regression",
+]
 
 
-# NOTE: adaptive_medcomms_context, estimate_tokens_simple, and
-# create_context_prompt_with_budget previously lived here as dead
-# duplicates.  The authoritative implementations are in
-# core_assistant.py (used by assistant.py via import).  The copies
-# were removed in v6.1 to eliminate confusion.
+def needs_high_reasoning(user_input: str) -> bool:
+    """Return True if the query warrants high reasoning effort."""
+    q = user_input.lower()
+    return any(kw in q for kw in HIGH_REASONING_KEYWORDS)
