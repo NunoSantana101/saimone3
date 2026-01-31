@@ -72,7 +72,7 @@ from datetime import datetime
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
 
 import openai
-from openai import OpenAI
+from openai import OpenAI, NOT_GIVEN
 
 # v7.0: med_affairs_data backend unhooked – using OpenAI web_search_preview
 # from med_affairs_data import extract_clinical_outcomes
@@ -1178,6 +1178,11 @@ def run_responses_sync(
             "tools": tools,
             "reasoning": {"effort": _effort},
             "text": {"verbosity": _verbosity},
+            # GPT-5.2 rejects temperature/top_p (reasoning model).
+            # Some SDK versions send these by default — explicit NOT_GIVEN
+            # guarantees they are stripped from the request body.
+            "temperature": NOT_GIVEN,
+            "top_p": NOT_GIVEN,
         }
         if instructions:
             kwargs["instructions"] = instructions
@@ -1270,6 +1275,8 @@ def run_responses_sync(
             "instructions": instructions,
             "reasoning": {"effort": _effort},
             "text": {"verbosity": _verbosity},
+            "temperature": NOT_GIVEN,
+            "top_p": NOT_GIVEN,
         }
         try:
             response = client.responses.create(**continuation_kwargs)
@@ -1367,6 +1374,8 @@ async def run_responses_async(
         "tools": tools,
         "reasoning": {"effort": _effort},
         "text": {"verbosity": _verbosity},
+        "temperature": NOT_GIVEN,
+        "top_p": NOT_GIVEN,
     }
     if instructions:
         kwargs["instructions"] = instructions
@@ -1416,6 +1425,8 @@ async def run_responses_async(
             instructions=instructions,
             reasoning={"effort": _effort},
             text={"verbosity": _verbosity},
+            temperature=NOT_GIVEN,
+            top_p=NOT_GIVEN,
         )
 
     text = _extract_response_text(response)
