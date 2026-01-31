@@ -26,8 +26,9 @@ import textwrap
 
 # -- Import your backend utility functions (v5.0 Responses API)
 from assistant import (
-    run_assistant, run_simple, handle_file_upload, validate_file_exists,
-    remove_file_from_vector_store, cleanup_uploaded_vector_store_files,
+    run_assistant, run_simple, run_file_parse, handle_file_upload,
+    validate_file_exists, remove_file_from_vector_store,
+    cleanup_uploaded_vector_store_files,
 )
 from core_assistant import reset_container
 
@@ -1929,6 +1930,10 @@ Output format:
                             "uploaded_at": datetime.now().isoformat(),
                         }
                     )
+                    # Track file ID for subsequent queries (has_files flag)
+                    if file_id not in st.session_state.get("uploaded_file_ids", []):
+                        st.session_state["uploaded_file_ids"].append(file_id)
+
                     vs_indexed = upload_result.get("vector_store_indexed", False)
                     if vs_indexed:
                         st.success(f"✅ {uploaded_file.name} uploaded and indexed for search!")
@@ -1938,22 +1943,14 @@ Output format:
                             "failed — file_search may not find its content."
                         )
 
-                    # -------- One‑off parsing run --------
-                    parse_prompt = (
-                        f"I've uploaded the file '{uploaded_file.name}'. "
-                        "Use the file_search tool to retrieve and read its content, then "
-                        "provide: 1) brief acknowledgment, "
-                        "2) 2–3 sentence summary, "
-                        "3) medical‑affairs insights."
-                    )
+                    # -------- One‑off parsing run (v8.1) --------
+                    # Pass the file directly as an input_file attachment so
+                    # the model reads the actual document content instead of
+                    # relying on file_search to locate it in the vector store.
                     with st.spinner("🔍 Parsing file content…"):
-                        parse_response, resp_id, _ = run_assistant(
-                            user_input=parse_prompt,
-                            output_type="brief_summary",
-                            response_tone="professional",
-                            compliance_level="strict",
-                            previous_response_id=st.session_state.get("last_response_id"),
-                            uploaded_file_ids=[file_id],
+                        parse_response, resp_id, _ = run_file_parse(
+                            file_id=file_id,
+                            filename=uploaded_file.name,
                         )
                         if resp_id:
                             st.session_state["last_response_id"] = resp_id
@@ -2004,18 +2001,10 @@ Output format:
                     with col1:
                         if st.button("🔍", key=f"rean_{file_id_short}"):
                             with st.spinner("Re‑analysing…"):
-                                reanalyse_prompt = (
-                                    f"Use file_search to retrieve the content of '{file_info['name']}' "
-                                    "and provide a fresh analysis focusing on medical‑affairs insights, "
-                                    "key data, and recommendations."
-                                )
-                                repl, resp_id, _ = run_assistant(
-                                    user_input=reanalyse_prompt,
-                                    output_type="detailed_analysis",
-                                    response_tone="professional",
-                                    compliance_level="strict",
-                                    previous_response_id=st.session_state.get("last_response_id"),
-                                    uploaded_file_ids=[file_id],
+                                # v8.1: pass file directly for reliable access
+                                repl, resp_id, _ = run_file_parse(
+                                    file_id=file_id,
+                                    filename=file_info["name"],
                                 )
                                 if resp_id:
                                     st.session_state["last_response_id"] = resp_id
@@ -2041,6 +2030,11 @@ Output format:
                                         f for f in st.session_state["uploaded_files_info"] if f["id"] != file_id
                                     ]
                                     st.session_state["parsed_files"].pop(file_id, None)
+                                    # Remove from tracked file IDs (v8.1)
+                                    st.session_state["uploaded_file_ids"] = [
+                                        fid for fid in st.session_state.get("uploaded_file_ids", [])
+                                        if fid != file_id
+                                    ]
 
                                     # Remove from vector store first (v8.0)
                                     remove_file_from_vector_store(file_id)
