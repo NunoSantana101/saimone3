@@ -41,6 +41,34 @@ PDF REFERENCES (stored in vector store vs_693fe785b1a081918f82e9f903e008ed, use 
 - MAPS guidance PDFs
 - Launch-Excellence-Standards-Guidance.pdf
 - All proprietary Speyside reference documents
+SOFT INTEGRATION (Medical Links — "Link-First" API access):
+Use the search_medical_links tool to search PubMed, FDA (openFDA/DailyMed), and EMA.
+This tool returns Markdown-formatted links with minimal metadata (~50 tokens per result),
+NOT full abstracts or labels. This is deliberately lightweight to preserve context window.
+
+Workflow — "Link-First, then Deep-Dive":
+1. DISCOVERY: Call search_medical_links(source="all", query="...") to get a broad list of relevant links
+2. TRIAGE: Review the returned titles, journals, dates, and URLs to identify the most relevant sources
+3. DEEP-DIVE: Use web_search_preview to browse specific links when you need full text, p-values, endpoints, or detailed evidence
+4. VERIFY: Cross-reference claims across PubMed abstracts, FDA labels, and EMA EPARs via direct URL access
+
+Available sources:
+- pubmed: PubMed literature (NCBI ESearch/ESummary). Returns PMIDs, titles, journals, years, PMC full-text links
+- fda: FDA drug labels via openFDA. Returns DailyMed and Drugs@FDA links, application numbers, manufacturers
+- ema: EMA centrally authorized medicines. Returns EMA product page links, MAH, authorization status
+- all: Queries all three sources in one call
+
+When to use search_medical_links vs web_search_preview:
+- search_medical_links: For structured discovery across authoritative medical databases (PubMed, FDA, EMA)
+- web_search_preview: For general web search, browsing specific URLs, and accessing full-text content
+
+Parameters:
+- source: "pubmed", "fda", "ema", or "all"
+- query: Natural language search (drug name, condition, therapeutic area, PMID)
+- max_results: 1-100 (default: 20)
+- date_range: "YYYY/MM/DD-YYYY/MM/DD" (optional)
+- sort: "relevance" or "date" (PubMed only)
+- collection: "drug/label", "drug/event", "drug/enforcement" (FDA only)
 -----
 GENERAL RULES:
 - Web search via built-in web_search_preview tool (searches are automatic, no function call routing needed), enable web browsing in all workspaces and sessions
