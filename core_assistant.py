@@ -390,6 +390,128 @@ def reset_container() -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
+#  Vector Store – user-uploaded file management
+# ──────────────────────────────────────────────────────────────────────
+# After the Responses API migration (v5.0), uploaded files must be
+# explicitly added to a vector store for file_search to find them.
+# In the old Assistants API, files attached to thread messages were
+# automatically searchable — that's no longer the case.
+#
+# v8.0: Files uploaded by users are added to VECTOR_STORE_ID so the
+# file_search tool can retrieve their content during the session.
+# They are cleaned up on file deletion and session reset.
+
+_user_uploaded_vs_file_ids: List[str] = []
+
+
+def _get_vs_files_api():
+    """Return the vector-store files API handle (SDK compatibility)."""
+    client = get_client()
+    try:
+        return client.vector_stores.files
+    except AttributeError:
+        return client.beta.vector_stores.files
+
+
+def add_file_to_vector_store(file_id: str, *, poll_timeout: int = 60) -> bool:
+    """Add a user-uploaded file to the vector store for file_search access.
+
+    Polls until the file is indexed (status ``completed``) or *poll_timeout*
+    seconds elapse.  Returns True on success.
+    """
+    try:
+        vs_files = _get_vs_files_api()
+        vs_files.create(
+            vector_store_id=VECTOR_STORE_ID,
+            file_id=file_id,
+        )
+
+        # Poll until indexed
+        poll_interval = 2
+        for _ in range(poll_timeout // poll_interval):
+            info = vs_files.retrieve(
+                vector_store_id=VECTOR_STORE_ID,
+                file_id=file_id,
+            )
+            if info.status == "completed":
+                _user_uploaded_vs_file_ids.append(file_id)
+                _logger.info(
+                    "File %s indexed in vector store %s",
+                    file_id, VECTOR_STORE_ID,
+                )
+                return True
+            if info.status in ("failed", "cancelled"):
+                _logger.error(
+                    "Vector store indexing failed for %s: status=%s",
+                    file_id, info.status,
+                )
+                return False
+            time.sleep(poll_interval)
+
+        # Timed out but file may still finish indexing server-side
+        _user_uploaded_vs_file_ids.append(file_id)
+        _logger.warning(
+            "Vector store indexing timed out for %s — file_search may "
+            "still work once indexing completes",
+            file_id,
+        )
+        return True
+    except Exception as exc:
+        _logger.error(
+            "Failed to add file %s to vector store: %s", file_id, exc,
+        )
+        return False
+
+
+def remove_file_from_vector_store(file_id: str) -> bool:
+    """Remove a user-uploaded file from the vector store."""
+    try:
+        vs_files = _get_vs_files_api()
+        vs_files.delete(
+            vector_store_id=VECTOR_STORE_ID,
+            file_id=file_id,
+        )
+        if file_id in _user_uploaded_vs_file_ids:
+            _user_uploaded_vs_file_ids.remove(file_id)
+        _logger.info(
+            "Removed file %s from vector store %s",
+            file_id, VECTOR_STORE_ID,
+        )
+        return True
+    except Exception as exc:
+        _logger.warning(
+            "Could not remove file %s from vector store: %s",
+            file_id, exc,
+        )
+        if file_id in _user_uploaded_vs_file_ids:
+            _user_uploaded_vs_file_ids.remove(file_id)
+        return False
+
+
+def cleanup_uploaded_vector_store_files() -> int:
+    """Remove all user-uploaded files from the vector store.
+
+    Called during session reset to avoid accumulating stale files
+    in the shared vector store.  Returns the number of files removed.
+    """
+    removed = 0
+    for fid in list(_user_uploaded_vs_file_ids):
+        if remove_file_from_vector_store(fid):
+            removed += 1
+    if removed:
+        _logger.info("Cleaned up %d user-uploaded files from vector store", removed)
+    return removed
+
+
+def _cleanup_vector_store_files() -> None:
+    """atexit handler: best-effort removal of uploaded files."""
+    cleanup_uploaded_vector_store_files()
+
+
+atexit.register(_cleanup_vector_store_files)
+
+
+# ──────────────────────────────────────────────────────────────────────
 #  Tool Definitions for Responses API
 # ──────────────────────────────────────────────────────────────────────
 

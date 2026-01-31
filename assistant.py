@@ -28,6 +28,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from core_assistant import (
     create_context_prompt_with_budget as _make_prompt,
     run_responses_sync as _core_run,
+    add_file_to_vector_store,
+    remove_file_from_vector_store,
+    cleanup_uploaded_vector_store_files,
     SYSTEM_INSTRUCTIONS,
     DEFAULT_MODEL,
 )
@@ -145,7 +148,15 @@ def run_simple(
 #  File utilities (unchanged – files API is independent of Responses API)
 # ──────────────────────────────────────────────────────────────────────
 def handle_file_upload(uploaded_file) -> Dict[str, Any]:
-    """Upload *uploaded_file* to OpenAI, wait until processed, return meta."""
+    """Upload *uploaded_file* to OpenAI, add to vector store, return meta.
+
+    v8.0: After uploading via the Files API, the file is added to the
+    shared vector store (VECTOR_STORE_ID) so that the file_search tool
+    can retrieve its content.  This was the missing link after the
+    Assistants → Responses API migration: in the old API files attached
+    to thread messages were automatically searchable; now they must be
+    explicitly indexed in a vector store.
+    """
     try:
         file_bytes = uploaded_file.getvalue()
         size_mb = len(file_bytes) / (1024 * 1024)
@@ -173,16 +184,24 @@ def handle_file_upload(uploaded_file) -> Dict[str, Any]:
         for _ in range(60):
             info = openai.files.retrieve(fobj.id)
             if info.status == "processed":
-                return {
-                    "success": True,
-                    "file_id": fobj.id,
-                    "filename": uploaded_file.name,
-                    "size_mb": size_mb,
-                }
+                break
             if info.status == "error":
                 return {"success": False, "error": "File processing failed"}
             time.sleep(2)
-        return {"success": False, "error": "File processing timeout"}
+        else:
+            return {"success": False, "error": "File processing timeout"}
+
+        # ── Add to vector store so file_search can access the content ──
+        with st.spinner(f"🔗 Indexing {uploaded_file.name} for search..."):
+            vs_ok = add_file_to_vector_store(fobj.id)
+
+        return {
+            "success": True,
+            "file_id": fobj.id,
+            "filename": uploaded_file.name,
+            "size_mb": size_mb,
+            "vector_store_indexed": vs_ok,
+        }
     except Exception as exc:
         return {"success": False, "error": f"Upload failed: {exc}"}
 
