@@ -26,18 +26,10 @@ import textwrap
 
 # -- Import your backend utility functions (v5.0 Responses API)
 from assistant import (
-    run_assistant, run_simple, handle_file_upload,
-    validate_file_exists, remove_file_from_vector_store,
-    cleanup_uploaded_vector_store_files,
+    run_assistant, run_simple, handle_file_upload, validate_file_exists,
+    remove_file_from_vector_store, cleanup_uploaded_vector_store_files,
 )
-# v8.1: run_file_parse passes uploaded files directly to the model.
-# Imported separately so the app still loads if assistant.py hasn't been
-# fully reloaded yet (Streamlit Cloud file-watcher race condition).
-try:
-    from assistant import run_file_parse
-except ImportError:
-    run_file_parse = None  # type: ignore[assignment]
-from core_assistant import reset_container
+from core_assistant import reset_container, run_responses_sync as _core_run
 
 # -- Import Hard Logic layer (v7.4 – pandas DataFrames for JSON configs)
 from hard_logic import get_store as get_hard_logic_store
@@ -1950,29 +1942,47 @@ Output format:
                             "failed — file_search may not find its content."
                         )
 
-                    # -------- One‑off parsing run (v8.1) --------
+                    # -------- One-off parsing run (v8.1) --------
                     # Pass the file directly as an input_file attachment so
                     # the model reads the actual document content instead of
                     # relying on file_search to locate it in the vector store.
-                    with st.spinner("🔍 Parsing file content…"):
-                        if run_file_parse is not None:
-                            parse_response, resp_id, _ = run_file_parse(
-                                file_id=file_id,
-                                filename=uploaded_file.name,
+                    with st.spinner("Parsing file content..."):
+                        try:
+                            parse_response, resp_id, _ = _core_run(
+                                input_messages=[{
+                                    "role": "user",
+                                    "content": [
+                                        {
+                                            "type": "input_text",
+                                            "text": (
+                                                f"The document '{uploaded_file.name}' has been uploaded. "
+                                                "Read the attached file content and provide:\n"
+                                                "1) Brief acknowledgment of the document\n"
+                                                "2) 2-3 sentence summary of the actual content\n"
+                                                "3) Key medical affairs insights from the document\n\n"
+                                                "Base your response on the actual document content."
+                                            ),
+                                        },
+                                        {
+                                            "type": "input_file",
+                                            "file_id": file_id,
+                                            "filename": uploaded_file.name,
+                                        },
+                                    ],
+                                }],
                             )
-                        else:
-                            # Fallback if run_file_parse unavailable
-                            parse_response, resp_id, _ = run_assistant(
-                                user_input=(
+                        except Exception:
+                            # Fallback: use file_search with improved prompt
+                            parse_response, resp_id, _ = _core_run(
+                                input_text=(
                                     f"A document '{uploaded_file.name}' (file ID: {file_id}) "
-                                    "has been uploaded and indexed. Use file_search to read "
-                                    "its content, then provide: 1) brief acknowledgment, "
-                                    "2) 2-3 sentence summary, 3) medical affairs insights."
+                                    "has been uploaded and indexed in the vector store. "
+                                    "Use the file_search tool to find and read its content, "
+                                    "then provide: 1) brief acknowledgment, "
+                                    "2) 2-3 sentence summary, "
+                                    "3) medical affairs insights. "
+                                    "Base your response on the actual content from the file."
                                 ),
-                                output_type="brief_summary",
-                                response_tone="professional",
-                                compliance_level="standard",
-                                uploaded_file_ids=[file_id],
                             )
                         if resp_id:
                             st.session_state["last_response_id"] = resp_id
@@ -2022,23 +2032,36 @@ Output format:
                     # Re-analyse
                     with col1:
                         if st.button("🔍", key=f"rean_{file_id_short}"):
-                            with st.spinner("Re‑analysing…"):
+                            with st.spinner("Re-analysing..."):
                                 # v8.1: pass file directly for reliable access
-                                if run_file_parse is not None:
-                                    repl, resp_id, _ = run_file_parse(
-                                        file_id=file_id,
-                                        filename=file_info["name"],
+                                try:
+                                    repl, resp_id, _ = _core_run(
+                                        input_messages=[{
+                                            "role": "user",
+                                            "content": [
+                                                {
+                                                    "type": "input_text",
+                                                    "text": (
+                                                        f"Re-analyse '{file_info['name']}'. "
+                                                        "Provide a fresh analysis focusing on "
+                                                        "medical affairs insights, key data, "
+                                                        "and recommendations."
+                                                    ),
+                                                },
+                                                {
+                                                    "type": "input_file",
+                                                    "file_id": file_id,
+                                                    "filename": file_info["name"],
+                                                },
+                                            ],
+                                        }],
                                     )
-                                else:
-                                    repl, resp_id, _ = run_assistant(
-                                        user_input=(
+                                except Exception:
+                                    repl, resp_id, _ = _core_run(
+                                        input_text=(
                                             f"Use file_search to retrieve '{file_info['name']}' "
                                             "and provide a fresh analysis with medical affairs insights."
                                         ),
-                                        output_type="detailed_analysis",
-                                        response_tone="professional",
-                                        compliance_level="standard",
-                                        uploaded_file_ids=[file_id],
                                     )
                                 if resp_id:
                                     st.session_state["last_response_id"] = resp_id
