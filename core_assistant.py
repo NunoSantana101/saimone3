@@ -71,8 +71,9 @@ import atexit, json, time, os, logging
 from datetime import datetime
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
 
+import httpx
 import openai
-from openai import OpenAI, NOT_GIVEN
+from openai import OpenAI
 
 # v7.0: med_affairs_data backend unhooked – using OpenAI web_search_preview
 # from med_affairs_data import extract_clinical_outcomes
@@ -134,15 +135,59 @@ PROGRESSIVE_TRUNCATION_THRESHOLDS = [
 # ──────────────────────────────────────────────────────────────────────
 _client: Optional[OpenAI] = None
 
+# Reasoning models that reject temperature / top_p / sampling params.
+_REASONING_MODEL_PREFIXES = ("gpt-5", "o1", "o3", "o4")
+_UNSUPPORTED_SAMPLING_PARAMS = ("temperature", "top_p", "frequency_penalty", "presence_penalty")
+
+
+def _strip_sampling_params(request: httpx.Request) -> None:
+    """httpx event-hook: strip sampling params the SDK may inject.
+
+    The openai Python SDK can include temperature/top_p in the request
+    body even when the caller never passes them (openai-python#2072).
+    GPT-5.x and o-series reasoning models reject these with 400.
+    This hook inspects every outgoing request and removes the offending
+    fields at the HTTP layer — the last line of defence.
+    """
+    if not request.content:
+        return
+    try:
+        body = json.loads(request.content)
+        model = body.get("model", "")
+        if not isinstance(model, str) or not model.startswith(_REASONING_MODEL_PREFIXES):
+            return
+        modified = False
+        for param in _UNSUPPORTED_SAMPLING_PARAMS:
+            if param in body:
+                del body[param]
+                modified = True
+        if modified:
+            raw = json.dumps(body).encode("utf-8")
+            request._content = raw
+            request.headers["content-length"] = str(len(raw))
+    except (json.JSONDecodeError, AttributeError, UnicodeDecodeError):
+        pass
+
 
 def get_client() -> OpenAI:
-    """Return a shared OpenAI client (created lazily)."""
+    """Return a shared OpenAI client (created lazily).
+
+    The client uses a custom httpx transport with a request hook that
+    strips unsupported sampling parameters (temperature, top_p, etc.)
+    for reasoning models.  This prevents 400 errors regardless of
+    which SDK version is installed.
+    """
     global _client
     if _client is None:
         # Prefer explicit key from openai module (set by main.py),
         # then fall back to OPENAI_API_KEY env var.
         api_key = getattr(openai, "api_key", None) or os.environ.get("OPENAI_API_KEY")
-        _client = OpenAI(api_key=api_key)
+        _client = OpenAI(
+            api_key=api_key,
+            http_client=httpx.Client(
+                event_hooks={"request": [_strip_sampling_params]},
+            ),
+        )
     return _client
 
 
@@ -1178,11 +1223,6 @@ def run_responses_sync(
             "tools": tools,
             "reasoning": {"effort": _effort},
             "text": {"verbosity": _verbosity},
-            # GPT-5.2 rejects temperature/top_p (reasoning model).
-            # Some SDK versions send these by default — explicit NOT_GIVEN
-            # guarantees they are stripped from the request body.
-            "temperature": NOT_GIVEN,
-            "top_p": NOT_GIVEN,
         }
         if instructions:
             kwargs["instructions"] = instructions
@@ -1275,8 +1315,6 @@ def run_responses_sync(
             "instructions": instructions,
             "reasoning": {"effort": _effort},
             "text": {"verbosity": _verbosity},
-            "temperature": NOT_GIVEN,
-            "top_p": NOT_GIVEN,
         }
         try:
             response = client.responses.create(**continuation_kwargs)
@@ -1374,8 +1412,6 @@ async def run_responses_async(
         "tools": tools,
         "reasoning": {"effort": _effort},
         "text": {"verbosity": _verbosity},
-        "temperature": NOT_GIVEN,
-        "top_p": NOT_GIVEN,
     }
     if instructions:
         kwargs["instructions"] = instructions
@@ -1425,8 +1461,6 @@ async def run_responses_async(
             instructions=instructions,
             reasoning={"effort": _effort},
             text={"verbosity": _verbosity},
-            temperature=NOT_GIVEN,
-            top_p=NOT_GIVEN,
         )
 
     text = _extract_response_text(response)
