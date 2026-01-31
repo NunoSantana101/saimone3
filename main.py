@@ -512,7 +512,7 @@ def generate_pdf_download():
         from reportlab.lib.pagesizes import A4
         from reportlab.platypus import (
             SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-            PageBreak, ListFlowable, ListItem, KeepTogether
+            PageBreak, ListFlowable, ListItem, KeepTogether, Preformatted
         )
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib import colors
@@ -540,6 +540,40 @@ def generate_pdf_download():
                     self.drawRightString(A4[0] - 0.75*inch, 0.75*inch, f"Page {self._pageNumber} of {total}")
                     super().showPage()
                 super().save()
+
+        # ---------- Unicode normalization ----------
+        def normalize_for_pdf(text: str) -> str:
+            """Replace Unicode characters that ReportLab core fonts cannot render."""
+            if not text:
+                return ""
+            t = str(text)
+            # Dashes / hyphens outside WinAnsiEncoding
+            t = t.replace('\u2010', '-')    # Unicode hyphen
+            t = t.replace('\u2011', '-')    # non-breaking hyphen
+            t = t.replace('\u2012', '-')    # figure dash
+            t = t.replace('\u2212', '-')    # minus sign
+            # Math symbols not in WinAnsi
+            t = t.replace('\u2265', '>=')   # ≥
+            t = t.replace('\u2264', '<=')   # ≤
+            t = t.replace('\u2260', '!=')   # ≠
+            t = t.replace('\u2248', '~=')   # ≈
+            # Arrows
+            t = t.replace('\u2192', '->')   # →
+            t = t.replace('\u2190', '<-')   # ←
+            t = t.replace('\u2194', '<->') # ↔
+            # Invisible / zero-width chars
+            t = t.replace('\u00a0', ' ')    # non-breaking space
+            t = t.replace('\u200b', '')     # zero-width space
+            t = t.replace('\u200c', '')     # zero-width non-joiner
+            t = t.replace('\u200d', '')     # zero-width joiner
+            t = t.replace('\ufeff', '')     # BOM
+            t = t.replace('\u2028', '\n')   # line separator
+            t = t.replace('\u2029', '\n')   # paragraph separator
+            # Black squares (sometimes used as markers)
+            t = t.replace('\u25a0', '-')    # ■ black square
+            t = t.replace('\u25aa', '-')    # ▪ small black square
+            t = t.replace('\u25cf', '*')    # ● black circle
+            return t
 
         # ---------- Text & link utils ----------
         def ensure_http(u: str) -> str:
@@ -689,16 +723,35 @@ def generate_pdf_download():
         bullet_rx_ordered = re.compile(r'^\s*(\d+)[\.\)]\s+')
 
         def parse_blocks_preserving_lists(text: str):
-            """Yield ('h1'|'h2'|'h3'|'hr'|'table'|'olist'|'ulist'|'para', payload)."""
+            """Yield ('h1'|'h2'|'h3'|'hr'|'table'|'code'|'blockquote'|'olist'|'ulist'|'para', payload)."""
             lines = text.splitlines()
             i = 0
             HDR = re.compile(r'^\s*\|.*\|\s*$')
             SEP = re.compile(r'^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$')
+            FENCE = re.compile(r'^\s*(`{3,}|~{3,})')
             while i < len(lines):
                 ln = lines[i].rstrip()
 
                 if not ln.strip():
                     i += 1; continue
+
+                # --- Fenced code blocks (``` or ~~~) ---
+                fence_m = FENCE.match(ln)
+                if fence_m:
+                    marker = fence_m.group(1)[0]  # ` or ~
+                    min_len = len(fence_m.group(1))
+                    j = i + 1
+                    code_lines = []
+                    while j < len(lines):
+                        close_m = re.match(r'^\s*' + re.escape(marker) + '{' + str(min_len) + r',}\s*$', lines[j])
+                        if close_m:
+                            j += 1
+                            break
+                        code_lines.append(lines[j])
+                        j += 1
+                    yield ('code', '\n'.join(code_lines))
+                    i = j
+                    continue
 
                 if ln.startswith('### '):
                     yield ('h3', ln[4:].strip()); i += 1; continue
@@ -709,6 +762,20 @@ def generate_pdf_download():
 
                 if re.match(r'^\s*-{3,}\s*$', ln):
                     yield ('hr', None); i += 1; continue
+
+                # --- Blockquotes (> ...) ---
+                if ln.lstrip().startswith('> ') or ln.lstrip() == '>':
+                    j, bq_lines = i, []
+                    while j < len(lines):
+                        stripped = lines[j].lstrip()
+                        if stripped.startswith('> ') or stripped == '>':
+                            bq_lines.append(re.sub(r'^\s*>\s?', '', lines[j]))
+                            j += 1
+                        else:
+                            break
+                    yield ('blockquote', '\n'.join(bq_lines).strip())
+                    i = j
+                    continue
 
                 if i+1 < len(lines) and HDR.match(lines[i]) and SEP.match(lines[i+1]):
                     j = i+2
@@ -735,6 +802,8 @@ def generate_pdf_download():
                     cur = lines[j]
                     if (not cur.strip()
                         or cur.startswith('#')
+                        or FENCE.match(cur)
+                        or (cur.lstrip().startswith('> ') or cur.lstrip() == '>')
                         or bullet_rx_unordered.match(cur) or bullet_rx_ordered.match(cur)
                         or (j+1 < len(lines) and HDR.match(cur) and SEP.match(lines[j+1]))
                         or re.match(r'^\s*-{3,}\s*$', cur)):
@@ -837,6 +906,13 @@ def generate_pdf_download():
                                   alignment=TA_LEFT, wordWrap='LTR', splitLongWords=True))
         styles.add(ParagraphStyle('TableHeader', fontSize=9, leading=12,
                                   alignment=TA_LEFT, textColor=colors.whitesmoke))
+        styles.add(ParagraphStyle('CodeBlock', fontName='Courier', fontSize=7.5,
+                                  leading=10, textColor=colors.HexColor('#1a1a1a'),
+                                  alignment=TA_LEFT))
+        styles.add(ParagraphStyle('BlockQuoteText', fontName='Helvetica-Oblique',
+                                  fontSize=9, leading=13,
+                                  textColor=colors.HexColor('#444444'),
+                                  alignment=TA_LEFT))
 
         # ---------- Cover ----------
         story.append(Spacer(1, 2*inch))
@@ -920,7 +996,7 @@ def generate_pdf_download():
             story.append(header_table)
             story.append(Spacer(1, 0.1*inch))
 
-            content = msg.get('content', '') or ''
+            content = normalize_for_pdf(msg.get('content', '') or '')
             m = re.match(r'\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)', content, flags=re.S)
             if m:
                 ts, email, content = m.group(1), m.group(2), m.group(3)
@@ -955,6 +1031,39 @@ def generate_pdf_download():
                         start, items = payload
                         lst = build_list(start, items, ordered=(kind=='olist'), styles=styles)
                         if lst: fl.append(lst); fl.append(Spacer(1, 0.06*inch))
+                    elif kind == 'code':
+                        code_text = escape(payload or '')
+                        if code_text.strip():
+                            pre = Preformatted(code_text, styles['CodeBlock'])
+                            code_container = Table([[pre]], colWidths=[6.3*inch])
+                            code_container.setStyle(TableStyle([
+                                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f5f5f5')),
+                                ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#d0d0d0')),
+                                ('LEFTPADDING', (0,0), (-1,-1), 8),
+                                ('RIGHTPADDING', (0,0), (-1,-1), 8),
+                                ('TOPPADDING', (0,0), (-1,-1), 6),
+                                ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+                            ]))
+                            fl.append(Spacer(1, 0.04*inch))
+                            fl.append(code_container)
+                            fl.append(Spacer(1, 0.1*inch))
+                    elif kind == 'blockquote':
+                        txt = clean_text_with_links(payload)
+                        if txt:
+                            bq_para = Paragraph(sanitize_whitelist_and_balance(txt),
+                                                styles['BlockQuoteText'])
+                            bq_container = Table([[bq_para]], colWidths=[6.3*inch])
+                            bq_container.setStyle(TableStyle([
+                                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f0f4f8')),
+                                ('LINEBEFORE', (0,0), (0,-1), 3, colors.HexColor('#415a77')),
+                                ('LEFTPADDING', (0,0), (-1,-1), 12),
+                                ('RIGHTPADDING', (0,0), (-1,-1), 8),
+                                ('TOPPADDING', (0,0), (-1,-1), 8),
+                                ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+                            ]))
+                            fl.append(Spacer(1, 0.04*inch))
+                            fl.append(bq_container)
+                            fl.append(Spacer(1, 0.06*inch))
                     else:
                         txt = clean_text_with_links(payload)
                         if txt:
