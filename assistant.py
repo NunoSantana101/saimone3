@@ -206,6 +206,78 @@ def handle_file_upload(uploaded_file) -> Dict[str, Any]:
         return {"success": False, "error": f"Upload failed: {exc}"}
 
 
+def run_file_parse(
+    file_id: str,
+    filename: str,
+    *,
+    model: str = DEFAULT_MODEL,
+) -> Tuple[str, Optional[str], List[dict]]:
+    """Parse an uploaded file by passing it directly as an input attachment.
+
+    v8.1: Uses the Responses API ``input_file`` content type to give the
+    model direct access to the uploaded document.  This is far more
+    reliable than asking the model to locate the file via file_search
+    immediately after indexing (the previous approach), because:
+
+    1. The model reads the file content directly — no vector-store
+       search-query relevance issues.
+    2. No dependency on index-propagation timing.
+    3. Works even if file_search returns results from other (higher-
+       ranked) documents in the vector store.
+
+    Falls back to a file_search-based prompt if the direct attachment
+    fails (e.g. unsupported file type or API version mismatch).
+    """
+    parse_text = (
+        f"The document '{filename}' has been uploaded. "
+        "Read the attached file content and provide:\n"
+        "1) Brief acknowledgment of the document\n"
+        "2) 2–3 sentence summary of the actual content\n"
+        "3) Key medical affairs insights from the document\n\n"
+        "Base your response on the actual document content."
+    )
+
+    input_messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": parse_text},
+                {
+                    "type": "input_file",
+                    "file_id": file_id,
+                    "filename": filename,
+                },
+            ],
+        }
+    ]
+
+    try:
+        text, resp_id, tool_log = _core_run(
+            model=model,
+            input_messages=input_messages,
+            on_tool_call=_streamlit_tool_callback,
+        )
+        return text, resp_id, tool_log
+    except Exception as exc:
+        # Fallback: use a text prompt that asks for file_search explicitly
+        _fallback_prompt = (
+            f"A document '{filename}' (file ID: {file_id}) has been "
+            "uploaded and indexed in the vector store. Use the file_search "
+            "tool to find and read its content, then provide: "
+            "1) brief acknowledgment, 2) 2–3 sentence summary, "
+            "3) medical affairs insights. "
+            "Base your response on the actual content from the file."
+        )
+        try:
+            return _core_run(
+                model=model,
+                input_text=_fallback_prompt,
+                on_tool_call=_streamlit_tool_callback,
+            )
+        except Exception as fallback_exc:
+            return f"❌ {fallback_exc}", None, []
+
+
 def validate_file_exists(file_id: str) -> bool:
     try:
         return openai.files.retrieve(file_id).status in {"uploaded", "processed"}

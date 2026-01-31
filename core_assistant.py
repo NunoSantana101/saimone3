@@ -439,6 +439,10 @@ def add_file_to_vector_store(file_id: str, *, poll_timeout: int = 60) -> bool:
                     "File %s indexed in vector store %s",
                     file_id, VECTOR_STORE_ID,
                 )
+                # Brief delay to allow search index propagation.
+                # Vector store status "completed" means embedding is done,
+                # but the search index may need a moment to become queryable.
+                time.sleep(3)
                 return True
             if info.status in ("failed", "cancelled"):
                 _logger.error(
