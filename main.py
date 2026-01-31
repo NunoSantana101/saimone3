@@ -26,10 +26,17 @@ import textwrap
 
 # -- Import your backend utility functions (v5.0 Responses API)
 from assistant import (
-    run_assistant, run_simple, run_file_parse, handle_file_upload,
+    run_assistant, run_simple, handle_file_upload,
     validate_file_exists, remove_file_from_vector_store,
     cleanup_uploaded_vector_store_files,
 )
+# v8.1: run_file_parse passes uploaded files directly to the model.
+# Imported separately so the app still loads if assistant.py hasn't been
+# fully reloaded yet (Streamlit Cloud file-watcher race condition).
+try:
+    from assistant import run_file_parse
+except ImportError:
+    run_file_parse = None  # type: ignore[assignment]
 from core_assistant import reset_container
 
 # -- Import Hard Logic layer (v7.4 – pandas DataFrames for JSON configs)
@@ -1948,10 +1955,25 @@ Output format:
                     # the model reads the actual document content instead of
                     # relying on file_search to locate it in the vector store.
                     with st.spinner("🔍 Parsing file content…"):
-                        parse_response, resp_id, _ = run_file_parse(
-                            file_id=file_id,
-                            filename=uploaded_file.name,
-                        )
+                        if run_file_parse is not None:
+                            parse_response, resp_id, _ = run_file_parse(
+                                file_id=file_id,
+                                filename=uploaded_file.name,
+                            )
+                        else:
+                            # Fallback if run_file_parse unavailable
+                            parse_response, resp_id, _ = run_assistant(
+                                user_input=(
+                                    f"A document '{uploaded_file.name}' (file ID: {file_id}) "
+                                    "has been uploaded and indexed. Use file_search to read "
+                                    "its content, then provide: 1) brief acknowledgment, "
+                                    "2) 2-3 sentence summary, 3) medical affairs insights."
+                                ),
+                                output_type="brief_summary",
+                                response_tone="professional",
+                                compliance_level="standard",
+                                uploaded_file_ids=[file_id],
+                            )
                         if resp_id:
                             st.session_state["last_response_id"] = resp_id
 
@@ -2002,10 +2024,22 @@ Output format:
                         if st.button("🔍", key=f"rean_{file_id_short}"):
                             with st.spinner("Re‑analysing…"):
                                 # v8.1: pass file directly for reliable access
-                                repl, resp_id, _ = run_file_parse(
-                                    file_id=file_id,
-                                    filename=file_info["name"],
-                                )
+                                if run_file_parse is not None:
+                                    repl, resp_id, _ = run_file_parse(
+                                        file_id=file_id,
+                                        filename=file_info["name"],
+                                    )
+                                else:
+                                    repl, resp_id, _ = run_assistant(
+                                        user_input=(
+                                            f"Use file_search to retrieve '{file_info['name']}' "
+                                            "and provide a fresh analysis with medical affairs insights."
+                                        ),
+                                        output_type="detailed_analysis",
+                                        response_tone="professional",
+                                        compliance_level="standard",
+                                        uploaded_file_ids=[file_id],
+                                    )
                                 if resp_id:
                                     st.session_state["last_response_id"] = resp_id
                             if repl and not repl.startswith("❌"):
