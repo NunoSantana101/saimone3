@@ -96,30 +96,3 @@ def needs_high_reasoning(user_input: str) -> bool:
     """Return True if the query warrants high reasoning effort."""
     q = user_input.lower()
     return any(kw in q for kw in HIGH_REASONING_KEYWORDS)
-
-
-# ────────────────────────────────────────────────────────────────
-# 3-Stage Pipeline Configuration (v9.0)
-# ────────────────────────────────────────────────────────────────
-# Pipeline mode: "auto" routes complex queries through the 3-stage
-# pipeline (Architect → Researcher → Synthesizer) and simple queries
-# through the monolithic path.  "always" forces the pipeline for
-# every query.  "off" disables the pipeline entirely.
-
-PIPELINE_MODE = "auto"  # "auto" | "always" | "off"
-
-PIPELINE_CONFIG = {
-    # Per-stage timeouts (seconds)
-    "stage_1_timeout": 60,
-    "stage_2_timeout": 300,
-    "stage_3_timeout": 120,
-    "total_timeout": 600,
-    # Per-stage reasoning effort
-    "architect_reasoning_effort": "high",    # Max reasoning for planning
-    "researcher_reasoning_effort": "medium",  # Balanced for tool execution
-    "synthesizer_reasoning_effort": "medium", # Balanced for writing
-    # Stage 2 tool execution limits
-    "max_tool_rounds": 15,
-    # Minimum query length to consider pipeline routing (chars)
-    "min_query_length": 30,
-}
