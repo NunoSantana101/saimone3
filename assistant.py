@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from core_assistant import (
     create_context_prompt_with_budget as _make_prompt,
     run_responses_sync as _core_run,
+    run_traffic_controller as _traffic_controller,
     add_file_to_vector_store,
     remove_file_from_vector_store,
     cleanup_uploaded_vector_store_files,
@@ -117,6 +118,68 @@ def run_assistant(
         except Exception as exc:
             st.error(f"❌ Unexpected error: {exc}")
             return f"❌ {exc}", None, []
+
+
+# ──────────────────────────────────────────────────────────────────────
+#  Polymorphic entry-point (Traffic Controller)
+# ──────────────────────────────────────────────────────────────────────
+def run_assistant_polymorphic(
+    *,
+    user_input: str,
+    output_type: str,
+    response_tone: str,
+    compliance_level: str,
+    previous_response_id: Optional[str] = None,
+    uploaded_file_ids: Optional[List[str]] = None,
+    on_phase_change: Optional[Any] = None,
+) -> Tuple[str, Optional[str], List[dict]]:
+    """Streamlit wrapper for the Traffic Controller (polymorphic agent).
+
+    Builds the context prompt identically to run_assistant(), then
+    delegates to run_traffic_controller() which orchestrates the
+    Ghost (triage + search) and Anchor (synthesis) phases.
+
+    Returns:
+        (response_text, response_id, tool_call_log)
+    """
+    prompt = _make_prompt(
+        user_input,
+        output_type,
+        response_tone,
+        compliance_level,
+        st.session_state.get("user_role", ""),
+        st.session_state.get("user_client", ""),
+        st.session_state.get("history", []),
+        st.session_state.get("token_budget", 24_000),
+        has_files=bool(uploaded_file_ids),
+        has_response_chain=bool(previous_response_id),
+    )
+
+    try:
+        text, response_id, tool_log = _traffic_controller(
+            input_text=prompt,
+            previous_response_id=previous_response_id,
+            on_tool_call=_streamlit_tool_callback,
+            on_phase_change=on_phase_change,
+        )
+        return text, response_id, tool_log
+    except RuntimeError as exc:
+        error_msg = str(exc)
+        st.error(f"❌ {error_msg}")
+        return f"❌ {error_msg}", None, []
+    except openai.BadRequestError as exc:
+        error_msg = str(exc)
+        st.error(f"❌ API Error (400): {error_msg}")
+        return f"❌ API Error: {error_msg}", None, []
+    except openai.RateLimitError as exc:
+        st.error(f"❌ Rate limited: {exc}")
+        return f"❌ Rate limited: {exc}", None, []
+    except TimeoutError as exc:
+        st.error(f"❌ Request timed out: {exc}")
+        return f"❌ {exc}", None, []
+    except Exception as exc:
+        st.error(f"❌ Unexpected error: {exc}")
+        return f"❌ {exc}", None, []
 
 
 # ──────────────────────────────────────────────────────────────────────

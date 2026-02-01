@@ -96,3 +96,18 @@ def needs_high_reasoning(user_input: str) -> bool:
     """Return True if the query warrants high reasoning effort."""
     q = user_input.lower()
     return any(kw in q for kw in HIGH_REASONING_KEYWORDS)
+
+
+# ────────────────────────────────────────────────────────────────
+# Traffic Controller: Polymorphic Agent Configuration
+# ────────────────────────────────────────────────────────────────
+# Ghost model handles triage (Phase A) and search (Phase B).
+# Anchor model handles final synthesis (Phase C).
+GHOST_MODEL = "gpt-5.1-mini"
+ANCHOR_MODEL = "gpt-5.2"
+
+# Sentinel tokens (control codes) for state-machine routing.
+# These MUST appear as the very first token of each phase's output.
+SENTINEL_PLAN = "AVTI_PLAN"
+SENTINEL_DATA = "AVTI_DATA"
+SENTINEL_ANSWER = "AVTI_ANSWER"

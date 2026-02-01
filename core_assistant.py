@@ -120,6 +120,11 @@ from assistant_config import (
     HIGH_REASONING_EFFORT,
     DEFAULT_VERBOSITY,
     needs_high_reasoning,
+    GHOST_MODEL,
+    ANCHOR_MODEL,
+    SENTINEL_PLAN,
+    SENTINEL_DATA,
+    SENTINEL_ANSWER,
 )
 
 from hard_logic import (
@@ -813,6 +818,100 @@ except FileNotFoundError:
 
 
 # ──────────────────────────────────────────────────────────────────────
+#  Traffic Controller – Ghost model instructions
+# ──────────────────────────────────────────────────────────────────────
+
+_GHOST_TRIAGE_TEMPLATE = """\
+You are a triage agent for sAImone, a Medical Affairs strategic AI system.
+Your ONLY job is to classify the user's query and choose the correct routing path.
+
+AVAILABLE TAXONOMY DATASETS (loaded in-memory):
+{schema_summary}
+
+ROUTING RULES — read carefully:
+1. EXTERNAL DATA NEEDED (literature search, regulatory lookups, current events,
+   drug safety data, clinical trial results, PubMed/FDA/EMA queries, competitive
+   intelligence that requires live data, or any information NOT fully covered
+   by the taxonomy datasets above):
+   → Begin your response with exactly: AVTI_PLAN
+   → Then provide a concise retrieval plan:
+     • What specific information must be retrieved
+     • Which sources are most relevant (PubMed, FDA, EMA, web, medical links)
+     • Key search terms / drug names / MeSH concepts to query
+     • Why the taxonomy data alone is insufficient
+
+2. ANSWERABLE FROM TAXONOMY + GENERAL KNOWLEDGE (strategic framework
+   explanations, pillar/tactic/metric definitions, stakeholder mapping,
+   role-based deliverables, KOL lookup, pricing frameworks, MAPS workflow
+   guidance, or any query fully addressable from the datasets above):
+   → Begin your response with exactly: AVTI_ANSWER
+   → Then provide a thorough draft answer using the taxonomy data.
+
+CRITICAL RULES:
+- The sentinel token (AVTI_PLAN or AVTI_ANSWER) MUST be the very first
+  characters of your output. No preamble, no markdown fences, no whitespace.
+- When in doubt, prefer AVTI_PLAN — it is better to retrieve and confirm
+  than to answer with stale or incomplete information.
+- Your output is NEVER shown to the user. Be precise, not polished.
+"""
+
+_GHOST_SEARCH_INSTRUCTIONS = """\
+You are a data retrieval agent for sAImone. The previous response in this
+conversation chain contains a search plan (AVTI_PLAN). Execute it now.
+
+EXECUTION PROTOCOL:
+1. Use ALL relevant tools to gather the requested data comprehensively.
+   - web_search_preview for general / current information
+   - search_medical_links for PubMed, FDA, EMA literature & regulatory data
+   - file_search for proprietary documents in the vector store
+   - query_hard_logic for in-memory taxonomy DataFrame lookups
+   - code_interpreter for calculations / data processing if needed
+2. Retrieve from MULTIPLE sources when the plan calls for it.
+3. Include raw data, direct citations, URLs, publication dates, and key
+   quantitative findings.
+4. Begin your response with exactly: AVTI_DATA
+5. Structure findings clearly with headers per source/topic.
+
+CRITICAL RULES:
+- AVTI_DATA must be the very first characters of your output.
+- Your output is NEVER shown to the user. Optimise for completeness and
+  accuracy, not presentation.
+- Do NOT synthesise, summarise for lay audiences, or add disclaimers.
+  Provide raw research material for the synthesis agent.
+"""
+
+
+def _build_triage_instructions() -> str:
+    """Build Phase-A system prompt by injecting the live schema summary."""
+    try:
+        store = _get_hard_logic_store()
+        if store.is_loaded and store.available_datasets:
+            schema = store.get_schema_summary()
+        else:
+            schema = "(Hard Logic datasets not yet loaded — route via AVTI_PLAN when taxonomy data would be needed)"
+    except Exception:
+        schema = "(Hard Logic unavailable — route via AVTI_PLAN for any data-dependent query)"
+    return _GHOST_TRIAGE_TEMPLATE.format(schema_summary=schema)
+
+
+def _build_anchor_tools() -> List[dict]:
+    """Return the tool subset available to the Anchor model (Phase C).
+
+    The Anchor gets web search for ad-hoc verification and query_hard_logic
+    for deterministic taxonomy lookups.  Heavy retrieval (file_search,
+    code_interpreter, search_medical_links) was already handled by the
+    Ghost in Phase B.
+    """
+    return [
+        {
+            "type": "web_search_preview",
+            "search_context_size": "high",
+        },
+        QUERY_HARD_LOGIC_TOOL,
+    ]
+
+
+# ──────────────────────────────────────────────────────────────────────
 #  Lightweight token & context helpers
 # ──────────────────────────────────────────────────────────────────────
 def estimate_tokens_simple(content: Any) -> int:
@@ -1381,6 +1480,7 @@ def run_responses_sync(
     on_tool_call: Optional[Callable[[str, dict], None]] = None,
     reasoning_effort: Optional[str] = None,
     verbosity: Optional[str] = None,
+    tools_override: Optional[List[dict]] = None,
 ) -> Tuple[str, Optional[str], List[dict]]:
     """
     Synchronous runner using the OpenAI Responses API.
@@ -1392,6 +1492,9 @@ def run_responses_sync(
             explicitly overridden.
         verbosity: "low"|"medium"|"high".  Maps to text.verbosity.
             Defaults to DEFAULT_VERBOSITY ("medium").
+        tools_override: If provided, use this tool list instead of
+            the default get_tools().  Pass an empty list to disable
+            all tools for a given phase.
 
     Returns:
         (response_text, response_id, tool_call_log)
@@ -1400,7 +1503,7 @@ def run_responses_sync(
         - tool_call_log: List of {name, args, output} dicts for audit
     """
     client = get_client()
-    tools = get_tools()
+    tools = tools_override if tools_override is not None else get_tools()
 
     # Build input
     if input_text and not input_messages:
@@ -1561,6 +1664,150 @@ def run_responses_sync(
     response_id = response.id if hasattr(response, "id") else None
 
     return text, response_id, tool_call_log
+
+
+# ──────────────────────────────────────────────────────────────────────
+#  Traffic Controller – Polymorphic Agent orchestrator
+# ──────────────────────────────────────────────────────────────────────
+
+def _strip_sentinel(text: str) -> str:
+    """Remove the leading sentinel token and any trailing whitespace after it."""
+    for sentinel in (SENTINEL_PLAN, SENTINEL_DATA, SENTINEL_ANSWER):
+        if text.startswith(sentinel):
+            return text[len(sentinel):].lstrip(" \t").lstrip("\n")
+    return text
+
+
+def run_traffic_controller(
+    *,
+    input_text: str,
+    previous_response_id: Optional[str] = None,
+    on_tool_call: Optional[Callable[[str, dict], None]] = None,
+    on_phase_change: Optional[Callable[[str, str], None]] = None,
+    reasoning_effort: Optional[str] = None,
+    verbosity: Optional[str] = None,
+) -> Tuple[str, Optional[str], List[dict]]:
+    """Polymorphic Agent state machine (Traffic Controller).
+
+    Orchestrates a multi-phase conversation using sentinel tokens to
+    switch dynamically between models within a single response chain.
+
+    Phase A – Triage (Ghost / gpt-5.1-mini, no tools):
+        Classifies the query.  Returns AVTI_PLAN or AVTI_ANSWER.
+
+    Phase B – Ghost Search (Ghost / gpt-5.1-mini, full tools):
+        Only runs if Phase A emitted AVTI_PLAN.
+        Executes the retrieval plan.  Returns AVTI_DATA.
+
+    Phase C – Anchor Synthesis (Anchor / gpt-5.2, web + DB tools):
+        Always runs.  Synthesises the final user-facing response.
+
+    Args:
+        input_text:             The assembled context prompt (from
+                                create_context_prompt_with_budget).
+        previous_response_id:   Chain from prior conversation turns.
+        on_tool_call:           Callback for tool-call UI spinners.
+        on_phase_change:        Callback ``(phase_key, label)`` for
+                                st.status updates in the UI layer.
+        reasoning_effort:       Override for the Anchor model.
+        verbosity:              Override for the Anchor model.
+
+    Returns:
+        (response_text, response_id, combined_tool_call_log)
+    """
+    all_tool_logs: List[dict] = []
+
+    # ── Phase A: Triage (Ghost, no tools) ──────────────────────────
+    if on_phase_change:
+        on_phase_change("triage", "Planning — mapping query to taxonomy…")
+
+    triage_instructions = _build_triage_instructions()
+
+    phase_a_text, phase_a_id, _ = run_responses_sync(
+        model=GHOST_MODEL,
+        input_text=input_text,
+        instructions=triage_instructions,
+        previous_response_id=previous_response_id,
+        tools_override=[],          # no tools for triage
+        reasoning_effort="low",     # fast classification
+        verbosity="low",
+    )
+
+    _logger.info(
+        "Traffic Controller Phase A complete — sentinel=%s  resp_id=%s",
+        phase_a_text[:20] if phase_a_text else "(empty)",
+        phase_a_id,
+    )
+
+    # ── Phase B: Ghost Search (only if AVTI_PLAN) ──────────────────
+    chain_id = phase_a_id  # will advance to phase_b_id if search runs
+
+    if phase_a_text.startswith(SENTINEL_PLAN):
+        if on_phase_change:
+            on_phase_change("search", "Retrieving — searching external sources…")
+
+        phase_b_text, phase_b_id, phase_b_logs = run_responses_sync(
+            model=GHOST_MODEL,
+            input_text="Execute the retrieval plan from the previous response.",
+            instructions=_GHOST_SEARCH_INSTRUCTIONS,
+            previous_response_id=phase_a_id,
+            on_tool_call=on_tool_call,
+            tools_override=None,    # full tool suite
+            reasoning_effort="medium",
+            verbosity="low",
+        )
+
+        all_tool_logs.extend(phase_b_logs)
+        chain_id = phase_b_id or phase_a_id
+
+        _logger.info(
+            "Traffic Controller Phase B complete — sentinel=%s  tools=%d  resp_id=%s",
+            phase_b_text[:20] if phase_b_text else "(empty)",
+            len(phase_b_logs),
+            phase_b_id,
+        )
+
+    elif not phase_a_text.startswith(SENTINEL_ANSWER):
+        # Fallback: model didn't emit a sentinel.  Treat as AVTI_ANSWER.
+        _logger.warning(
+            "Phase A did not emit a recognised sentinel — treating as AVTI_ANSWER.  "
+            "First 80 chars: %s",
+            phase_a_text[:80],
+        )
+
+    # ── Phase C: Anchor Synthesis (always runs) ────────────────────
+    if on_phase_change:
+        on_phase_change("synthesis", "Synthesising — generating final response…")
+
+    phase_c_text, phase_c_id, phase_c_logs = run_responses_sync(
+        model=ANCHOR_MODEL,
+        input_text=(
+            "Synthesise all preceding context and findings into a final, "
+            "compliant, user-facing response.  Follow the MAPS workflow and "
+            "formatting rules from your system instructions."
+        ),
+        instructions=SYSTEM_INSTRUCTIONS,
+        previous_response_id=chain_id,
+        on_tool_call=on_tool_call,
+        tools_override=_build_anchor_tools(),
+        reasoning_effort=reasoning_effort,
+        verbosity=verbosity,
+    )
+
+    all_tool_logs.extend(phase_c_logs)
+    final_text = _strip_sentinel(phase_c_text)
+    final_id = phase_c_id or chain_id
+
+    _logger.info(
+        "Traffic Controller Phase C complete — resp_id=%s  total_tools=%d",
+        final_id,
+        len(all_tool_logs),
+    )
+
+    if on_phase_change:
+        on_phase_change("complete", "Complete")
+
+    return final_text, final_id, all_tool_logs
 
 
 # ──────────────────────────────────────────────────────────────────────
