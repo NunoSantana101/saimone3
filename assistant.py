@@ -29,6 +29,7 @@ from core_assistant import (
     create_context_prompt_with_budget as _make_prompt,
     run_responses_sync as _core_run,
     run_traffic_controller as _traffic_controller,
+    generate_rolling_summary as _generate_summary,
     add_file_to_vector_store,
     remove_file_from_vector_store,
     cleanup_uploaded_vector_store_files,
@@ -139,9 +140,19 @@ def run_assistant_polymorphic(
     delegates to run_traffic_controller() which orchestrates the
     Ghost (triage + search) and Anchor (synthesis) phases.
 
+    After a successful turn, generates a rolling conversation summary
+    via the Ghost model and stores it in session state.  On the next
+    turn the summary is injected into Phase A's triage prompt, giving
+    the Ghost compact cross-turn context without cross-model chaining.
+
     Returns:
         (response_text, response_id, tool_call_log)
     """
+    # Always serialize conversation history into the prompt text.
+    # Phase A (Ghost) has no response chain (cross-model chaining is
+    # broken), so it relies entirely on the prompt for prior context.
+    # Phase C (Anchor) gets the chain *and* the prompt — redundant
+    # but harmless, and the 400K context window can absorb it.
     prompt = _make_prompt(
         user_input,
         output_type,
@@ -152,8 +163,11 @@ def run_assistant_polymorphic(
         st.session_state.get("history", []),
         st.session_state.get("token_budget", 24_000),
         has_files=bool(uploaded_file_ids),
-        has_response_chain=bool(previous_response_id),
+        has_response_chain=False,
     )
+
+    # Retrieve the rolling summary from session state (empty on first turn)
+    prev_summary = st.session_state.get("ghost_context_summary", "")
 
     try:
         text, response_id, tool_log = _traffic_controller(
@@ -161,7 +175,19 @@ def run_assistant_polymorphic(
             previous_response_id=previous_response_id,
             on_tool_call=_streamlit_tool_callback,
             on_phase_change=on_phase_change,
+            conversation_summary=prev_summary,
         )
+
+        # ── Rolling summary: update after a successful turn ──────
+        # Only generate when we got a real response (not an error).
+        if text and not text.startswith("❌"):
+            new_summary = _generate_summary(
+                previous_summary=prev_summary,
+                user_query=user_input,
+                assistant_response=text,
+            )
+            st.session_state["ghost_context_summary"] = new_summary
+
         return text, response_id, tool_log
     except RuntimeError as exc:
         error_msg = str(exc)
