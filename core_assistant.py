@@ -1708,10 +1708,20 @@ def run_traffic_controller(
     Phase C – Anchor Synthesis (Anchor / gpt-5.2, web + DB tools):
         Always runs.  Synthesises the final user-facing response.
 
+    IMPORTANT – Model-boundary isolation:
+        previous_response_id chains NEVER cross model families.
+        Phase A→B uses same-model chaining (both Ghost).
+        Phase C chains to the *previous turn's* Phase C (both Anchor).
+        Ghost findings are passed to Phase C as explicit input text,
+        not via previous_response_id, to avoid the reasoning-item
+        incompatibility bug in the Responses API.
+
     Args:
         input_text:             The assembled context prompt (from
                                 create_context_prompt_with_budget).
-        previous_response_id:   Chain from prior conversation turns.
+        previous_response_id:   Chain from the *previous turn's Phase C*
+                                (Anchor model only — stored in session
+                                state as last_response_id).
         on_tool_call:           Callback for tool-call UI spinners.
         on_phase_change:        Callback ``(phase_key, label)`` for
                                 st.status updates in the UI layer.
@@ -1732,6 +1742,8 @@ def run_traffic_controller(
                 _logger.debug("on_phase_change callback failed for %s", key)
 
     # ── Phase A: Triage (Ghost, no tools) ──────────────────────────
+    # No previous_response_id — Phase A is a fresh Ghost call every
+    # turn.  The context prompt already contains serialised history.
     _notify_phase("triage", "Planning — mapping query to taxonomy…")
 
     triage_instructions = _build_triage_instructions()
@@ -1740,9 +1752,9 @@ def run_traffic_controller(
         model=GHOST_MODEL,
         input_text=input_text,
         instructions=triage_instructions,
-        previous_response_id=previous_response_id,
-        tools_override=[],          # no tools for triage
-        reasoning_effort="low",     # fast classification
+        previous_response_id=None,      # never chain cross-model
+        tools_override=[],              # no tools for triage
+        reasoning_effort="low",         # fast classification
         verbosity="low",
     )
 
@@ -1753,7 +1765,8 @@ def run_traffic_controller(
     )
 
     # ── Phase B: Ghost Search (only if AVTI_PLAN) ──────────────────
-    chain_id = phase_a_id  # will advance to phase_b_id if search runs
+    # Chains to Phase A via previous_response_id (same model: Ghost→Ghost).
+    ghost_output = phase_a_text          # default: Phase A's text
 
     if phase_a_text.startswith(SENTINEL_PLAN):
         _notify_phase("search", "Retrieving — searching external sources…")
@@ -1762,15 +1775,15 @@ def run_traffic_controller(
             model=GHOST_MODEL,
             input_text="Execute the retrieval plan from the previous response.",
             instructions=_GHOST_SEARCH_INSTRUCTIONS,
-            previous_response_id=phase_a_id,
+            previous_response_id=phase_a_id,    # same model ✓
             on_tool_call=on_tool_call,
-            tools_override=None,    # full tool suite
+            tools_override=None,                # full tool suite
             reasoning_effort="medium",
             verbosity="low",
         )
 
         all_tool_logs.extend(phase_b_logs)
-        chain_id = phase_b_id or phase_a_id
+        ghost_output = phase_b_text             # upgrade to Phase B's findings
 
         _logger.info(
             "Traffic Controller Phase B complete — sentinel=%s  tools=%d  resp_id=%s",
@@ -1788,17 +1801,25 @@ def run_traffic_controller(
         )
 
     # ── Phase C: Anchor Synthesis (always runs) ────────────────────
+    # Chains to the *previous turn's* Phase C via previous_response_id
+    # (same model: Anchor→Anchor).  Ghost findings are injected as
+    # explicit input text to avoid crossing model boundaries.
     _notify_phase("synthesis", "Synthesising — generating final response…")
+
+    phase_c_input = (
+        f"{input_text}\n\n"
+        f"── RETRIEVAL AGENT FINDINGS ──\n"
+        f"{ghost_output}\n"
+        f"── END FINDINGS ──\n\n"
+        "Synthesise the retrieval findings above with the conversation "
+        "context into a final, compliant, user-facing response."
+    )
 
     phase_c_text, phase_c_id, phase_c_logs = run_responses_sync(
         model=ANCHOR_MODEL,
-        input_text=(
-            "Synthesise all preceding context and findings into a final, "
-            "compliant, user-facing response.  Follow the MAPS workflow and "
-            "formatting rules from your system instructions."
-        ),
+        input_text=phase_c_input,
         instructions=SYSTEM_INSTRUCTIONS,
-        previous_response_id=chain_id,
+        previous_response_id=previous_response_id,  # last turn's Phase C ✓
         on_tool_call=on_tool_call,
         tools_override=_build_anchor_tools(),
         reasoning_effort=reasoning_effort,
@@ -1807,7 +1828,7 @@ def run_traffic_controller(
 
     all_tool_logs.extend(phase_c_logs)
     final_text = _strip_sentinel(phase_c_text)
-    final_id = phase_c_id or chain_id
+    final_id = phase_c_id or previous_response_id
 
     _logger.info(
         "Traffic Controller Phase C complete — resp_id=%s  total_tools=%d",
