@@ -357,6 +357,8 @@ class LazyContextManager:
     Local context is supplementary for prompt enrichment.
     """
 
+    _MAX_CACHE_ENTRIES = 64  # prevent unbounded memory growth in long sessions
+
     def __init__(self):
         self._cache: Dict[str, Tuple[Any, float]] = {}
 
@@ -389,12 +391,20 @@ class LazyContextManager:
 
     def _cleanup_cache(self):
         now = time.time()
+        # Remove entries older than 2x TTL
         expired = [
             key for key, (_, timestamp) in self._cache.items()
             if now - timestamp > CONTEXT_CACHE_TTL * 2
         ]
         for key in expired:
             del self._cache[key]
+
+        # Hard cap: evict oldest entries when cache exceeds max size
+        if len(self._cache) > self._MAX_CACHE_ENTRIES:
+            by_age = sorted(self._cache.items(), key=lambda kv: kv[1][1])
+            evict_count = len(self._cache) - self._MAX_CACHE_ENTRIES
+            for key, _ in by_age[:evict_count]:
+                del self._cache[key]
 
     def invalidate(self):
         self._cache.clear()
