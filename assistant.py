@@ -212,8 +212,11 @@ def handle_file_upload(uploaded_file) -> Dict[str, Any]:
                 file=(uploaded_file.name, file_bytes), purpose="assistants"
             )
 
-        # Poll until processed (max 120s)
-        for _ in range(60):
+        # Poll until processed (max ~120s with exponential backoff)
+        poll_delay = 1.0
+        max_poll_time = 120
+        poll_start = time.time()
+        while time.time() - poll_start < max_poll_time:
             info = openai.files.retrieve(fobj.id)
             if info.status == "processed":
                 return {
@@ -224,10 +227,13 @@ def handle_file_upload(uploaded_file) -> Dict[str, Any]:
                 }
             if info.status == "error":
                 return {"success": False, "error": "File processing failed"}
-            time.sleep(2)
+            time.sleep(poll_delay)
+            poll_delay = min(poll_delay * 1.5, 8)  # backoff: 1→1.5→2.25→...→8s
         return {"success": False, "error": "File processing timeout"}
+    except (openai.APIError, openai.APIConnectionError, openai.APITimeoutError) as exc:
+        return {"success": False, "error": f"Upload failed: {type(exc).__name__}"}
     except Exception as exc:
-        return {"success": False, "error": f"Upload failed: {exc}"}
+        return {"success": False, "error": f"Upload failed: {type(exc).__name__}"}
 
 
 def validate_file_exists(file_id: str) -> bool:

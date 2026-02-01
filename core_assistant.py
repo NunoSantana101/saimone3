@@ -71,27 +71,13 @@ Key architecture:
 
 from __future__ import annotations
 
-import atexit, json, time, os, logging
+import atexit, json, threading, time, os, logging
 from datetime import datetime
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
 
 import httpx
 import openai
 from openai import OpenAI
-
-# v7.0: med_affairs_data backend unhooked – using OpenAI web_search_preview
-# from med_affairs_data import extract_clinical_outcomes
-
-# v7.0: Agent data pipeline unhooked – no custom search results to compress
-# from agent_data_pipeline import (
-#     process_through_pipeline, process_with_hybrid_pipeline,
-#     decompress_pipeline_data, search_manifest,
-#     cache_pipeline_data, get_cached_pipeline_data,
-#     cache_vector_store_info, get_cached_vector_store_info,
-#     cleanup_vector_store, handle_pipeline_tool_call,
-#     select_pipeline_strategy, PipelineStrategy,
-#     MAX_UNCOMPRESSED_OUTPUT, VECTOR_STORE_THRESHOLD,
-# )
 
 from tool_config import (
     DEFAULT_MAX_PER_SOURCE,
@@ -195,6 +181,11 @@ def get_client() -> OpenAI:
         # Prefer explicit key from openai module (set by main.py),
         # then fall back to OPENAI_API_KEY env var.
         api_key = getattr(openai, "api_key", None) or os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "No OpenAI API key found. Set openai.api_key or the "
+                "OPENAI_API_KEY environment variable before calling get_client()."
+            )
         _client = OpenAI(
             api_key=api_key,
             http_client=httpx.Client(
@@ -230,9 +221,11 @@ _ci_container_attempts: int = 0
 _CI_MAX_RETRIES: int = 3  # stop retrying after this many failures
 _ci_container_created_at: Optional[float] = None  # v8.0: age tracking for proactive keep-alive
 _CI_MAX_AGE_SECONDS: int = 240  # Reset container proactively after 4 min
+_container_lock = threading.Lock()  # Protects all _ci_container_* globals
 
 # Cache for JSON files uploaded to OpenAI during this session
 # (files without pre-existing file_ids in the registry)
+_MAX_UPLOADED_FILE_IDS = 50  # Prevent unbounded growth in long sessions
 _uploaded_json_file_ids: Dict[str, str] = {}
 
 
@@ -278,9 +271,17 @@ def _ensure_json_file_ids() -> Dict[str, str]:
                     file=(filename, f),
                     purpose="assistants",
                 )
-            _uploaded_json_file_ids[filename] = fobj.id
-            all_ids[filename] = fobj.id
-            _logger.info("Uploaded %s → %s for CI container", filename, fobj.id)
+            fid = getattr(fobj, "id", None)
+            if not fid:
+                _logger.warning("Upload of %s returned empty file ID — skipping", filename)
+                continue
+            # Evict oldest entry if cache is full
+            if len(_uploaded_json_file_ids) >= _MAX_UPLOADED_FILE_IDS:
+                oldest_key = next(iter(_uploaded_json_file_ids))
+                del _uploaded_json_file_ids[oldest_key]
+            _uploaded_json_file_ids[filename] = fid
+            all_ids[filename] = fid
+            _logger.info("Uploaded %s → %s for CI container", filename, fid)
         except Exception as exc:
             _logger.warning("Could not upload %s to OpenAI: %s", filename, exc)
 
@@ -293,7 +294,7 @@ def _get_all_container_file_ids() -> List[str]:
     Includes mc_rng.py plus every JSON config file that has a valid
     OpenAI file ID (pre-existing or freshly uploaded).
     """
-    file_ids = [MC_RNG_FILE_ID]
+    file_ids = [MC_RNG_FILE_ID] if MC_RNG_FILE_ID else []
 
     try:
         json_ids = _ensure_json_file_ids()
@@ -301,7 +302,8 @@ def _get_all_container_file_ids() -> List[str]:
     except Exception as exc:
         _logger.warning("Could not resolve JSON file IDs for container: %s", exc)
 
-    return list(set(file_ids))  # deduplicate
+    # Deduplicate and filter empty/None IDs
+    return [fid for fid in set(file_ids) if fid]
 
 
 def get_container_file_map() -> Dict[str, str]:
@@ -337,46 +339,51 @@ def _get_code_interpreter_container() -> Optional[str]:
     retrying on every request.
 
     v8.0: Tracks container creation time for proactive age-based reset.
+    Thread-safe: all global state mutations protected by _container_lock.
     """
     global _ci_container_id, _ci_container_attempts, _ci_container_created_at
-    if _ci_container_id is not None:
-        return _ci_container_id or None  # "" sentinel → None
-    try:
-        client = get_client()
-        all_file_ids = _get_all_container_file_ids()
-        container = client.containers.create(
-            name="saimone-ci",
-            file_ids=all_file_ids,
-        )
-        _ci_container_id = container.id
-        _ci_container_created_at = time.time()
-        _ci_container_attempts = 0
-        _logger.info(
-            "Created CI container %s with %d files (mc_rng.py + %d JSON configs)",
-            _ci_container_id,
-            len(all_file_ids),
-            len(all_file_ids) - 1,
-        )
-        return _ci_container_id
-    except Exception as exc:
-        _ci_container_attempts += 1
-        if _ci_container_attempts >= _CI_MAX_RETRIES:
-            _logger.warning(
-                "CI container creation failed %d times; accepting "
-                "fallback permanently: %s",
-                _ci_container_attempts,
-                exc,
+    with _container_lock:
+        if _ci_container_id is not None:
+            return _ci_container_id or None  # "" sentinel → None
+        try:
+            client = get_client()
+            all_file_ids = _get_all_container_file_ids()
+            container = client.containers.create(
+                name="saimone-ci",
+                file_ids=all_file_ids,
             )
-            _ci_container_id = ""  # sentinel: stops further retries
-        else:
-            _logger.warning(
-                "Could not create CI container (attempt %d/%d): %s – "
-                "will retry on next call",
-                _ci_container_attempts,
-                _CI_MAX_RETRIES,
-                exc,
+            cid = getattr(container, "id", None)
+            if not cid:
+                raise ValueError("Container creation returned empty ID")
+            _ci_container_id = cid
+            _ci_container_created_at = time.time()
+            _ci_container_attempts = 0
+            _logger.info(
+                "Created CI container %s with %d files (mc_rng.py + %d JSON configs)",
+                _ci_container_id,
+                len(all_file_ids),
+                len(all_file_ids) - 1,
             )
-        return None
+            return _ci_container_id
+        except Exception as exc:
+            _ci_container_attempts += 1
+            if _ci_container_attempts >= _CI_MAX_RETRIES:
+                _logger.warning(
+                    "CI container creation failed %d times; accepting "
+                    "fallback permanently: %s",
+                    _ci_container_attempts,
+                    exc,
+                )
+                _ci_container_id = ""  # sentinel: stops further retries
+            else:
+                _logger.warning(
+                    "Could not create CI container (attempt %d/%d): %s – "
+                    "will retry on next call",
+                    _ci_container_attempts,
+                    _CI_MAX_RETRIES,
+                    exc,
+                )
+            return None
 
 
 def _check_container_age() -> None:
@@ -384,21 +391,23 @@ def _check_container_age() -> None:
 
     v8.0: Prevents mid-loop 400 errors from expired containers by resetting
     before the server-side TTL expires.
+    Thread-safe: reads under _container_lock then delegates to reset_container.
     """
     global _ci_container_created_at
-    if (
-        _ci_container_created_at is not None
-        and _ci_container_id
-        and _ci_container_id != ""
-        and (time.time() - _ci_container_created_at) > _CI_MAX_AGE_SECONDS
-    ):
-        age = int(time.time() - _ci_container_created_at)
-        _logger.info(
-            "Proactively resetting stale CI container %s (age=%ds, max=%ds)",
-            _ci_container_id, age, _CI_MAX_AGE_SECONDS,
-        )
-        reset_container()
-        _ci_container_created_at = None
+    with _container_lock:
+        if (
+            _ci_container_created_at is not None
+            and _ci_container_id
+            and _ci_container_id != ""
+            and (time.time() - _ci_container_created_at) > _CI_MAX_AGE_SECONDS
+        ):
+            age = int(time.time() - _ci_container_created_at)
+            _logger.info(
+                "Proactively resetting stale CI container %s (age=%ds, max=%ds)",
+                _ci_container_id, age, _CI_MAX_AGE_SECONDS,
+            )
+            _reset_container_unlocked()
+            _ci_container_created_at = None
 
 
 def _cleanup_container() -> None:
@@ -414,14 +423,8 @@ def _cleanup_container() -> None:
 atexit.register(_cleanup_container)
 
 
-def reset_container() -> None:
-    """Reset the cached container ID and tools list.
-
-    Called when a 400 error suggests the server-side container has expired,
-    or proactively by _check_container_age() before the TTL expires.
-    The next call to get_tools() / build_tools_list() will lazily create a
-    fresh container.
-    """
+def _reset_container_unlocked() -> None:
+    """Inner reset — caller must hold _container_lock."""
     global _ci_container_id, _ci_container_attempts, _cached_tools, _ci_container_created_at
     old = _ci_container_id
     _ci_container_id = None
@@ -429,6 +432,19 @@ def reset_container() -> None:
     _ci_container_created_at = None
     _cached_tools = None
     _logger.info("Reset stale CI container (was %s); will recreate on next call", old)
+
+
+def reset_container() -> None:
+    """Reset the cached container ID and tools list.
+
+    Called when a 400 error suggests the server-side container has expired,
+    or proactively by _check_container_age() before the TTL expires.
+    The next call to get_tools() / build_tools_list() will lazily create a
+    fresh container.
+    Thread-safe: acquires _container_lock.
+    """
+    with _container_lock:
+        _reset_container_unlocked()
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -1271,10 +1287,13 @@ def _detect_tool_loop(tool_call_log: List[dict], current_calls: list) -> bool:
             for e in round_entries
         )
         # Compare by name+args (arguments from log are dicts, current are raw strings)
-        current_compare = frozenset(
-            (c.name, json.dumps(json.loads(c.arguments), sort_keys=True))
-            for c in current_calls
-        )
+        try:
+            current_compare = frozenset(
+                (c.name, json.dumps(json.loads(c.arguments), sort_keys=True))
+                for c in current_calls
+            )
+        except (json.JSONDecodeError, TypeError):
+            return False
         if round_sigs != current_compare:
             return False
 
@@ -1511,9 +1530,25 @@ def run_responses_sync(
             call_id = call.call_id
             try:
                 args = json.loads(call.arguments)
-            except json.JSONDecodeError as exc:
-                args = {}
+            except (json.JSONDecodeError, TypeError) as exc:
                 _logger.error("Failed to parse args for %s: %s", fn_name, exc)
+                # Tell the model its arguments were malformed so it can retry correctly
+                tool_outputs.append({
+                    "type": "function_call_output",
+                    "call_id": call_id,
+                    "output": json.dumps({
+                        "error": f"Malformed JSON arguments: {exc}",
+                        "hint": "Please re-send with valid JSON arguments.",
+                    }),
+                })
+                tool_call_log.append({
+                    "name": fn_name,
+                    "args": {},
+                    "output_size": 0,
+                    "round": round_num,
+                    "_parse_error": str(exc),
+                })
+                continue
 
             # Notify callback if provided (for UI spinners etc.)
             if on_tool_call:
@@ -1806,8 +1841,23 @@ async def run_responses_async(
             call_id = call.call_id
             try:
                 args = json.loads(call.arguments)
-            except json.JSONDecodeError:
-                args = {}
+            except (json.JSONDecodeError, TypeError) as exc:
+                _logger.error("Failed to parse args for async %s: %s", fn_name, exc)
+                tool_call_log.append({
+                    "name": fn_name,
+                    "args": {},
+                    "output_size": 0,
+                    "round": round_num,
+                    "_parse_error": str(exc),
+                })
+                return {
+                    "type": "function_call_output",
+                    "call_id": call_id,
+                    "output": json.dumps({
+                        "error": f"Malformed JSON arguments: {exc}",
+                        "hint": "Please re-send with valid JSON arguments.",
+                    }),
+                }
             try:
                 output = await tool_router_async(fn_name, args)
             except Exception as exc:

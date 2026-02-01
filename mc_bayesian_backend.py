@@ -13,9 +13,28 @@ from datetime import datetime
 from scipy.stats import norm
 import logging
 
-# Import your existing MC and Bayesian modules
-from mc_simulation_bayesian import mc_simulate_bayesian, sample_metric_and_prob, sample_stakeholder_and_prob
-from bayesian_inference import compute_posterior, recommend_decision, classify
+# Import MC and Bayesian modules with graceful fallback.
+# These modules may not be present in every deployment — the code interpreter
+# loads mc_rng.py directly via the OpenAI container, and the agent can run
+# simulations in the sandbox.  When the modules are absent, the function-call
+# tools return a clear error instead of crashing with an ImportError.
+try:
+    from mc_simulation_bayesian import mc_simulate_bayesian, sample_metric_and_prob, sample_stakeholder_and_prob
+    _MC_AVAILABLE = True
+except ImportError:
+    _MC_AVAILABLE = False
+    mc_simulate_bayesian = None
+    sample_metric_and_prob = None
+    sample_stakeholder_and_prob = None
+
+try:
+    from bayesian_inference import compute_posterior, recommend_decision, classify
+    _BAYESIAN_AVAILABLE = True
+except ImportError:
+    _BAYESIAN_AVAILABLE = False
+    compute_posterior = None
+    recommend_decision = None
+    classify = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -207,7 +226,13 @@ class MedAffairsMCBayesianEngine:
             n_iterations = min(n_iterations, 5000)
             
             logger.info(f"Running MC simulation with {len(scenarios)} scenarios, {n_iterations} iterations")
-            
+
+            if not _MC_AVAILABLE:
+                raise RuntimeError(
+                    "Monte Carlo backend (mc_simulation_bayesian) is not installed. "
+                    "Use the code_interpreter tool with mc_rng.py instead."
+                )
+
             # Run the simulation using your existing code
             results = mc_simulate_bayesian(scenarios, n_iterations, context)
             
@@ -301,6 +326,12 @@ class MedAffairsMCBayesianEngine:
                 "evidence": evidence
             }
             
+            if not _BAYESIAN_AVAILABLE:
+                raise RuntimeError(
+                    "Bayesian backend (bayesian_inference) is not installed. "
+                    "Use the code_interpreter tool for Bayesian analysis instead."
+                )
+
             # Run Bayesian classification
             result = classify(classification_input)
             
