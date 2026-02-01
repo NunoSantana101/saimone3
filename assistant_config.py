@@ -103,7 +103,7 @@ def needs_high_reasoning(user_input: str) -> bool:
 # ────────────────────────────────────────────────────────────────
 # Ghost model handles triage (Phase A) and search (Phase B).
 # Anchor model handles final synthesis (Phase C).
-GHOST_MODEL = "gpt-4.1-mini"
+GHOST_MODEL = "gpt-5-mini"
 ANCHOR_MODEL = "gpt-5.2"
 
 # Sentinel tokens (control codes) for state-machine routing.
