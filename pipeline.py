@@ -53,6 +53,28 @@ _logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────
+#  Prompt Cache Integration
+# ─────────────────────────────────────────────────────────────────────
+# Import the immutable static prefix once.  This is the same >1024-token
+# block used by the monolithic path (system_instructions.txt + dossier
+# files).  Prepending it to every stage's instructions keeps the prefix
+# identical across all API calls, enabling OpenAI's automatic 90% cached
+# input token discount.
+
+from prompt_cache import STATIC_CONTEXT_BLOCK as _STATIC_PREFIX
+
+
+def _cached_instructions(stage_prompt: str) -> str:
+    """Build a cache-eligible instructions string.
+
+    Prepends STATIC_CONTEXT_BLOCK (the immutable prefix that OpenAI
+    caches) to the stage-specific prompt.  The static block MUST be
+    the absolute first content so the server-side prefix match succeeds.
+    """
+    return f"{_STATIC_PREFIX}\n\n---\n\n{stage_prompt}"
+
+
+# ─────────────────────────────────────────────────────────────────────
 #  Schema Definitions
 # ─────────────────────────────────────────────────────────────────────
 
@@ -357,7 +379,8 @@ def run_stage_1_architect(
     model: str = "gpt-5.2",
     tool_router: Optional[Callable] = None,
     max_tool_rounds: int = 5,
-) -> ResearchPlan:
+    previous_response_id: Optional[str] = None,
+) -> Tuple[ResearchPlan, Optional[str]]:
     """Stage 1: Decompose the user query into a structured research plan.
 
     Uses GPT-5.2 with HIGH reasoning effort.  Has access ONLY to the
@@ -366,6 +389,9 @@ def run_stage_1_architect(
     plan in real data structures.  No web search, no file search,
     no external retrieval.
 
+    Instructions are prefixed with STATIC_CONTEXT_BLOCK to activate
+    the 90% cached input token discount.
+
     Args:
         user_query: The raw user query.
         system_state: Optional dict with current_date, user_role, etc.
@@ -373,9 +399,10 @@ def run_stage_1_architect(
         model: Model to use (default: gpt-5.2).
         tool_router: Function tool router (defaults to core_assistant's).
         max_tool_rounds: Max hard-logic lookup round-trips (default 5).
+        previous_response_id: For conversation continuity from prior turns.
 
     Returns:
-        ResearchPlan — strictly typed plan for Stage 2.
+        (ResearchPlan, response_id) — plan for Stage 2 + ID for chaining.
 
     Raises:
         PipelineStageError: If the model fails to produce valid JSON.
@@ -410,16 +437,22 @@ def run_stage_1_architect(
 
     _logger.info("Stage 1 (Architect): planning for query (len=%d)", len(user_query))
 
+    instructions = _cached_instructions(_ARCHITECT_SYSTEM_PROMPT)
+
+    # store=True (default) required so previous_response_id chaining works.
+    kwargs: dict = {
+        "model": model,
+        "instructions": instructions,
+        "input": input_text,
+        "tools": tools,
+        "reasoning": {"effort": "high"},
+        "text": {"format": {"type": "json_object"}},
+    }
+    if previous_response_id:
+        kwargs["previous_response_id"] = previous_response_id
+
     try:
-        response = client.responses.create(
-            model=model,
-            instructions=_ARCHITECT_SYSTEM_PROMPT,
-            input=input_text,
-            tools=tools,
-            reasoning={"effort": "high"},
-            text={"format": {"type": "json_object"}},
-            store=False,
-        )
+        response = client.responses.create(**kwargs)
     except openai.APIError as exc:
         raise PipelineStageError("architect", f"API error: {exc}") from exc
 
@@ -455,7 +488,7 @@ def run_stage_1_architect(
                 previous_response_id=response.id,
                 input=tool_outputs,
                 tools=tools,
-                instructions=_ARCHITECT_SYSTEM_PROMPT,
+                instructions=instructions,
                 reasoning={"effort": "high"},
                 text={"format": {"type": "json_object"}},
             )
@@ -480,11 +513,12 @@ def run_stage_1_architect(
             ) from exc
 
     plan = ResearchPlan.from_dict(plan_data)
+    response_id = response.id if hasattr(response, "id") else None
     _logger.info(
         "Stage 1 complete: intent=%s, steps=%d, data_points=%d",
         plan.intent, len(plan.steps), len(plan.required_data_points),
     )
-    return plan
+    return plan, response_id
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -545,12 +579,16 @@ def run_stage_2_researcher(
     on_tool_call: Optional[Callable[[str, dict], None]] = None,
     timeout: int = 300,
     max_tool_rounds: int = 15,
-) -> Tuple[FactSheet, List[dict]]:
+    previous_response_id: Optional[str] = None,
+) -> Tuple[FactSheet, List[dict], Optional[str]]:
     """Stage 2: Execute the research plan and produce a fact sheet.
 
     The model receives the plan as a JSON prompt and is given access
     to all available tools.  It executes the steps, compresses the
     retrieved context, and outputs a structured FactSheet.
+
+    Instructions are prefixed with STATIC_CONTEXT_BLOCK to activate
+    the 90% cached input token discount.
 
     Args:
         plan: ResearchPlan from Stage 1.
@@ -560,9 +598,10 @@ def run_stage_2_researcher(
         on_tool_call: Optional callback for UI feedback.
         timeout: Max seconds for the entire stage.
         max_tool_rounds: Max tool-call round-trips.
+        previous_response_id: For conversation continuity from Stage 1.
 
     Returns:
-        (FactSheet, tool_call_log) — structured facts + audit trail.
+        (FactSheet, tool_call_log, response_id) — facts + audit + ID for chaining.
     """
     if client is None:
         from core_assistant import get_client
@@ -591,39 +630,37 @@ def run_stage_2_researcher(
     from core_assistant import _RATE_LIMIT_BACKOFF_SCHEDULE, _PER_TOOL_TIMEOUT
     import concurrent.futures
 
+    instructions = _cached_instructions(_RESEARCHER_SYSTEM_PROMPT)
     tool_call_log: List[dict] = []
     start = time.time()
 
-    # Initial API call with tools
+    # store=True (default) required so previous_response_id chaining works.
+    init_kwargs: dict = {
+        "model": model,
+        "instructions": instructions,
+        "input": input_text,
+        "tools": tools,
+        "reasoning": {"effort": "medium"},
+        "text": {"format": {"type": "json_object"}},
+    }
+    if previous_response_id:
+        init_kwargs["previous_response_id"] = previous_response_id
+
     try:
-        response = client.responses.create(
-            model=model,
-            instructions=_RESEARCHER_SYSTEM_PROMPT,
-            input=input_text,
-            tools=tools,
-            reasoning={"effort": "medium"},
-            text={"format": {"type": "json_object"}},
-            store=False,
-        )
+        response = client.responses.create(**init_kwargs)
     except openai.BadRequestError as exc:
         _logger.warning("Stage 2 BadRequestError — resetting container: %s", exc)
         reset_container()
         tools = get_tools()
+        init_kwargs["tools"] = tools
+        init_kwargs.pop("previous_response_id", None)
         try:
-            response = client.responses.create(
-                model=model,
-                instructions=_RESEARCHER_SYSTEM_PROMPT,
-                input=input_text,
-                tools=tools,
-                reasoning={"effort": "medium"},
-                text={"format": {"type": "json_object"}},
-                store=False,
-            )
+            response = client.responses.create(**init_kwargs)
         except openai.BadRequestError:
             raise PipelineStageError("researcher", f"API error after retry: {exc}") from exc
     except openai.RateLimitError as exc:
         response = _retry_with_backoff(
-            client, model, _RESEARCHER_SYSTEM_PROMPT, input_text,
+            client, model, instructions, input_text,
             tools, _RATE_LIMIT_BACKOFF_SCHEDULE, exc, "researcher",
         )
     except openai.APIError as exc:
@@ -681,7 +718,7 @@ def run_stage_2_researcher(
                 previous_response_id=response.id,
                 input=tool_outputs,
                 tools=tools,
-                instructions=_RESEARCHER_SYSTEM_PROMPT,
+                instructions=instructions,
                 reasoning={"effort": "medium"},
                 text={"format": {"type": "json_object"}},
             )
@@ -695,7 +732,7 @@ def run_stage_2_researcher(
                     previous_response_id=response.id,
                     input=tool_outputs,
                     tools=tools,
-                    instructions=_RESEARCHER_SYSTEM_PROMPT,
+                    instructions=instructions,
                     reasoning={"effort": "medium"},
                     text={"format": {"type": "json_object"}},
                 )
@@ -711,7 +748,7 @@ def run_stage_2_researcher(
                         previous_response_id=response.id,
                         input=tool_outputs,
                         tools=tools,
-                        instructions=_RESEARCHER_SYSTEM_PROMPT,
+                        instructions=instructions,
                         reasoning={"effort": "medium"},
                         text={"format": {"type": "json_object"}},
                     )
@@ -729,7 +766,7 @@ def run_stage_2_researcher(
                     previous_response_id=response.id,
                     input=tool_outputs,
                     tools=tools,
-                    instructions=_RESEARCHER_SYSTEM_PROMPT,
+                    instructions=instructions,
                     reasoning={"effort": "medium"},
                     text={"format": {"type": "json_object"}},
                 )
@@ -753,12 +790,13 @@ def run_stage_2_researcher(
 
     sheet = FactSheet.from_dict(sheet_data)
     sheet.total_tool_calls = len(tool_call_log)
+    s2_response_id = response.id if hasattr(response, "id") else None
 
     _logger.info(
         "Stage 2 complete: facts=%d, gaps=%d, tool_calls=%d",
         len(sheet.facts), len(sheet.data_gaps), len(tool_call_log),
     )
-    return sheet, tool_call_log
+    return sheet, tool_call_log, s2_response_id
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -859,9 +897,11 @@ def run_stage_3_synthesizer(
         len(fact_sheet.facts), len(fact_sheet.data_gaps),
     )
 
+    instructions = _cached_instructions(_SYNTHESIZER_SYSTEM_PROMPT)
+
     kwargs: dict = {
         "model": model,
-        "instructions": _SYNTHESIZER_SYSTEM_PROMPT,
+        "instructions": instructions,
         "input": input_text,
         # NO tools — writing only
         "reasoning": {"effort": "medium"},
@@ -914,7 +954,9 @@ def run_pipeline(
         output_type: Desired output format for Stage 3.
         response_tone: Tone modifier for Stage 3.
         compliance_level: Compliance stringency for Stage 3.
-        previous_response_id: For response chaining (passed to Stage 3).
+        previous_response_id: For conversation continuity.  Chains through
+            all three stages: S1 receives it from the caller, S2 from S1,
+            S3 from S2.  Enables the model to see prior conversation turns.
         tool_router: Function tool router for Stage 2.
         on_tool_call: Callback for UI feedback during Stage 2.
         on_stage_complete: Callback fired after each stage completes,
@@ -938,15 +980,20 @@ def run_pipeline(
 
     _logger.info("Pipeline %s started for query (len=%d)", pipeline_id, len(user_query))
 
+    # Chain response IDs through the pipeline for conversation continuity.
+    chain_id = previous_response_id
+
     # ── Stage 1: Architect ──
     try:
         s1_start = time.time()
-        plan = run_stage_1_architect(
+        plan, s1_response_id = run_stage_1_architect(
             user_query,
             system_state=system_state,
             model=model,
             tool_router=tool_router,
+            previous_response_id=chain_id,
         )
+        chain_id = s1_response_id or chain_id
         audit.stage_1_plan = plan.to_dict()
         audit.stage_1_duration_ms = int((time.time() - s1_start) * 1000)
 
@@ -972,13 +1019,15 @@ def run_pipeline(
     try:
         s2_start = time.time()
         remaining_timeout = max(60, timeout - int(time.time() - pipeline_start))
-        fact_sheet, tool_log = run_stage_2_researcher(
+        fact_sheet, tool_log, s2_response_id = run_stage_2_researcher(
             plan,
             model=model,
             tool_router=tool_router,
             on_tool_call=on_tool_call,
             timeout=remaining_timeout,
+            previous_response_id=chain_id,
         )
+        chain_id = s2_response_id or chain_id
         audit.stage_2_fact_sheet = fact_sheet.to_dict()
         audit.stage_2_tool_calls = tool_log
         audit.stage_2_duration_ms = int((time.time() - s2_start) * 1000)
@@ -1011,7 +1060,7 @@ def run_pipeline(
             output_type=output_type,
             response_tone=response_tone,
             compliance_level=compliance_level,
-            previous_response_id=previous_response_id,
+            previous_response_id=chain_id,
         )
         audit.stage_3_duration_ms = int((time.time() - s3_start) * 1000)
         audit.final_response_length = len(response_text)
@@ -1121,13 +1170,14 @@ def _retry_with_backoff(
         _logger.warning("Stage %s rate limited; backing off %ds", stage_name, delay)
         time.sleep(delay)
         try:
+            # store=True (default) required when tools are present so
+            # previous_response_id chaining works in tool-call loops.
             kwargs: dict = {
                 "model": model,
                 "instructions": instructions,
                 "input": input_text,
                 "reasoning": {"effort": "medium"},
                 "text": {"format": {"type": "json_object"}},
-                "store": False,
             }
             if tools:
                 kwargs["tools"] = tools
