@@ -6,18 +6,18 @@ Exports:
     - handle_file_upload        - file-upload helper
     - validate_file_exists      - tiny utility
 
+v8.0 – Prompt Caching & Agent Resilience:
+- Chain reset detection: clears session state last_response_id when the
+  core runner signals a broken response chain (_chain_reset in tool_call_log)
+- Prompt caching active via STATIC_CONTEXT_BLOCK (from prompt_cache.py)
+- Cache metrics forwarded to session state for sidebar monitoring
+
 v5.0 – OpenAI Responses API Migration:
 - Replaces thread-based Assistants API with stateless Responses API
 - No threads, no runs, no polling - single responses.create() call
 - Conversation continuity via previous_response_id (stored in session state)
 - Tool calls handled inside core_assistant.run_responses_sync()
 - UI feedback via on_tool_call callback
-
-Key changes from v4.x:
-- Removed _handle_function_call() - tool calls now handled in core loop
-- Removed verify_assistant_functions() - no assistant objects
-- run_assistant() no longer takes thread_id/assistant_id
-- Returns (response_text, response_id, tool_call_log) tuple
 """
 
 from __future__ import annotations
@@ -28,7 +28,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from core_assistant import (
     create_context_prompt_with_budget as _make_prompt,
     run_responses_sync as _core_run,
-    SYSTEM_INSTRUCTIONS,
     DEFAULT_MODEL,
 )
 
@@ -55,6 +54,41 @@ def _streamlit_tool_callback(fn_name: str, args: dict) -> None:
 # ──────────────────────────────────────────────────────────────────────
 #  Public UI entry-point
 # ──────────────────────────────────────────────────────────────────────
+def _handle_post_run_metadata(tool_log: List[dict]) -> None:
+    """Process metadata entries appended to tool_call_log by the core runner.
+
+    v8.0: Handles two metadata signals:
+    - _chain_reset: If True, the response chain was broken during the run.
+      Clears last_response_id in session state so the next turn starts fresh
+      instead of trying to continue a dead chain.
+    - _cache_metrics: Stores cumulative cache hit metrics in session state
+      for sidebar monitoring.
+    """
+    if not tool_log:
+        return
+
+    # Metadata is always the last entry in the log
+    last = tool_log[-1]
+    if not isinstance(last, dict):
+        return
+
+    # ── Chain reset handling ──
+    if last.get("_chain_reset"):
+        st.session_state["last_response_id"] = None
+        _logger_msg = (
+            "Response chain was reset during this run — "
+            "next turn will start a fresh chain"
+        )
+        # Use logging instead of st.toast to avoid UI clutter
+        import logging
+        logging.getLogger(__name__).info(_logger_msg)
+
+    # ── Cache metrics ──
+    cache_metrics = last.get("_cache_metrics")
+    if cache_metrics:
+        st.session_state["_last_cache_metrics"] = cache_metrics
+
+
 def run_assistant(
     *,
     user_input: str,
@@ -67,10 +101,14 @@ def run_assistant(
 ) -> Tuple[str, Optional[str], List[dict]]:
     """Streamlit wrapper for the Responses API runner.
 
+    v8.0: Post-run metadata processing:
+    - Detects _chain_reset in tool_call_log and clears session state
+    - Stores _cache_metrics for sidebar monitoring
+
     Responses API context:
     - previous_response_id chains conversation turns
     - No thread_id or assistant_id needed
-    - Instructions passed directly to the API
+    - Instructions via STATIC_CONTEXT_BLOCK for prompt caching
 
     Returns:
         (response_text, response_id, tool_call_log)
@@ -96,6 +134,8 @@ def run_assistant(
                 previous_response_id=previous_response_id,
                 on_tool_call=_streamlit_tool_callback,
             )
+            # v8.0: Handle chain reset + cache metrics metadata
+            _handle_post_run_metadata(tool_log)
             return text, response_id, tool_log
         except RuntimeError as exc:
             error_msg = str(exc)
@@ -129,14 +169,17 @@ def run_simple(
     """Run a simple message through the Responses API without full context assembly.
 
     Used for welcome messages, quick actions, and internal prompts.
+    v8.0: Also processes post-run metadata (chain reset, cache metrics).
     """
     try:
-        return _core_run(
+        text, response_id, tool_log = _core_run(
             model=model,
             input_text=message,
             previous_response_id=previous_response_id,
             on_tool_call=on_tool_call or _streamlit_tool_callback,
         )
+        _handle_post_run_metadata(tool_log)
+        return text, response_id, tool_log
     except Exception as exc:
         return f"❌ {exc}", None, []
 

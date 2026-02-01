@@ -3,9 +3,11 @@ prompt_cache.py
 GPT-5.2 Prompt Caching Architecture
 
 Implements OpenAI's automatic prompt caching optimization for the
-Responses API to maximize the 90% Cached Input Token Discount.
+Responses API to maximize cached input token discount (50-90%).
 
-Three components:
+v8.0 – Extended 24h Cache Retention (replaces heartbeat daemon):
+
+Two components:
 
 1. **Static Context Block** (STATIC_CONTEXT_BLOCK)
    Immutable prefix assembled once at startup from core static assets.
@@ -19,21 +21,19 @@ Three components:
    session context) is injected into this string -- all dynamic content
    goes into the `input` parameter (the "user" message).
 
-3. **Cache Heartbeat Daemon** (CacheHeartbeat)
-   Background thread that sends a minimal API request every 240 seconds
-   to reset the ~5-minute server-side TTL on the cached prefix.
-   Uses max_output_tokens=1 and no tools to minimize cost.
-
-v8.0 -- Initial prompt caching architecture.
+Cache retention strategy (v8.0):
+- Extended 24h retention keeps cached prefixes active without a heartbeat
+  daemon, by offloading KV tensors to GPU-local storage when memory is full.
+- prompt_cache_key (set in core_assistant.py) ensures consistent server
+  routing for ~95% cache hit rate.
+- Heartbeat daemon removed: extended retention eliminates the need to
+  send periodic PING requests to reset the ~5-minute default TTL.
 """
 
 from __future__ import annotations
 
-import atexit
 import logging
 import os
-import threading
-import time
 from typing import Optional
 
 _logger = logging.getLogger(__name__)
@@ -56,13 +56,6 @@ STATIC_ASSET_FILES = [
 
 # OpenAI requires >1024 tokens in the prefix for cache activation.
 CACHE_TOKEN_MINIMUM = 1024
-
-# Heartbeat fires every 240 s (4 min) to stay inside the ~5 min TTL.
-HEARTBEAT_INTERVAL_SECONDS = 240
-
-# Maximum time (seconds) for a single heartbeat ping API call.
-# Prevents the daemon thread from hanging indefinitely when OpenAI is slow.
-HEARTBEAT_PING_TIMEOUT_SECONDS = 30
 
 # Rough token estimation constant (1 token ~ 4 characters).
 _CHARS_PER_TOKEN = 4
@@ -290,199 +283,19 @@ _logger.info(
 
 
 # ──────────────────────────────────────────────────────────────────────
-#  Cache Heartbeat Daemon  (TTL Management)
+#  Public API
 # ──────────────────────────────────────────────────────────────────────
-class CacheHeartbeat:
-    """Background daemon that prevents prompt cache eviction.
-
-    Sends a lightweight API request every ``interval`` seconds with
-    the same ``STATIC_CONTEXT_BLOCK`` as instructions.  This resets
-    the ~5-minute TTL on OpenAI's server-side prefix cache without
-    affecting user conversation state.
-
-    Heartbeat payload:
-        model        = gpt-5.2  (same as production)
-        instructions = STATIC_CONTEXT_BLOCK  (identical prefix)
-        input        = "PING"
-        max_output_tokens = 1  (minimize generation cost)
-        reasoning    = {"effort": "none"}  (skip reasoning)
-        store        = False  (don't persist heartbeat responses)
-        (no tools)
-    """
-
-    def __init__(self, interval: int = HEARTBEAT_INTERVAL_SECONDS):
-        self._interval = interval
-        self._thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
-        self._heartbeat_count = 0
-        self._last_heartbeat_ts: Optional[float] = None
-        self._last_cached_tokens: int = 0
-        self._consecutive_failures: int = 0
-        self._max_consecutive_failures = 5
-
-    # ── Public properties ──
-
-    @property
-    def is_running(self) -> bool:
-        return self._thread is not None and self._thread.is_alive()
-
-    @property
-    def stats(self) -> dict:
-        return {
-            "running": self.is_running,
-            "heartbeat_count": self._heartbeat_count,
-            "last_heartbeat_ts": self._last_heartbeat_ts,
-            "last_cached_tokens": self._last_cached_tokens,
-            "consecutive_failures": self._consecutive_failures,
-            "interval_seconds": self._interval,
-        }
-
-    # ── Lifecycle ──
-
-    def start(self) -> None:
-        """Start the heartbeat daemon thread."""
-        if self.is_running:
-            _logger.debug("Cache heartbeat already running")
-            return
-
-        self._stop_event.clear()
-        self._consecutive_failures = 0
-        self._thread = threading.Thread(
-            target=self._run_loop,
-            name="prompt-cache-heartbeat",
-            daemon=True,
-        )
-        self._thread.start()
-        _logger.info(
-            "Cache heartbeat started (interval=%ds, prefix=~%d tokens)",
-            self._interval, _estimate_tokens(STATIC_CONTEXT_BLOCK),
-        )
-
-    def stop(self) -> None:
-        """Stop the heartbeat daemon."""
-        if not self.is_running:
-            return
-        self._stop_event.set()
-        if self._thread is not None:
-            self._thread.join(timeout=10)
-            self._thread = None
-        _logger.info(
-            "Cache heartbeat stopped after %d pings",
-            self._heartbeat_count,
-        )
-
-    # ── Internal loop ──
-
-    def _run_loop(self) -> None:
-        """Main loop executed in the background thread."""
-        while not self._stop_event.is_set():
-            # Wait for the interval (or until stop is signalled)
-            self._stop_event.wait(timeout=self._interval)
-            if self._stop_event.is_set():
-                break
-            self._send_ping()
-
-    def _send_ping(self) -> None:
-        """Send a minimal API request to refresh the cache TTL.
-
-        Uses a dedicated short-timeout client to prevent the daemon
-        thread from hanging indefinitely when the API is slow or
-        unresponsive.  The timeout is HEARTBEAT_PING_TIMEOUT_SECONDS
-        (default 30s) — well under the 240s interval, so a slow ping
-        never delays the next one.
-        """
-        try:
-            # Lazy import to avoid circular dependency at module load time.
-            # core_assistant imports prompt_cache for STATIC_CONTEXT_BLOCK;
-            # the heartbeat only needs core_assistant at runtime.
-            from core_assistant import get_client, DEFAULT_MODEL
-            import httpx as _httpx
-
-            client = get_client()
-
-            # Use with_options to enforce a tight per-request timeout so
-            # a stalled API call cannot block the daemon thread forever.
-            ping_client = client.with_options(
-                timeout=_httpx.Timeout(HEARTBEAT_PING_TIMEOUT_SECONDS),
-            )
-            response = ping_client.responses.create(
-                model=DEFAULT_MODEL,
-                instructions=STATIC_CONTEXT_BLOCK,
-                input="PING",
-                max_output_tokens=1,
-                reasoning={"effort": "none"},
-                store=False,
-            )
-
-            # Extract cache hit metrics from response usage
-            cached_tokens = 0
-            if hasattr(response, "usage") and response.usage:
-                usage = response.usage
-                # OpenAI reports cached tokens in input_tokens_details
-                details = getattr(usage, "input_tokens_details", None)
-                if details is not None:
-                    if hasattr(details, "cached_tokens"):
-                        cached_tokens = details.cached_tokens
-                    elif isinstance(details, dict):
-                        cached_tokens = details.get("cached_tokens", 0)
-
-            self._heartbeat_count += 1
-            self._last_heartbeat_ts = time.time()
-            self._last_cached_tokens = cached_tokens
-            self._consecutive_failures = 0
-
-            _logger.info(
-                "Cache heartbeat #%d OK (cached_tokens=%d)",
-                self._heartbeat_count, cached_tokens,
-            )
-
-        except Exception as exc:
-            self._consecutive_failures += 1
-            _logger.warning(
-                "Cache heartbeat ping failed (%d/%d): %s",
-                self._consecutive_failures,
-                self._max_consecutive_failures,
-                exc,
-            )
-            if self._consecutive_failures >= self._max_consecutive_failures:
-                _logger.error(
-                    "Cache heartbeat halted: %d consecutive failures",
-                    self._consecutive_failures,
-                )
-                self._stop_event.set()
-
-
-# ──────────────────────────────────────────────────────────────────────
-#  Module-level heartbeat instance + public API
-# ──────────────────────────────────────────────────────────────────────
-_heartbeat = CacheHeartbeat()
-
-
-def start_cache_heartbeat() -> None:
-    """Start the background cache-warming heartbeat.
-
-    Should be called after the OpenAI API key is configured and the
-    application is ready to make API calls.  Safe to call multiple
-    times (idempotent).
-    """
-    _heartbeat.start()
-
-
-def stop_cache_heartbeat() -> None:
-    """Stop the background cache-warming heartbeat."""
-    _heartbeat.stop()
-
-
 def get_cache_stats() -> dict:
-    """Return prompt cache statistics for monitoring/debugging."""
+    """Return prompt cache statistics for monitoring/debugging.
+
+    v8.0: Heartbeat stats removed (replaced by 24h extended retention).
+    Cache hit metrics now tracked per-request in core_assistant.py
+    via _log_cache_metrics().
+    """
     return {
-        **_heartbeat.stats,
         "static_block_chars": len(STATIC_CONTEXT_BLOCK),
         "static_block_tokens": _estimate_tokens(STATIC_CONTEXT_BLOCK),
         "cache_eligible": _estimate_tokens(STATIC_CONTEXT_BLOCK) > CACHE_TOKEN_MINIMUM,
         "token_minimum": CACHE_TOKEN_MINIMUM,
+        "retention_strategy": "extended_24h",
     }
-
-
-# Clean up heartbeat on process exit
-atexit.register(stop_cache_heartbeat)
