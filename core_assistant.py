@@ -1794,11 +1794,11 @@ def run_traffic_controller(
     Orchestrates a multi-phase conversation using sentinel tokens to
     switch dynamically between models within a single response chain.
 
-    Phase A – Triage (Ghost / gpt-5.1-mini, no tools):
+    Phase A – Triage (Ghost / gpt-4.1-mini, no tools):
         Classifies the query.  Returns AVTI_PLAN or AVTI_ANSWER.
         Receives a rolling conversation summary for cross-turn context.
 
-    Phase B – Ghost Search (Ghost / gpt-5.1-mini, full tools):
+    Phase B – Ghost Search (Ghost / gpt-4.1-mini, full tools):
         Only runs if Phase A emitted AVTI_PLAN.
         Executes the retrieval plan.  Returns AVTI_DATA.
 
