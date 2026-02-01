@@ -21,6 +21,8 @@ from pipeline import (
     PipelineStageError,
     should_use_pipeline,
     _extract_json_from_text,
+    _cached_instructions,
+    _STATIC_PREFIX,
     _ARCHITECT_SYSTEM_PROMPT,
     _RESEARCHER_SYSTEM_PROMPT,
     _SYNTHESIZER_SYSTEM_PROMPT,
@@ -366,6 +368,34 @@ class TestShouldUsePipeline:
     def test_bayesian_query(self):
         query = "Perform a Bayesian analysis of the trial data for evidence synthesis"
         assert should_use_pipeline(query) is True
+
+
+# ─────────────────────────────────────────────────────────────────────
+#  Prompt cache integration tests
+# ─────────────────────────────────────────────────────────────────────
+
+class TestPromptCacheIntegration:
+    """Verify that pipeline instructions include the cached static prefix."""
+
+    def test_static_prefix_loaded(self):
+        assert len(_STATIC_PREFIX) > 0
+
+    def test_cached_instructions_prepends_prefix(self):
+        result = _cached_instructions("TEST STAGE PROMPT")
+        assert result.startswith(_STATIC_PREFIX)
+        assert "TEST STAGE PROMPT" in result
+
+    def test_cached_instructions_has_separator(self):
+        result = _cached_instructions("STAGE")
+        assert "---" in result
+
+    def test_prefix_is_identical_across_stages(self):
+        s1 = _cached_instructions(_ARCHITECT_SYSTEM_PROMPT)
+        s2 = _cached_instructions(_RESEARCHER_SYSTEM_PROMPT)
+        s3 = _cached_instructions(_SYNTHESIZER_SYSTEM_PROMPT)
+        # The prefix portion must be identical for cache hits.
+        prefix_end = s1.index("---")
+        assert s1[:prefix_end] == s2[:prefix_end] == s3[:prefix_end]
 
 
 # ─────────────────────────────────────────────────────────────────────
