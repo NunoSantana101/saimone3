@@ -3,14 +3,6 @@ core_assistant.py
 Pure-python engine shared by the Streamlit UI (assistant.py) and any CLI or
 batch runner.  NO Streamlit or console I/O; it just raises exceptions.
 
-v9.0 – 3-Stage MedAffairs Inference Pipeline:
-- Added run_pipeline_sync(): orchestrates Architect → Researcher → Synthesizer
-- Pipeline provides structured planning, citation-tracked retrieval, and
-  fact-sheet-bounded synthesis for complex medical queries
-- Auto-routing: should_use_pipeline() detects complex queries automatically
-- Monolithic path (run_responses_sync) retained for simple queries
-- Full audit trail via PipelineAuditTrail dataclass
-
 v8.0 – GPT-5.2 Prompt Caching Architecture:
 - STATIC_CONTEXT_BLOCK from prompt_cache.py replaces SYSTEM_INSTRUCTIONS
   as the default `instructions` parameter for all API calls
@@ -129,8 +121,6 @@ from assistant_config import (
     DEFAULT_REASONING_EFFORT,
     HIGH_REASONING_EFFORT,
     DEFAULT_VERBOSITY,
-    PIPELINE_MODE,
-    PIPELINE_CONFIG,
     needs_high_reasoning,
 )
 
@@ -1573,95 +1563,3 @@ async def run_responses_async(
     response_id = response.id if hasattr(response, "id") else None
 
     return text, response_id, tool_call_log
-
-
-# ──────────────────────────────────────────────────────────────────────
-#  3-Stage Pipeline Runner  (v9.0)
-# ──────────────────────────────────────────────────────────────────────
-
-def run_pipeline_sync(
-    *,
-    user_query: str,
-    model: str = DEFAULT_MODEL,
-    system_state: Optional[Dict[str, Any]] = None,
-    output_type: str = "Standard Response Document",
-    response_tone: str = "Scientific Objectivity",
-    compliance_level: str = "high",
-    previous_response_id: Optional[str] = None,
-    on_tool_call: Optional[Callable[[str, dict], None]] = None,
-    on_stage_complete: Optional[Callable[[str, Any], None]] = None,
-    timeout: int = 600,
-) -> Tuple[str, Optional[str], List[dict]]:
-    """Run the 3-stage MedAffairs inference pipeline.
-
-    Orchestrates: Architect → Researcher → Synthesizer
-
-    This is the pipeline counterpart to run_responses_sync().  It
-    provides structured planning, citation-tracked retrieval, and
-    fact-sheet-bounded synthesis.  Use should_use_pipeline() to decide
-    which path to take, or set PIPELINE_MODE in assistant_config.py.
-
-    Returns:
-        (response_text, response_id, tool_call_log)
-        Same signature as run_responses_sync() for drop-in compatibility.
-        The tool_call_log includes an additional 'audit_trail' entry
-        at index 0 with the full pipeline audit.
-    """
-    from pipeline import (
-        run_pipeline,
-        PipelineStageError,
-    )
-
-    try:
-        response_text, response_id, audit = run_pipeline(
-            user_query,
-            model=model,
-            system_state=system_state,
-            output_type=output_type,
-            response_tone=response_tone,
-            compliance_level=compliance_level,
-            previous_response_id=previous_response_id,
-            tool_router=_default_tool_router,
-            on_tool_call=on_tool_call,
-            on_stage_complete=on_stage_complete,
-            timeout=timeout,
-        )
-
-        # Build a tool_call_log compatible with the monolithic path.
-        # Stage 2 tool calls are in the audit trail; prepend the
-        # audit summary as the first entry.
-        tool_call_log: List[dict] = [
-            {
-                "name": "__pipeline_audit__",
-                "args": {"pipeline_id": audit.pipeline_id},
-                "output_size": 0,
-                "round": 0,
-                "audit": audit.to_dict(),
-            }
-        ]
-        tool_call_log.extend(audit.stage_2_tool_calls)
-
-        return response_text, response_id, tool_call_log
-
-    except PipelineStageError as exc:
-        _logger.error("Pipeline failed at stage '%s': %s", exc.stage, exc.message)
-        raise RuntimeError(
-            f"Pipeline stage '{exc.stage}' failed: {exc.message}"
-        ) from exc
-
-
-def should_use_pipeline(user_query: str) -> bool:
-    """Decide whether to route through the 3-stage pipeline.
-
-    Respects the PIPELINE_MODE setting:
-    - "off":    Always returns False (monolithic path only).
-    - "always": Always returns True (pipeline for every query).
-    - "auto":   Uses heuristics to detect complex medical queries.
-    """
-    if PIPELINE_MODE == "off":
-        return False
-    if PIPELINE_MODE == "always":
-        return True
-    # "auto" mode — delegate to pipeline's heuristic
-    from pipeline import should_use_pipeline as _pipeline_heuristic
-    return _pipeline_heuristic(user_query)

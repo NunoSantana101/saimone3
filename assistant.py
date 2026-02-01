@@ -3,15 +3,8 @@ assistant.py
 Streamlit wrapper around core_assistant.py.
 Exports:
     - run_assistant             - Streamlit UI entry-point
-    - run_assistant_pipeline    - 3-stage pipeline UI entry-point (v9.0)
     - handle_file_upload        - file-upload helper
     - validate_file_exists      - tiny utility
-
-v9.0 – 3-Stage Pipeline Integration:
-- Added run_assistant_pipeline() for Architect → Researcher → Synthesizer
-- run_assistant() auto-routes to pipeline when PIPELINE_MODE="auto"
-- Stage progress feedback via Streamlit status indicators
-- Pipeline audit trail exposed in tool_call_log
 
 v5.0 – OpenAI Responses API Migration:
 - Replaces thread-based Assistants API with stateless Responses API
@@ -35,8 +28,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from core_assistant import (
     create_context_prompt_with_budget as _make_prompt,
     run_responses_sync as _core_run,
-    run_pipeline_sync as _pipeline_run,
-    should_use_pipeline as _should_pipeline,
     SYSTEM_INSTRUCTIONS,
     STATIC_CONTEXT_BLOCK,
     DEFAULT_MODEL,
@@ -46,28 +37,20 @@ from core_assistant import (
 # ──────────────────────────────────────────────────────────────────────
 #  Streamlit tool-call callback (UI spinners / feedback)
 # ──────────────────────────────────────────────────────────────────────
-_TOOL_LABELS = {
-    "run_statistical_analysis": "Running statistical analysis",
-    "monte_carlo_simulation": "Running Monte Carlo simulation",
-    "bayesian_analysis": "Running Bayesian analysis",
-    "web_search_preview": "Searching the web",
-    "file_search": "Searching internal documents",
-    "code_interpreter": "Executing code",
-}
-
-
 def _streamlit_tool_callback(fn_name: str, args: dict) -> None:
     """Called by the core runner for each function-call tool invocation.
 
-    v9.0: Writes tool activity into the current st.status context when
-    running inside the pipeline.  Falls back to st.write for the
-    monolithic path.
-    v7.4: query_hard_logic is silent (instant in-memory lookup).
+    v7.4: Added query_hard_logic callback (silent — instant in-memory lookup).
+    v7.0: Web search is handled by OpenAI's built-in web_search_preview
+    (server-side, no callback).  Only statistical analysis tools trigger here.
     """
     if fn_name == "query_hard_logic":
+        # Silent — in-memory DataFrames are instant, no spinner needed
         return
-    label = _TOOL_LABELS.get(fn_name, fn_name.replace("_", " ").title())
-    st.write(f"  - {label}...")
+    if fn_name in {"run_statistical_analysis", "monte_carlo_simulation", "bayesian_analysis"}:
+        st.info(f"🔬 Running {fn_name.replace('_', ' ').title()}...")
+    else:
+        st.info(f"🔧 Calling {fn_name}...")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -85,25 +68,14 @@ def run_assistant(
 ) -> Tuple[str, Optional[str], List[dict]]:
     """Streamlit wrapper for the Responses API runner.
 
-    v9.0: Auto-routes complex queries through the 3-stage pipeline
-    (Architect → Researcher → Synthesizer) when PIPELINE_MODE is "auto"
-    or "always".  Simple queries use the monolithic path.
+    Responses API context:
+    - previous_response_id chains conversation turns
+    - No thread_id or assistant_id needed
+    - Instructions passed directly to the API
 
     Returns:
         (response_text, response_id, tool_call_log)
     """
-    # ── Pipeline auto-routing ──
-    if _should_pipeline(user_input):
-        return run_assistant_pipeline(
-            user_input=user_input,
-            output_type=output_type,
-            response_tone=response_tone,
-            compliance_level=compliance_level,
-            previous_response_id=previous_response_id,
-            model=model,
-        )
-
-    # ── Monolithic path (simple queries, greetings, etc.) ──
     prompt = _make_prompt(
         user_input,
         output_type,
@@ -117,7 +89,7 @@ def run_assistant(
         has_response_chain=bool(previous_response_id),
     )
 
-    with st.spinner("Thinking..."):
+    with st.spinner("🤖 Thinking..."):
         try:
             text, response_id, tool_log = _core_run(
                 model=model,
@@ -128,98 +100,21 @@ def run_assistant(
             return text, response_id, tool_log
         except RuntimeError as exc:
             error_msg = str(exc)
-            st.error(f"Error: {error_msg}")
-            return f"Error: {error_msg}", None, []
+            st.error(f"❌ {error_msg}")
+            return f"❌ {error_msg}", None, []
         except openai.BadRequestError as exc:
             error_msg = str(exc)
-            st.error(f"API Error (400): {error_msg}")
-            return f"API Error: {error_msg}", None, []
+            st.error(f"❌ API Error (400): {error_msg}")
+            return f"❌ API Error: {error_msg}", None, []
         except openai.RateLimitError as exc:
-            st.error(f"Rate limited: {exc}")
-            return f"Rate limited: {exc}", None, []
+            st.error(f"❌ Rate limited: {exc}")
+            return f"❌ Rate limited: {exc}", None, []
         except TimeoutError as exc:
-            st.error(f"Request timed out: {exc}")
-            return f"Timeout: {exc}", None, []
+            st.error(f"❌ Request timed out: {exc}")
+            return f"❌ {exc}", None, []
         except Exception as exc:
-            st.error(f"Unexpected error: {exc}")
-            return f"Error: {exc}", None, []
-
-
-# ──────────────────────────────────────────────────────────────────────
-#  Pipeline UI entry-point  (v9.0)
-# ──────────────────────────────────────────────────────────────────────
-
-def _make_stage_callback(status_widget):
-    """Create a stage-complete callback bound to a st.status widget."""
-
-    _STAGE_LABELS = {
-        "architect": ("Stage 1 complete — research plan ready",
-                      "**Stage 2/3:** Executing research plan..."),
-        "researcher": ("Stage 2 complete — fact sheet ready",
-                       "**Stage 3/3:** Composing response..."),
-        "synthesizer": ("Pipeline complete", None),
-    }
-
-    def _on_stage_complete(stage_name: str, _stage_output: Any) -> None:
-        label, next_msg = _STAGE_LABELS.get(stage_name, (stage_name, None))
-        status_widget.update(label=label)
-        if next_msg:
-            st.write(next_msg)
-
-    return _on_stage_complete
-
-
-def run_assistant_pipeline(
-    *,
-    user_input: str,
-    output_type: str,
-    response_tone: str,
-    compliance_level: str,
-    previous_response_id: Optional[str] = None,
-    model: str = DEFAULT_MODEL,
-) -> Tuple[str, Optional[str], List[dict]]:
-    """Run the 3-stage MedAffairs pipeline with Streamlit UI feedback.
-
-    Architect → Researcher → Synthesizer
-
-    Returns:
-        (response_text, response_id, tool_call_log)
-    """
-    system_state = {
-        "user_role": st.session_state.get("user_role", ""),
-        "current_date": time.strftime("%Y-%m-%d"),
-    }
-
-    with st.status("**Stage 1/3:** Planning research strategy...", expanded=True) as status:
-        try:
-            text, response_id, tool_log = _pipeline_run(
-                user_query=user_input,
-                model=model,
-                system_state=system_state,
-                output_type=output_type,
-                response_tone=response_tone,
-                compliance_level=compliance_level,
-                previous_response_id=previous_response_id,
-                on_tool_call=_streamlit_tool_callback,
-                on_stage_complete=_make_stage_callback(status),
-            )
-            status.update(label="Pipeline complete", state="complete",
-                          expanded=False)
-            return text, response_id, tool_log
-
-        except RuntimeError as exc:
-            status.update(label="Pipeline failed", state="error")
-            error_msg = str(exc)
-            st.error(f"Pipeline error: {error_msg}")
-            return f"Pipeline error: {error_msg}", None, []
-        except TimeoutError as exc:
-            status.update(label="Pipeline timed out", state="error")
-            st.error(f"Pipeline timed out: {exc}")
-            return f"Timeout: {exc}", None, []
-        except Exception as exc:
-            status.update(label="Pipeline failed", state="error")
-            st.error(f"Unexpected pipeline error: {exc}")
-            return f"Error: {exc}", None, []
+            st.error(f"❌ Unexpected error: {exc}")
+            return f"❌ {exc}", None, []
 
 
 # ──────────────────────────────────────────────────────────────────────
