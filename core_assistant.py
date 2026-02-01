@@ -3,6 +3,17 @@ core_assistant.py
 Pure-python engine shared by the Streamlit UI (assistant.py) and any CLI or
 batch runner.  NO Streamlit or console I/O; it just raises exceptions.
 
+v8.0 – GPT-5.2 Prompt Caching Architecture:
+- STATIC_CONTEXT_BLOCK from prompt_cache.py replaces SYSTEM_INSTRUCTIONS
+  as the default `instructions` parameter for all API calls
+- Static-first prefix architecture: immutable instructions (>1024 tokens)
+  are always the absolute first content sent to the model
+- Dynamic content (timestamps, session context, user queries) goes only
+  into the `input` parameter -- never into `instructions`
+- Background heartbeat daemon keeps the server-side prefix cache warm
+  (240s interval, max_output_tokens=1 per ping)
+- Cache savings: up to 90% discount on cached input tokens
+
 v7.5.1 – Reasoning & Verbosity Controls:
 - Added reasoning.effort to all API calls (default: medium, auto-high for MC/stats)
 - Added text.verbosity to all API calls (default: medium)
@@ -62,7 +73,8 @@ Key architecture:
 - No threads, no runs, no polling
 - response_id replaces thread_id for continuity
 - Tool definitions passed inline with each request
-- Instructions passed directly (no server-side assistant config)
+- Instructions = STATIC_CONTEXT_BLOCK (immutable, cached prefix)
+- Dynamic content goes into input parameter only
 """
 
 from __future__ import annotations
@@ -600,9 +612,18 @@ def get_tools() -> List[dict]:
 
 
 # ──────────────────────────────────────────────────────────────────────
-#  System Instructions for Responses API
-#  Loaded from system_instructions.txt (same file used by workflow_agents.py)
+#  System Instructions & Prompt Cache
+#  v8.0: STATIC_CONTEXT_BLOCK is the immutable cached prefix for all
+#  API calls.  SYSTEM_INSTRUCTIONS kept for backward compatibility
+#  (workflow_agents.py, assistant.py still import it).
 # ──────────────────────────────────────────────────────────────────────
+
+from prompt_cache import (
+    STATIC_CONTEXT_BLOCK,
+    start_cache_heartbeat,
+    stop_cache_heartbeat,
+    get_cache_stats,
+)
 
 _INSTRUCTIONS_PATH = os.path.join(os.path.dirname(__file__), "system_instructions.txt")
 
@@ -613,6 +634,11 @@ try:
 except FileNotFoundError:
     _logger.warning("system_instructions.txt not found at %s – using fallback", _INSTRUCTIONS_PATH)
     SYSTEM_INSTRUCTIONS = "You are sAImone, an expert Medical Affairs AI assistant powered by GPT-5.2."
+
+_logger.info(
+    "Prompt cache: STATIC_CONTEXT_BLOCK ~%d tokens (instructions default)",
+    len(STATIC_CONTEXT_BLOCK) // 4,
+)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -1160,7 +1186,7 @@ def run_responses_sync(
     model: str = DEFAULT_MODEL,
     input_messages: Optional[List[dict]] = None,
     input_text: Optional[str] = None,
-    instructions: str = SYSTEM_INSTRUCTIONS,
+    instructions: str = STATIC_CONTEXT_BLOCK,
     previous_response_id: Optional[str] = None,
     tool_router: Callable[[str, Dict[str, Any]], str] = _default_tool_router,
     timeout: int = 600,
@@ -1171,6 +1197,15 @@ def run_responses_sync(
 ) -> Tuple[str, Optional[str], List[dict]]:
     """
     Synchronous runner using the OpenAI Responses API.
+
+    v8.0 Prompt Caching:
+        The ``instructions`` parameter defaults to STATIC_CONTEXT_BLOCK --
+        an immutable, >1024-token prefix built once at startup.  This is
+        the absolute first content sent to the model on every request,
+        enabling OpenAI's automatic prefix caching (90% input token
+        discount).  All dynamic content (timestamps, session context,
+        user queries) must go into ``input_text`` or ``input_messages``,
+        never into ``instructions``.
 
     Args:
         reasoning_effort: "none"|"low"|"medium"|"high"|"xhigh".
@@ -1358,7 +1393,7 @@ async def run_responses_async(
     model: str = DEFAULT_MODEL,
     input_messages: Optional[List[dict]] = None,
     input_text: Optional[str] = None,
-    instructions: str = SYSTEM_INSTRUCTIONS,
+    instructions: str = STATIC_CONTEXT_BLOCK,
     previous_response_id: Optional[str] = None,
     tool_router_async: Optional[Callable[[str, Dict[str, Any]], Coroutine[Any, Any, str]]] = None,
     timeout: int = 600,
@@ -1368,6 +1403,9 @@ async def run_responses_async(
 ) -> Tuple[str, Optional[str], List[dict]]:
     """
     Async runner using the OpenAI Responses API.
+
+    v8.0: instructions defaults to STATIC_CONTEXT_BLOCK for prompt
+    caching.  See run_responses_sync docstring for details.
 
     Returns:
         (response_text, response_id, tool_call_log)

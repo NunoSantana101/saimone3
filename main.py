@@ -28,6 +28,9 @@ import textwrap
 from assistant import run_assistant, run_simple, handle_file_upload, validate_file_exists
 from core_assistant import reset_container
 
+# -- Import prompt cache heartbeat (v8.0 – GPT-5.2 prompt caching)
+from prompt_cache import start_cache_heartbeat, get_cache_stats
+
 # -- Import Hard Logic layer (v7.4 – pandas DataFrames for JSON configs)
 from hard_logic import get_store as get_hard_logic_store
 
@@ -145,6 +148,17 @@ if "hard_logic_loaded" not in st.session_state:
         st.session_state["hard_logic_loaded"] = False
         st.session_state["hard_logic_error"] = str(_hl_exc)
         # Non-fatal: file_search remains available as fallback
+
+# ── Prompt Cache Heartbeat (v8.0): keep GPT-5.2 prefix cache warm ──
+# Started once per process after the API key is set.  The daemon thread
+# sends a minimal PING every 240 s to prevent ~5 min TTL eviction.
+if "cache_heartbeat_started" not in st.session_state:
+    try:
+        start_cache_heartbeat()
+        st.session_state["cache_heartbeat_started"] = True
+    except Exception as _hb_exc:
+        st.session_state["cache_heartbeat_started"] = False
+        # Non-fatal: caching still works, just no TTL refresh
 
 st.markdown("""
 <style>

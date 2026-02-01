@@ -29,6 +29,7 @@ from core_assistant import (
     create_context_prompt_with_budget as _make_prompt,
     run_responses_sync as _core_run,
     SYSTEM_INSTRUCTIONS,
+    STATIC_CONTEXT_BLOCK,
     DEFAULT_MODEL,
 )
 
