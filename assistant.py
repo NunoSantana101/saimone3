@@ -142,6 +142,11 @@ def run_assistant_polymorphic(
     Returns:
         (response_text, response_id, tool_call_log)
     """
+    # Always serialize conversation history into the prompt text.
+    # Phase A (Ghost) has no response chain (cross-model chaining is
+    # broken), so it relies entirely on the prompt for prior context.
+    # Phase C (Anchor) gets the chain *and* the prompt — redundant
+    # but harmless, and the 400K context window can absorb it.
     prompt = _make_prompt(
         user_input,
         output_type,
@@ -152,7 +157,7 @@ def run_assistant_polymorphic(
         st.session_state.get("history", []),
         st.session_state.get("token_budget", 24_000),
         has_files=bool(uploaded_file_ids),
-        has_response_chain=bool(previous_response_id),
+        has_response_chain=False,
     )
 
     try:
