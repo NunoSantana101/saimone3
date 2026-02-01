@@ -1536,10 +1536,11 @@ def run_responses_sync(
         kwargs = {
             "model": model,
             "input": api_input,
-            "tools": tools,
             "reasoning": {"effort": _effort},
             "text": {"verbosity": _verbosity},
         }
+        if tools:
+            kwargs["tools"] = tools
         if instructions:
             kwargs["instructions"] = instructions
         if previous_response_id:
@@ -1553,8 +1554,11 @@ def run_responses_sync(
         # before giving up.
         _logger.warning("BadRequestError on initial call — resetting container and retrying: %s", e)
         reset_container()
-        tools = get_tools()
-        kwargs["tools"] = tools
+        if tools_override is None:
+            # Only rebuild tools when using the default full suite (may
+            # include a code-interpreter container that just expired).
+            tools = get_tools()
+            kwargs["tools"] = tools
         kwargs.pop("previous_response_id", None)
         try:
             response = client.responses.create(**kwargs)
@@ -1627,19 +1631,21 @@ def run_responses_sync(
             "model": model,
             "previous_response_id": response.id,
             "input": tool_outputs,
-            "tools": tools,
             "instructions": instructions,
             "reasoning": {"effort": _effort},
             "text": {"verbosity": _verbosity},
         }
+        if tools:
+            continuation_kwargs["tools"] = tools
         try:
             response = client.responses.create(**continuation_kwargs)
         except openai.BadRequestError as e:
             # Container may have expired mid-loop; reset and retry once
             _logger.warning("BadRequestError during tool loop — resetting container: %s", e)
             reset_container()
-            tools = get_tools()
-            continuation_kwargs["tools"] = tools
+            if tools_override is None:
+                tools = get_tools()
+                continuation_kwargs["tools"] = tools
             try:
                 response = client.responses.create(**continuation_kwargs)
             except openai.BadRequestError:
@@ -1717,9 +1723,16 @@ def run_traffic_controller(
     """
     all_tool_logs: List[dict] = []
 
+    def _notify_phase(key: str, label: str) -> None:
+        """Fire on_phase_change callback, swallowing UI errors."""
+        if on_phase_change:
+            try:
+                on_phase_change(key, label)
+            except Exception:
+                _logger.debug("on_phase_change callback failed for %s", key)
+
     # ── Phase A: Triage (Ghost, no tools) ──────────────────────────
-    if on_phase_change:
-        on_phase_change("triage", "Planning — mapping query to taxonomy…")
+    _notify_phase("triage", "Planning — mapping query to taxonomy…")
 
     triage_instructions = _build_triage_instructions()
 
@@ -1743,8 +1756,7 @@ def run_traffic_controller(
     chain_id = phase_a_id  # will advance to phase_b_id if search runs
 
     if phase_a_text.startswith(SENTINEL_PLAN):
-        if on_phase_change:
-            on_phase_change("search", "Retrieving — searching external sources…")
+        _notify_phase("search", "Retrieving — searching external sources…")
 
         phase_b_text, phase_b_id, phase_b_logs = run_responses_sync(
             model=GHOST_MODEL,
@@ -1776,8 +1788,7 @@ def run_traffic_controller(
         )
 
     # ── Phase C: Anchor Synthesis (always runs) ────────────────────
-    if on_phase_change:
-        on_phase_change("synthesis", "Synthesising — generating final response…")
+    _notify_phase("synthesis", "Synthesising — generating final response…")
 
     phase_c_text, phase_c_id, phase_c_logs = run_responses_sync(
         model=ANCHOR_MODEL,
@@ -1804,8 +1815,7 @@ def run_traffic_controller(
         len(all_tool_logs),
     )
 
-    if on_phase_change:
-        on_phase_change("complete", "Complete")
+    _notify_phase("complete", "Complete")
 
     return final_text, final_id, all_tool_logs
 
