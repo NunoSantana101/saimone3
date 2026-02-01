@@ -1633,6 +1633,7 @@ def run_responses_sync(
             "input": api_input,
             "reasoning": {"effort": _effort},
             "text": {"verbosity": _verbosity},
+            "store": True,  # Required for previous_response_id chaining
         }
         if tools:
             kwargs["tools"] = tools
@@ -1643,11 +1644,20 @@ def run_responses_sync(
 
         response = client.responses.create(**kwargs)
     except openai.BadRequestError as e:
-        # 400 can be caused by a stale previous_response_id OR an expired
-        # code-interpreter container.  Reset the container & tools cache
-        # and retry once with a fresh tools list (and no response chain)
-        # before giving up.
-        _logger.warning("BadRequestError on initial call — resetting container and retrying: %s", e)
+        # 400 can be caused by:
+        # - Stale previous_response_id
+        # - Expired code-interpreter container
+        # - Reasoning item chain incompatibility (GPT-5.x bug:
+        #   "Item 'rs_xxx' of type 'reasoning' was provided without
+        #   its required following item")
+        # Reset the container & tools cache and retry once with a
+        # fresh tools list (and no response chain) before giving up.
+        _logger.warning(
+            "BadRequestError on initial call (chain=%s) — dropping "
+            "response chain and retrying: %s",
+            previous_response_id[:20] if previous_response_id else "none",
+            e,
+        )
         reset_container()
         if tools_override is None:
             # Only rebuild tools when using the default full suite (may
@@ -1729,6 +1739,7 @@ def run_responses_sync(
             "instructions": instructions,
             "reasoning": {"effort": _effort},
             "text": {"verbosity": _verbosity},
+            "store": True,  # Required for previous_response_id chaining
         }
         if tools:
             continuation_kwargs["tools"] = tools
@@ -2004,6 +2015,7 @@ async def run_responses_async(
         "tools": tools,
         "reasoning": {"effort": _effort},
         "text": {"verbosity": _verbosity},
+        "store": True,  # Required for previous_response_id chaining
     }
     if instructions:
         kwargs["instructions"] = instructions
@@ -2053,6 +2065,7 @@ async def run_responses_async(
             instructions=instructions,
             reasoning={"effort": _effort},
             text={"verbosity": _verbosity},
+            store=True,  # Required for previous_response_id chaining
         )
 
     text = _extract_response_text(response)

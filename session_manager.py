@@ -310,7 +310,16 @@ Conversation:
 Summary:"""
 
     try:
-        response = openai.chat.completions.create(
+        # Use the core_assistant client which has the httpx hook to
+        # strip temperature/top_p for reasoning models (gpt-5 family).
+        # The global openai client lacks this hook and would fail with
+        # 400 if gpt-5-mini rejects sampling params.
+        try:
+            from core_assistant import get_client as _get_core_client
+            _ckpt_client = _get_core_client()
+        except ImportError:
+            _ckpt_client = openai
+        response = _ckpt_client.chat.completions.create(
             model=CHECKPOINT_MODEL,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=CHECKPOINT_MAX_TOKENS,
