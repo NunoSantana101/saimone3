@@ -459,6 +459,10 @@ def build_tools_list() -> List[dict]:
     """
     Build the complete tools list for Responses API.
 
+    v7.6: Added search_medical_links (soft integration) for Link-First
+    access to PubMed, FDA, and EMA.  Returns compact Markdown links
+    (~50 tokens/result) that the model can deep-dive via web_search_preview.
+
     v7.3: Registers mc_rng.py (MC_RNG_FILE_ID) with the code_interpreter
     tool via a sandbox container so the file is directly importable in
     the Python execution environment.  Falls back to the system-instructions
@@ -610,6 +614,66 @@ def build_tools_list() -> List[dict]:
     #    (pillars, metrics, tactics, stakeholders, roles, KOLs, etc.)
     #    loaded into pandas DataFrames at session start.
     tools.append(QUERY_HARD_LOGIC_TOOL)
+
+    # 8. search_medical_links – Soft Integration Link-First layer (v7.6)
+    #    Returns Markdown-formatted links (~50 tokens/result) from PubMed,
+    #    FDA (openFDA → DailyMed/Drugs@FDA), and EMA public datasets.
+    #    The model then uses web_search_preview to deep-dive into the
+    #    returned links for full content when needed.
+    tools.append({
+        "type": "function",
+        "name": "search_medical_links",
+        "description": (
+            "Search PubMed, FDA, and/or EMA for medical/regulatory data. "
+            "Returns compact Markdown links with minimal metadata (~50 tokens each). "
+            "Use this FIRST to gather relevant links, then use web_search_preview "
+            "to deep-dive into specific results. "
+            "Source can be 'pubmed', 'fda', 'ema', or 'all'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "Data source to search.",
+                    "enum": ["pubmed", "fda", "ema", "all"],
+                },
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "Search query — drug name, condition, topic, "
+                        "active substance, or natural language query."
+                    ),
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum links to return per source. Default 20, max 100.",
+                    "default": 20,
+                },
+                "date_range": {
+                    "type": "string",
+                    "description": (
+                        "Optional date filter, e.g. '2020/01/01-2025/12/31'. "
+                        "Applies to PubMed publication dates and FDA effective dates."
+                    ),
+                },
+                "sort": {
+                    "type": "string",
+                    "description": "Sort order for PubMed results.",
+                    "enum": ["relevance", "date"],
+                    "default": "relevance",
+                },
+                "collection": {
+                    "type": "string",
+                    "description": (
+                        "FDA openFDA collection to search. Default: 'drug/label'. "
+                        "Other options: 'drug/event', 'drug/enforcement'."
+                    ),
+                },
+            },
+            "required": ["source", "query"],
+        },
+    })
 
     return tools
 
@@ -1124,6 +1188,8 @@ def _minimal_response(res: dict, query: str = None) -> dict:
 def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
     """Routes function-call tools to backend handlers.
 
+    v7.6: Added search_medical_links for Link-First medical API access
+    (PubMed, FDA, EMA) via soft_integration.py.
     v7.4: Added query_hard_logic for in-memory pandas DataFrame access.
     v7.0: Web search is handled by OpenAI's built-in web_search_preview
     tool (server-side, no routing needed).  Statistical analysis
@@ -1176,6 +1242,23 @@ def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
             return json.dumps(result)
         except Exception as exc:
             _logger.error(f"Bayesian analysis error: {exc}")
+            return json.dumps({"error": str(exc)})
+
+    # ── Soft Integration – Link-First medical API search (v7.6) ──
+    if name == "search_medical_links":
+        try:
+            from soft_integration import search_medical_links
+            result = search_medical_links(
+                source=args.get("source", "all"),
+                query=args.get("query", ""),
+                max_results=args.get("max_results", 20),
+                date_range=args.get("date_range"),
+                sort=args.get("sort", "relevance"),
+                collection=args.get("collection"),
+            )
+            return result if isinstance(result, str) else json.dumps(result)
+        except Exception as exc:
+            _logger.error(f"Soft integration error: {exc}")
             return json.dumps({"error": str(exc)})
 
     return json.dumps({"error": f"Unknown function {name}"})
