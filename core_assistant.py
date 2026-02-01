@@ -825,6 +825,9 @@ _GHOST_TRIAGE_TEMPLATE = """\
 You are a triage agent for sAImone, a Medical Affairs strategic AI system.
 Your ONLY job is to classify the user's query and choose the correct routing path.
 
+CONVERSATION CONTEXT (rolling summary of prior turns):
+{conversation_summary}
+
 AVAILABLE TAXONOMY DATASETS (loaded in-memory):
 {schema_summary}
 
@@ -881,8 +884,12 @@ CRITICAL RULES:
 """
 
 
-def _build_triage_instructions() -> str:
-    """Build Phase-A system prompt by injecting the live schema summary."""
+def _build_triage_instructions(conversation_summary: str = "") -> str:
+    """Build Phase-A system prompt by injecting schema and conversation summary.
+
+    Uses .replace() instead of .format() to avoid KeyError if the
+    injected values contain curly braces (common in JSON snippets).
+    """
     try:
         store = _get_hard_logic_store()
         if store.is_loaded and store.available_datasets:
@@ -891,7 +898,15 @@ def _build_triage_instructions() -> str:
             schema = "(Hard Logic datasets not yet loaded — route via AVTI_PLAN when taxonomy data would be needed)"
     except Exception:
         schema = "(Hard Logic unavailable — route via AVTI_PLAN for any data-dependent query)"
-    return _GHOST_TRIAGE_TEMPLATE.format(schema_summary=schema)
+    summary = conversation_summary.strip() if conversation_summary else "(first turn — no prior context)"
+    # Safety cap: if the summary has drifted beyond ~300 words, truncate
+    if len(summary) > 2000:
+        summary = summary[:2000] + "\n...[summary truncated]"
+    return (
+        _GHOST_TRIAGE_TEMPLATE
+        .replace("{schema_summary}", schema)
+        .replace("{conversation_summary}", summary)
+    )
 
 
 def _build_anchor_tools() -> List[dict]:
@@ -909,6 +924,86 @@ def _build_anchor_tools() -> List[dict]:
         },
         QUERY_HARD_LOGIC_TOOL,
     ]
+
+
+# ──────────────────────────────────────────────────────────────────────
+#  Traffic Controller – Rolling conversation summary
+# ──────────────────────────────────────────────────────────────────────
+
+_GHOST_SUMMARY_INSTRUCTIONS = """\
+You are a conversation summariser for sAImone, a Medical Affairs AI system.
+Your job is to produce a concise rolling summary of the conversation so far.
+
+You will receive:
+- The PREVIOUS SUMMARY (if any) — a condensed record of earlier turns.
+- The LATEST EXCHANGE — the user's most recent query and the assistant's response.
+
+Produce an UPDATED SUMMARY that:
+1. Merges the previous summary with the new exchange.
+2. Preserves key decisions, drug names, regulatory points, compliance notes,
+   action items, and any strategic context the user has established.
+3. Drops redundant or superseded information (e.g. if a follow-up corrects
+   an earlier point, keep only the correction).
+4. Stays under 250 words. Be telegraphic — use fragments, not full sentences.
+5. Use a flat bullet list grouped by topic (no nested bullets).
+
+CRITICAL: Output ONLY the updated summary. No preamble, no headers, no
+markdown fences. Start directly with the first bullet.
+"""
+
+
+def generate_rolling_summary(
+    previous_summary: str,
+    user_query: str,
+    assistant_response: str,
+) -> str:
+    """Generate an updated rolling conversation summary using the Ghost model.
+
+    Called after each Traffic Controller turn.  The summary is stored in
+    session state and injected into Phase A's triage prompt on the next
+    turn, giving the Ghost compact conversation context without needing
+    a cross-model response chain.
+
+    Args:
+        previous_summary:   The rolling summary from prior turns ("" if first).
+        user_query:         The user's latest input (raw, before prompt assembly).
+        assistant_response: The final Phase C response shown to the user.
+
+    Returns:
+        The updated summary string, or the previous summary unchanged on error.
+    """
+    # Cap the assistant response to avoid blowing up the summary prompt
+    response_snippet = assistant_response[:2000]
+    if len(assistant_response) > 2000:
+        response_snippet += "\n...[truncated]"
+
+    prev_section = previous_summary.strip() if previous_summary else "(none — first turn)"
+
+    summary_prompt = (
+        f"PREVIOUS SUMMARY:\n{prev_section}\n\n"
+        f"LATEST EXCHANGE:\n"
+        f"User: {user_query}\n"
+        f"Assistant: {response_snippet}"
+    )
+
+    try:
+        text, _, _ = run_responses_sync(
+            model=GHOST_MODEL,
+            input_text=summary_prompt,
+            instructions=_GHOST_SUMMARY_INSTRUCTIONS,
+            previous_response_id=None,   # standalone — no chain needed
+            tools_override=[],           # no tools — pure text
+            reasoning_effort="low",      # fast and cheap
+            verbosity="low",
+        )
+        # Sanity: if the model returned something usable, use it
+        if text and len(text.strip()) > 20:
+            return text.strip()
+        _logger.warning("Rolling summary was too short (%d chars) — keeping previous", len(text or ""))
+        return previous_summary
+    except Exception as exc:
+        _logger.warning("Rolling summary generation failed: %s — keeping previous", exc)
+        return previous_summary
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -1692,6 +1787,7 @@ def run_traffic_controller(
     on_phase_change: Optional[Callable[[str, str], None]] = None,
     reasoning_effort: Optional[str] = None,
     verbosity: Optional[str] = None,
+    conversation_summary: str = "",
 ) -> Tuple[str, Optional[str], List[dict]]:
     """Polymorphic Agent state machine (Traffic Controller).
 
@@ -1700,6 +1796,7 @@ def run_traffic_controller(
 
     Phase A – Triage (Ghost / gpt-5.1-mini, no tools):
         Classifies the query.  Returns AVTI_PLAN or AVTI_ANSWER.
+        Receives a rolling conversation summary for cross-turn context.
 
     Phase B – Ghost Search (Ghost / gpt-5.1-mini, full tools):
         Only runs if Phase A emitted AVTI_PLAN.
@@ -1727,6 +1824,9 @@ def run_traffic_controller(
                                 st.status updates in the UI layer.
         reasoning_effort:       Override for the Anchor model.
         verbosity:              Override for the Anchor model.
+        conversation_summary:   Rolling summary from prior turns, injected
+                                into Phase A's triage prompt for cross-turn
+                                context without cross-model chaining.
 
     Returns:
         (response_text, response_id, combined_tool_call_log)
@@ -1743,10 +1843,11 @@ def run_traffic_controller(
 
     # ── Phase A: Triage (Ghost, no tools) ──────────────────────────
     # No previous_response_id — Phase A is a fresh Ghost call every
-    # turn.  The context prompt already contains serialised history.
+    # turn.  The rolling conversation summary gives it cross-turn
+    # context without needing a cross-model response chain.
     _notify_phase("triage", "Planning — mapping query to taxonomy…")
 
-    triage_instructions = _build_triage_instructions()
+    triage_instructions = _build_triage_instructions(conversation_summary)
 
     phase_a_text, phase_a_id, _ = run_responses_sync(
         model=GHOST_MODEL,

@@ -1508,6 +1508,8 @@ if "search_history" not in st.session_state:
     st.session_state["search_history"] = []
 if "_is_processing" not in st.session_state:
     st.session_state["_is_processing"] = False
+if "ghost_context_summary" not in st.session_state:
+    st.session_state["ghost_context_summary"] = ""
 
 # Pre-populate user info from authentication
 if user_info:
@@ -1751,6 +1753,7 @@ with st.sidebar:
         log_user_action("new_chat", "User started new chat session")
         st.session_state["history"] = []
         st.session_state["last_response_id"] = None
+        st.session_state["ghost_context_summary"] = ""
         st.session_state.pop("welcome_sent", None)
         st.rerun()
 
@@ -1771,6 +1774,7 @@ with st.sidebar:
             st.session_state["last_checkpoint_turn"] = 0
             st.session_state["checkpoint_pending"] = False
             st.session_state["last_response_id"] = None
+            st.session_state["ghost_context_summary"] = ""
             st.session_state["_is_processing"] = False
             st.session_state.pop("welcome_sent", None)
             st.session_state["last_processed_upload"] = None
