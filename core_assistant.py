@@ -83,6 +83,7 @@ import atexit, json, time, os, logging
 from datetime import datetime
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
 
+import concurrent.futures
 import httpx
 import openai
 from openai import OpenAI
@@ -134,6 +135,15 @@ _logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────────────
 #  Output Size Limits
 # ──────────────────────────────────────────────────────────────────────
+# Rate-limit retry: exponential backoff delays (seconds).
+# OpenAI rate limits typically need 30-60s; 2s is insufficient.
+_RATE_LIMIT_BACKOFF_SCHEDULE = [2, 8, 30]
+
+# Per-tool execution timeout (seconds).  Prevents a single tool (e.g.
+# Monte Carlo simulation with many iterations) from blocking the whole
+# agent loop indefinitely.
+_PER_TOOL_TIMEOUT = 120
+
 MAX_TOOL_OUTPUT_BYTES = 200_000  # 200KB safety limit
 PROGRESSIVE_TRUNCATION_THRESHOLDS = [
     (180_000, 0.9),
@@ -188,6 +198,10 @@ def get_client() -> OpenAI:
     strips unsupported sampling parameters (temperature, top_p, etc.)
     for reasoning models.  This prevents 400 errors regardless of
     which SDK version is installed.
+
+    A global httpx timeout (connect=10s, read/write/pool=180s) prevents
+    any single API call from hanging indefinitely, which is the primary
+    cause of the agent becoming unresponsive after extended operation.
     """
     global _client
     if _client is None:
@@ -198,6 +212,12 @@ def get_client() -> OpenAI:
             api_key=api_key,
             http_client=httpx.Client(
                 event_hooks={"request": [_strip_sampling_params]},
+                timeout=httpx.Timeout(
+                    connect=10.0,
+                    read=180.0,
+                    write=180.0,
+                    pool=180.0,
+                ),
             ),
         )
     return _client
@@ -227,6 +247,8 @@ MC_RNG_FILE_ID = "file-P2EgMJJmLDWSJqZnKBoiBJ"
 _ci_container_id: Optional[str] = None
 _ci_container_attempts: int = 0
 _CI_MAX_RETRIES: int = 3  # stop retrying after this many failures
+_ci_last_failure_ts: float = 0.0
+_CI_RECOVERY_COOLDOWN: int = 300  # seconds before retrying after permanent failure
 
 # Cache for JSON files uploaded to OpenAI during this session
 # (files without pre-existing file_ids in the registry)
@@ -329,13 +351,24 @@ def _get_code_interpreter_container() -> Optional[str]:
 
     Returns the container ID, or None if creation fails (falls back to
     system-instructions-based file loading).  After *_CI_MAX_RETRIES*
-    consecutive failures, sets _ci_container_id to the sentinel ``""``
-    so get_tools() can cache the (container-less) tools list instead of
-    retrying on every request.
+    consecutive failures, enters a cooldown period instead of giving up
+    permanently.  After *_CI_RECOVERY_COOLDOWN* seconds the container
+    creation is retried, allowing the system to self-heal when transient
+    API issues resolve.
     """
-    global _ci_container_id, _ci_container_attempts
+    global _ci_container_id, _ci_container_attempts, _ci_last_failure_ts
     if _ci_container_id is not None:
-        return _ci_container_id or None  # "" sentinel → None
+        if _ci_container_id != "":
+            return _ci_container_id
+        # Sentinel — check if cooldown has elapsed so we can retry
+        if time.time() - _ci_last_failure_ts < _CI_RECOVERY_COOLDOWN:
+            return None
+        _logger.info(
+            "CI container cooldown elapsed (%ds); resetting for retry",
+            _CI_RECOVERY_COOLDOWN,
+        )
+        _ci_container_id = None
+        _ci_container_attempts = 0
     try:
         client = get_client()
         all_file_ids = _get_all_container_file_ids()
@@ -356,12 +389,14 @@ def _get_code_interpreter_container() -> Optional[str]:
         _ci_container_attempts += 1
         if _ci_container_attempts >= _CI_MAX_RETRIES:
             _logger.warning(
-                "CI container creation failed %d times; accepting "
-                "fallback permanently: %s",
+                "CI container creation failed %d times; entering "
+                "cooldown (%ds) before next retry: %s",
                 _ci_container_attempts,
+                _CI_RECOVERY_COOLDOWN,
                 exc,
             )
-            _ci_container_id = ""  # sentinel: stops further retries
+            _ci_container_id = ""  # sentinel: cooldown before retry
+            _ci_last_failure_ts = time.time()
         else:
             _logger.warning(
                 "Could not create CI container (attempt %d/%d): %s – "
@@ -1282,12 +1317,20 @@ def run_responses_sync(
     except openai.NotFoundError as e:
         raise RuntimeError(f"Resource not found: {str(e)}")
     except openai.RateLimitError as e:
-        # Retry once after backoff
-        time.sleep(2)
-        try:
-            response = client.responses.create(**kwargs)
-        except Exception:
-            raise RuntimeError(f"Rate limited: {str(e)}")
+        # Retry with exponential backoff (2s → 8s → 30s)
+        response = None
+        for _delay in _RATE_LIMIT_BACKOFF_SCHEDULE:
+            _logger.warning("Rate limited; backing off %ds before retry", _delay)
+            time.sleep(_delay)
+            try:
+                response = client.responses.create(**kwargs)
+                break
+            except openai.RateLimitError:
+                continue
+            except Exception:
+                break
+        if response is None:
+            raise RuntimeError(f"Rate limited after {len(_RATE_LIMIT_BACKOFF_SCHEDULE)} retries: {str(e)}")
     except openai.APIConnectionError as e:
         raise RuntimeError(f"Connection error: {str(e)}")
     except openai.APITimeoutError as e:
@@ -1321,9 +1364,15 @@ def run_responses_sync(
             if on_tool_call:
                 on_tool_call(fn_name, args)
 
-            # Execute tool
+            # Execute tool with per-tool timeout to prevent one slow
+            # tool from blocking the entire agent loop.
             try:
-                output = tool_router(fn_name, args)
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _pool:
+                    _future = _pool.submit(tool_router, fn_name, args)
+                    output = _future.result(timeout=_PER_TOOL_TIMEOUT)
+            except concurrent.futures.TimeoutError:
+                _logger.error(f"Tool {fn_name} timed out after {_PER_TOOL_TIMEOUT}s")
+                output = json.dumps({"error": f"Tool {fn_name} timed out after {_PER_TOOL_TIMEOUT}s"})
             except Exception as exc:
                 _logger.error(f"Tool execution error for {fn_name}: {exc}")
                 output = json.dumps({"error": str(exc)})
@@ -1363,12 +1412,21 @@ def run_responses_sync(
                 response = client.responses.create(**continuation_kwargs)
             except openai.BadRequestError:
                 raise RuntimeError(f"Tool output submission failed (400): {str(e)}")
-        except openai.RateLimitError:
-            time.sleep(2)
-            try:
-                response = client.responses.create(**continuation_kwargs)
-            except Exception as retry_exc:
-                raise RuntimeError(f"Tool output submission failed after rate-limit retry: {retry_exc}")
+        except openai.RateLimitError as rl_exc:
+            _cont_response = None
+            for _delay in _RATE_LIMIT_BACKOFF_SCHEDULE:
+                _logger.warning("Rate limited in tool loop; backing off %ds", _delay)
+                time.sleep(_delay)
+                try:
+                    _cont_response = client.responses.create(**continuation_kwargs)
+                    break
+                except openai.RateLimitError:
+                    continue
+                except Exception:
+                    break
+            if _cont_response is None:
+                raise RuntimeError(f"Tool output submission failed after rate-limit retries: {rl_exc}")
+            response = _cont_response
         except (openai.APIConnectionError, openai.APITimeoutError) as e:
             # Retry once on transient network errors
             _logger.warning(f"Transient error during tool output submission: {e}, retrying...")

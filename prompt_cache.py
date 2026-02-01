@@ -60,6 +60,10 @@ CACHE_TOKEN_MINIMUM = 1024
 # Heartbeat fires every 240 s (4 min) to stay inside the ~5 min TTL.
 HEARTBEAT_INTERVAL_SECONDS = 240
 
+# Maximum time (seconds) for a single heartbeat ping API call.
+# Prevents the daemon thread from hanging indefinitely when OpenAI is slow.
+HEARTBEAT_PING_TIMEOUT_SECONDS = 30
+
 # Rough token estimation constant (1 token ~ 4 characters).
 _CHARS_PER_TOKEN = 4
 
@@ -379,15 +383,29 @@ class CacheHeartbeat:
             self._send_ping()
 
     def _send_ping(self) -> None:
-        """Send a minimal API request to refresh the cache TTL."""
+        """Send a minimal API request to refresh the cache TTL.
+
+        Uses a dedicated short-timeout client to prevent the daemon
+        thread from hanging indefinitely when the API is slow or
+        unresponsive.  The timeout is HEARTBEAT_PING_TIMEOUT_SECONDS
+        (default 30s) — well under the 240s interval, so a slow ping
+        never delays the next one.
+        """
         try:
             # Lazy import to avoid circular dependency at module load time.
             # core_assistant imports prompt_cache for STATIC_CONTEXT_BLOCK;
             # the heartbeat only needs core_assistant at runtime.
             from core_assistant import get_client, DEFAULT_MODEL
+            import httpx as _httpx
 
             client = get_client()
-            response = client.responses.create(
+
+            # Use with_options to enforce a tight per-request timeout so
+            # a stalled API call cannot block the daemon thread forever.
+            ping_client = client.with_options(
+                timeout=_httpx.Timeout(HEARTBEAT_PING_TIMEOUT_SECONDS),
+            )
+            response = ping_client.responses.create(
                 model=DEFAULT_MODEL,
                 instructions=STATIC_CONTEXT_BLOCK,
                 input="PING",
