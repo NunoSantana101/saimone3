@@ -375,9 +375,13 @@ class TestShouldUsePipeline:
 class TestSystemPromptInvariants:
     """Verify that stage system prompts contain critical constraints."""
 
-    def test_architect_no_tools(self):
-        assert "do NOT have access to any tools" in _ARCHITECT_SYSTEM_PROMPT.lower() or \
-               "You do NOT have access to any tools" in _ARCHITECT_SYSTEM_PROMPT
+    def test_architect_has_hard_logic(self):
+        assert "query_hard_logic" in _ARCHITECT_SYSTEM_PROMPT
+        assert "ONE tool" in _ARCHITECT_SYSTEM_PROMPT or "query_hard_logic" in _ARCHITECT_SYSTEM_PROMPT
+
+    def test_architect_no_external_tools(self):
+        prompt_lower = _ARCHITECT_SYSTEM_PROMPT.lower()
+        assert "do not have access to web search" in prompt_lower
 
     def test_architect_json_output(self):
         assert "JSON" in _ARCHITECT_SYSTEM_PROMPT

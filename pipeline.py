@@ -278,7 +278,7 @@ class PipelineAuditTrail:
 #  Stage 1: The Architect  (Reasoning Engine)
 # ─────────────────────────────────────────────────────────────────────
 
-# System prompt for Stage 1 — pure reasoning, no tools.
+# System prompt for Stage 1 — reasoning + hard logic context.
 _ARCHITECT_SYSTEM_PROMPT = """\
 You are the Architect stage of a medical affairs inference pipeline.
 
@@ -290,12 +290,23 @@ RESPONSIBILITIES:
 2. Identify ambiguities and formulate a strict step-by-step retrieval strategy.
 3. Determine the specific data points needed (hazard ratios, p-values, regulatory dates, etc.).
 4. Specify which tools should be called and with what parameters.
+5. Use query_hard_logic to inspect internal config schemas (pillars, metrics,
+   tactics, stakeholders, etc.) so your plan references real dataset fields and
+   valid filter values.
+
+TOOL ACCESS:
+You have access to ONE tool — query_hard_logic — for inspecting the internal
+structured configuration data.  Use it to look up available datasets, schema
+fields, metric definitions, pillar names, stakeholder tiers, etc. so your
+research plan is grounded in real data structures.
 
 CRITICAL CONSTRAINTS:
-- You do NOT have access to any tools, databases, or external sources.
+- Do NOT have access to web search, file search, or any external sources.
 - Do NOT attempt to answer the query or provide medical information.
 - Do NOT hallucinate data or facts.
 - Your ONLY job is to produce a research plan.
+- Use query_hard_logic ONLY to inform your plan structure — do not use it
+  to answer the user's question directly.
 
 AVAILABLE TOOLS FOR STAGE 2 (reference only — you cannot call them):
 - web_search_preview: Live web search for current data (PubMed, FDA, EMA, clinical trials, etc.)
@@ -309,7 +320,7 @@ AVAILABLE TOOLS FOR STAGE 2 (reference only — you cannot call them):
 - bayesian_analysis: Bayesian inference for evidence synthesis
 
 OUTPUT FORMAT:
-You MUST respond with ONLY a valid JSON object matching this schema:
+After any query_hard_logic calls, respond with ONLY a valid JSON object matching this schema:
 {
   "intent": "<query category: efficacy|safety|regulatory|competitive|kol|market_access|clinical_trial|publication|stakeholder|strategic|general>",
   "query_decomposition": "<plain-English restatement of what the user is asking>",
@@ -332,23 +343,36 @@ Do NOT wrap in markdown code fences.  Return raw JSON only.\
 """
 
 
+def _get_architect_tools() -> List[dict]:
+    """Return the limited tool set for Stage 1 (query_hard_logic only)."""
+    from hard_logic import QUERY_HARD_LOGIC_TOOL
+    return [QUERY_HARD_LOGIC_TOOL]
+
+
 def run_stage_1_architect(
     user_query: str,
     *,
     system_state: Optional[Dict[str, Any]] = None,
     client: Optional[Any] = None,
     model: str = "gpt-5.2",
+    tool_router: Optional[Callable] = None,
+    max_tool_rounds: int = 5,
 ) -> ResearchPlan:
     """Stage 1: Decompose the user query into a structured research plan.
 
-    Uses GPT-5.2 with HIGH reasoning effort and NO tools to maximise
-    analytical depth while preventing distraction from retrieval.
+    Uses GPT-5.2 with HIGH reasoning effort.  Has access ONLY to the
+    query_hard_logic tool so it can inspect internal config schemas
+    (pillars, metrics, tactics, stakeholders, etc.) and ground the
+    plan in real data structures.  No web search, no file search,
+    no external retrieval.
 
     Args:
         user_query: The raw user query.
         system_state: Optional dict with current_date, user_role, etc.
         client: OpenAI client instance (uses get_client() if None).
         model: Model to use (default: gpt-5.2).
+        tool_router: Function tool router (defaults to core_assistant's).
+        max_tool_rounds: Max hard-logic lookup round-trips (default 5).
 
     Returns:
         ResearchPlan — strictly typed plan for Stage 2.
@@ -359,6 +383,11 @@ def run_stage_1_architect(
     if client is None:
         from core_assistant import get_client
         client = get_client()
+    if tool_router is None:
+        from core_assistant import _default_tool_router
+        tool_router = _default_tool_router
+
+    tools = _get_architect_tools()
 
     # Build the dynamic input (timestamps, role, etc.)
     state = system_state or {}
@@ -386,13 +415,52 @@ def run_stage_1_architect(
             model=model,
             instructions=_ARCHITECT_SYSTEM_PROMPT,
             input=input_text,
-            # NO tools — pure reasoning
+            tools=tools,
             reasoning={"effort": "high"},
             text={"format": {"type": "json_object"}},
             store=False,
         )
     except openai.APIError as exc:
         raise PipelineStageError("architect", f"API error: {exc}") from exc
+
+    # Tool call loop — only query_hard_logic is available
+    for _round in range(max_tool_rounds):
+        tool_calls = _get_tool_calls_from_response(response)
+        if not tool_calls:
+            break
+
+        tool_outputs: List[dict] = []
+        for call in tool_calls:
+            fn_name = call.name
+            call_id = call.call_id
+            try:
+                args = json.loads(call.arguments)
+            except json.JSONDecodeError:
+                args = {}
+
+            try:
+                output = tool_router(fn_name, args)
+            except Exception as exc:
+                output = json.dumps({"error": str(exc)})
+
+            tool_outputs.append({
+                "type": "function_call_output",
+                "call_id": call_id,
+                "output": output,
+            })
+
+        try:
+            response = client.responses.create(
+                model=model,
+                previous_response_id=response.id,
+                input=tool_outputs,
+                tools=tools,
+                instructions=_ARCHITECT_SYSTEM_PROMPT,
+                reasoning={"effort": "high"},
+                text={"format": {"type": "json_object"}},
+            )
+        except openai.APIError as exc:
+            raise PipelineStageError("architect", f"API error in tool loop: {exc}") from exc
 
     # Extract text from response
     raw_text = _extract_text(response)
@@ -877,6 +945,7 @@ def run_pipeline(
             user_query,
             system_state=system_state,
             model=model,
+            tool_router=tool_router,
         )
         audit.stage_1_plan = plan.to_dict()
         audit.stage_1_duration_ms = int((time.time() - s1_start) * 1000)
@@ -1002,6 +1071,17 @@ def _extract_text(response) -> str:
                 if getattr(block, "type", None) == "output_text":
                     parts.append(block.text)
     return "\n".join(parts) if parts else ""
+
+
+def _get_tool_calls_from_response(response) -> list:
+    """Extract function_call items from a Responses API response."""
+    calls = []
+    if not hasattr(response, "output") or not response.output:
+        return calls
+    for item in response.output:
+        if getattr(item, "type", None) == "function_call":
+            calls.append(item)
+    return calls
 
 
 def _extract_json_from_text(text: str) -> Optional[dict]:

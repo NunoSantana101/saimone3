@@ -46,20 +46,28 @@ from core_assistant import (
 # ──────────────────────────────────────────────────────────────────────
 #  Streamlit tool-call callback (UI spinners / feedback)
 # ──────────────────────────────────────────────────────────────────────
+_TOOL_LABELS = {
+    "run_statistical_analysis": "Running statistical analysis",
+    "monte_carlo_simulation": "Running Monte Carlo simulation",
+    "bayesian_analysis": "Running Bayesian analysis",
+    "web_search_preview": "Searching the web",
+    "file_search": "Searching internal documents",
+    "code_interpreter": "Executing code",
+}
+
+
 def _streamlit_tool_callback(fn_name: str, args: dict) -> None:
     """Called by the core runner for each function-call tool invocation.
 
-    v7.4: Added query_hard_logic callback (silent — instant in-memory lookup).
-    v7.0: Web search is handled by OpenAI's built-in web_search_preview
-    (server-side, no callback).  Only statistical analysis tools trigger here.
+    v9.0: Writes tool activity into the current st.status context when
+    running inside the pipeline.  Falls back to st.write for the
+    monolithic path.
+    v7.4: query_hard_logic is silent (instant in-memory lookup).
     """
     if fn_name == "query_hard_logic":
-        # Silent — in-memory DataFrames are instant, no spinner needed
         return
-    if fn_name in {"run_statistical_analysis", "monte_carlo_simulation", "bayesian_analysis"}:
-        st.info(f"🔬 Running {fn_name.replace('_', ' ').title()}...")
-    else:
-        st.info(f"🔧 Calling {fn_name}...")
+    label = _TOOL_LABELS.get(fn_name, fn_name.replace("_", " ").title())
+    st.write(f"  - {label}...")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -141,15 +149,24 @@ def run_assistant(
 #  Pipeline UI entry-point  (v9.0)
 # ──────────────────────────────────────────────────────────────────────
 
-def _streamlit_stage_callback(stage_name: str, stage_output: Any) -> None:
-    """Update the Streamlit UI after each pipeline stage completes."""
-    labels = {
-        "architect": "Stage 1/3: Planning complete",
-        "researcher": "Stage 2/3: Research complete",
-        "synthesizer": "Stage 3/3: Response ready",
+def _make_stage_callback(status_widget):
+    """Create a stage-complete callback bound to a st.status widget."""
+
+    _STAGE_LABELS = {
+        "architect": ("Stage 1 complete — research plan ready",
+                      "**Stage 2/3:** Executing research plan..."),
+        "researcher": ("Stage 2 complete — fact sheet ready",
+                       "**Stage 3/3:** Composing response..."),
+        "synthesizer": ("Pipeline complete", None),
     }
-    label = labels.get(stage_name, f"Stage '{stage_name}' complete")
-    st.info(label)
+
+    def _on_stage_complete(stage_name: str, _stage_output: Any) -> None:
+        label, next_msg = _STAGE_LABELS.get(stage_name, (stage_name, None))
+        status_widget.update(label=label)
+        if next_msg:
+            st.write(next_msg)
+
+    return _on_stage_complete
 
 
 def run_assistant_pipeline(
@@ -173,9 +190,8 @@ def run_assistant_pipeline(
         "current_date": time.strftime("%Y-%m-%d"),
     }
 
-    with st.status("Running 3-stage analysis pipeline...", expanded=True) as status:
+    with st.status("**Stage 1/3:** Planning research strategy...", expanded=True) as status:
         try:
-            st.write("**Stage 1/3:** Planning research strategy...")
             text, response_id, tool_log = _pipeline_run(
                 user_query=user_input,
                 model=model,
@@ -185,9 +201,10 @@ def run_assistant_pipeline(
                 compliance_level=compliance_level,
                 previous_response_id=previous_response_id,
                 on_tool_call=_streamlit_tool_callback,
-                on_stage_complete=_streamlit_stage_callback,
+                on_stage_complete=_make_stage_callback(status),
             )
-            status.update(label="Pipeline complete", state="complete")
+            status.update(label="Pipeline complete", state="complete",
+                          expanded=False)
             return text, response_id, tool_log
 
         except RuntimeError as exc:
