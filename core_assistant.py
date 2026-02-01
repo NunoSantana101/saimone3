@@ -3,17 +3,6 @@ core_assistant.py
 Pure-python engine shared by the Streamlit UI (assistant.py) and any CLI or
 batch runner.  NO Streamlit or console I/O; it just raises exceptions.
 
-v8.0 – GPT-5.2 Prompt Caching Architecture:
-- STATIC_CONTEXT_BLOCK from prompt_cache.py replaces SYSTEM_INSTRUCTIONS
-  as the default `instructions` parameter for all API calls
-- Static-first prefix architecture: immutable instructions (>1024 tokens)
-  are always the absolute first content sent to the model
-- Dynamic content (timestamps, session context, user queries) goes only
-  into the `input` parameter -- never into `instructions`
-- Background heartbeat daemon keeps the server-side prefix cache warm
-  (240s interval, max_output_tokens=1 per ping)
-- Cache savings: up to 90% discount on cached input tokens
-
 v7.5.1 – Reasoning & Verbosity Controls:
 - Added reasoning.effort to all API calls (default: medium, auto-high for MC/stats)
 - Added text.verbosity to all API calls (default: medium)
@@ -73,8 +62,7 @@ Key architecture:
 - No threads, no runs, no polling
 - response_id replaces thread_id for continuity
 - Tool definitions passed inline with each request
-- Instructions = STATIC_CONTEXT_BLOCK (immutable, cached prefix)
-- Dynamic content goes into input parameter only
+- Instructions passed directly (no server-side assistant config)
 """
 
 from __future__ import annotations
@@ -83,7 +71,6 @@ import atexit, json, time, os, logging
 from datetime import datetime
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
 
-import concurrent.futures
 import httpx
 import openai
 from openai import OpenAI
@@ -135,15 +122,6 @@ _logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────────────
 #  Output Size Limits
 # ──────────────────────────────────────────────────────────────────────
-# Rate-limit retry: exponential backoff delays (seconds).
-# OpenAI rate limits typically need 30-60s; 2s is insufficient.
-_RATE_LIMIT_BACKOFF_SCHEDULE = [2, 8, 30]
-
-# Per-tool execution timeout (seconds).  Prevents a single tool (e.g.
-# Monte Carlo simulation with many iterations) from blocking the whole
-# agent loop indefinitely.
-_PER_TOOL_TIMEOUT = 120
-
 MAX_TOOL_OUTPUT_BYTES = 200_000  # 200KB safety limit
 PROGRESSIVE_TRUNCATION_THRESHOLDS = [
     (180_000, 0.9),
@@ -198,10 +176,6 @@ def get_client() -> OpenAI:
     strips unsupported sampling parameters (temperature, top_p, etc.)
     for reasoning models.  This prevents 400 errors regardless of
     which SDK version is installed.
-
-    A global httpx timeout (connect=10s, read/write/pool=180s) prevents
-    any single API call from hanging indefinitely, which is the primary
-    cause of the agent becoming unresponsive after extended operation.
     """
     global _client
     if _client is None:
@@ -212,12 +186,6 @@ def get_client() -> OpenAI:
             api_key=api_key,
             http_client=httpx.Client(
                 event_hooks={"request": [_strip_sampling_params]},
-                timeout=httpx.Timeout(
-                    connect=10.0,
-                    read=180.0,
-                    write=180.0,
-                    pool=180.0,
-                ),
             ),
         )
     return _client
@@ -247,8 +215,6 @@ MC_RNG_FILE_ID = "file-P2EgMJJmLDWSJqZnKBoiBJ"
 _ci_container_id: Optional[str] = None
 _ci_container_attempts: int = 0
 _CI_MAX_RETRIES: int = 3  # stop retrying after this many failures
-_ci_last_failure_ts: float = 0.0
-_CI_RECOVERY_COOLDOWN: int = 300  # seconds before retrying after permanent failure
 
 # Cache for JSON files uploaded to OpenAI during this session
 # (files without pre-existing file_ids in the registry)
@@ -351,24 +317,13 @@ def _get_code_interpreter_container() -> Optional[str]:
 
     Returns the container ID, or None if creation fails (falls back to
     system-instructions-based file loading).  After *_CI_MAX_RETRIES*
-    consecutive failures, enters a cooldown period instead of giving up
-    permanently.  After *_CI_RECOVERY_COOLDOWN* seconds the container
-    creation is retried, allowing the system to self-heal when transient
-    API issues resolve.
+    consecutive failures, sets _ci_container_id to the sentinel ``""``
+    so get_tools() can cache the (container-less) tools list instead of
+    retrying on every request.
     """
-    global _ci_container_id, _ci_container_attempts, _ci_last_failure_ts
+    global _ci_container_id, _ci_container_attempts
     if _ci_container_id is not None:
-        if _ci_container_id != "":
-            return _ci_container_id
-        # Sentinel — check if cooldown has elapsed so we can retry
-        if time.time() - _ci_last_failure_ts < _CI_RECOVERY_COOLDOWN:
-            return None
-        _logger.info(
-            "CI container cooldown elapsed (%ds); resetting for retry",
-            _CI_RECOVERY_COOLDOWN,
-        )
-        _ci_container_id = None
-        _ci_container_attempts = 0
+        return _ci_container_id or None  # "" sentinel → None
     try:
         client = get_client()
         all_file_ids = _get_all_container_file_ids()
@@ -389,14 +344,12 @@ def _get_code_interpreter_container() -> Optional[str]:
         _ci_container_attempts += 1
         if _ci_container_attempts >= _CI_MAX_RETRIES:
             _logger.warning(
-                "CI container creation failed %d times; entering "
-                "cooldown (%ds) before next retry: %s",
+                "CI container creation failed %d times; accepting "
+                "fallback permanently: %s",
                 _ci_container_attempts,
-                _CI_RECOVERY_COOLDOWN,
                 exc,
             )
-            _ci_container_id = ""  # sentinel: cooldown before retry
-            _ci_last_failure_ts = time.time()
+            _ci_container_id = ""  # sentinel: stops further retries
         else:
             _logger.warning(
                 "Could not create CI container (attempt %d/%d): %s – "
@@ -647,18 +600,9 @@ def get_tools() -> List[dict]:
 
 
 # ──────────────────────────────────────────────────────────────────────
-#  System Instructions & Prompt Cache
-#  v8.0: STATIC_CONTEXT_BLOCK is the immutable cached prefix for all
-#  API calls.  SYSTEM_INSTRUCTIONS kept for backward compatibility
-#  (workflow_agents.py, assistant.py still import it).
+#  System Instructions for Responses API
+#  Loaded from system_instructions.txt (same file used by workflow_agents.py)
 # ──────────────────────────────────────────────────────────────────────
-
-from prompt_cache import (
-    STATIC_CONTEXT_BLOCK,
-    start_cache_heartbeat,
-    stop_cache_heartbeat,
-    get_cache_stats,
-)
 
 _INSTRUCTIONS_PATH = os.path.join(os.path.dirname(__file__), "system_instructions.txt")
 
@@ -669,11 +613,6 @@ try:
 except FileNotFoundError:
     _logger.warning("system_instructions.txt not found at %s – using fallback", _INSTRUCTIONS_PATH)
     SYSTEM_INSTRUCTIONS = "You are sAImone, an expert Medical Affairs AI assistant powered by GPT-5.2."
-
-_logger.info(
-    "Prompt cache: STATIC_CONTEXT_BLOCK ~%d tokens (instructions default)",
-    len(STATIC_CONTEXT_BLOCK) // 4,
-)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -1221,7 +1160,7 @@ def run_responses_sync(
     model: str = DEFAULT_MODEL,
     input_messages: Optional[List[dict]] = None,
     input_text: Optional[str] = None,
-    instructions: str = STATIC_CONTEXT_BLOCK,
+    instructions: str = SYSTEM_INSTRUCTIONS,
     previous_response_id: Optional[str] = None,
     tool_router: Callable[[str, Dict[str, Any]], str] = _default_tool_router,
     timeout: int = 600,
@@ -1232,15 +1171,6 @@ def run_responses_sync(
 ) -> Tuple[str, Optional[str], List[dict]]:
     """
     Synchronous runner using the OpenAI Responses API.
-
-    v8.0 Prompt Caching:
-        The ``instructions`` parameter defaults to STATIC_CONTEXT_BLOCK --
-        an immutable, >1024-token prefix built once at startup.  This is
-        the absolute first content sent to the model on every request,
-        enabling OpenAI's automatic prefix caching (90% input token
-        discount).  All dynamic content (timestamps, session context,
-        user queries) must go into ``input_text`` or ``input_messages``,
-        never into ``instructions``.
 
     Args:
         reasoning_effort: "none"|"low"|"medium"|"high"|"xhigh".
@@ -1317,20 +1247,12 @@ def run_responses_sync(
     except openai.NotFoundError as e:
         raise RuntimeError(f"Resource not found: {str(e)}")
     except openai.RateLimitError as e:
-        # Retry with exponential backoff (2s → 8s → 30s)
-        response = None
-        for _delay in _RATE_LIMIT_BACKOFF_SCHEDULE:
-            _logger.warning("Rate limited; backing off %ds before retry", _delay)
-            time.sleep(_delay)
-            try:
-                response = client.responses.create(**kwargs)
-                break
-            except openai.RateLimitError:
-                continue
-            except Exception:
-                break
-        if response is None:
-            raise RuntimeError(f"Rate limited after {len(_RATE_LIMIT_BACKOFF_SCHEDULE)} retries: {str(e)}")
+        # Retry once after backoff
+        time.sleep(2)
+        try:
+            response = client.responses.create(**kwargs)
+        except Exception:
+            raise RuntimeError(f"Rate limited: {str(e)}")
     except openai.APIConnectionError as e:
         raise RuntimeError(f"Connection error: {str(e)}")
     except openai.APITimeoutError as e:
@@ -1364,15 +1286,9 @@ def run_responses_sync(
             if on_tool_call:
                 on_tool_call(fn_name, args)
 
-            # Execute tool with per-tool timeout to prevent one slow
-            # tool from blocking the entire agent loop.
+            # Execute tool
             try:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _pool:
-                    _future = _pool.submit(tool_router, fn_name, args)
-                    output = _future.result(timeout=_PER_TOOL_TIMEOUT)
-            except concurrent.futures.TimeoutError:
-                _logger.error(f"Tool {fn_name} timed out after {_PER_TOOL_TIMEOUT}s")
-                output = json.dumps({"error": f"Tool {fn_name} timed out after {_PER_TOOL_TIMEOUT}s"})
+                output = tool_router(fn_name, args)
             except Exception as exc:
                 _logger.error(f"Tool execution error for {fn_name}: {exc}")
                 output = json.dumps({"error": str(exc)})
@@ -1412,21 +1328,12 @@ def run_responses_sync(
                 response = client.responses.create(**continuation_kwargs)
             except openai.BadRequestError:
                 raise RuntimeError(f"Tool output submission failed (400): {str(e)}")
-        except openai.RateLimitError as rl_exc:
-            _cont_response = None
-            for _delay in _RATE_LIMIT_BACKOFF_SCHEDULE:
-                _logger.warning("Rate limited in tool loop; backing off %ds", _delay)
-                time.sleep(_delay)
-                try:
-                    _cont_response = client.responses.create(**continuation_kwargs)
-                    break
-                except openai.RateLimitError:
-                    continue
-                except Exception:
-                    break
-            if _cont_response is None:
-                raise RuntimeError(f"Tool output submission failed after rate-limit retries: {rl_exc}")
-            response = _cont_response
+        except openai.RateLimitError:
+            time.sleep(2)
+            try:
+                response = client.responses.create(**continuation_kwargs)
+            except Exception as retry_exc:
+                raise RuntimeError(f"Tool output submission failed after rate-limit retry: {retry_exc}")
         except (openai.APIConnectionError, openai.APITimeoutError) as e:
             # Retry once on transient network errors
             _logger.warning(f"Transient error during tool output submission: {e}, retrying...")
@@ -1451,7 +1358,7 @@ async def run_responses_async(
     model: str = DEFAULT_MODEL,
     input_messages: Optional[List[dict]] = None,
     input_text: Optional[str] = None,
-    instructions: str = STATIC_CONTEXT_BLOCK,
+    instructions: str = SYSTEM_INSTRUCTIONS,
     previous_response_id: Optional[str] = None,
     tool_router_async: Optional[Callable[[str, Dict[str, Any]], Coroutine[Any, Any, str]]] = None,
     timeout: int = 600,
@@ -1461,9 +1368,6 @@ async def run_responses_async(
 ) -> Tuple[str, Optional[str], List[dict]]:
     """
     Async runner using the OpenAI Responses API.
-
-    v8.0: instructions defaults to STATIC_CONTEXT_BLOCK for prompt
-    caching.  See run_responses_sync docstring for details.
 
     Returns:
         (response_text, response_id, tool_call_log)
