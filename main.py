@@ -26,7 +26,8 @@ import textwrap
 
 # -- Import your backend utility functions (v5.0 Responses API)
 from assistant import (
-    run_assistant, run_simple, handle_file_upload, validate_file_exists,
+    run_assistant, run_assistant_polymorphic, run_simple,
+    handle_file_upload, validate_file_exists,
     remove_file_from_vector_store, cleanup_uploaded_vector_store_files,
 )
 from core_assistant import reset_container, run_responses_sync as _core_run
@@ -1591,23 +1592,31 @@ def checkpoint(history_slice):
     return checkpoint_data.get("summary", f"Summary unavailable. Session covers {len(history_slice)} exchanges.")
         
 def improved_assistant_run(message):
-    """Run assistant using Responses API with improved error handling.
+    """Run assistant via the Traffic Controller (polymorphic agent).
 
-    v5.1: Uses run_assistant() (not run_simple) so that all interactive
-    chat goes through the same context-building pipeline that the main
-    chat loop uses.  This prevents the response chain from containing
-    a mix of context-rich and context-free turns.
+    v6.0: Delegates to run_assistant_polymorphic() which orchestrates
+    the Ghost (triage + search) → Anchor (synthesis) pipeline.  A
+    st.status container visualises phase transitions so the user
+    understands latency without seeing raw AVTI logs.
+
+    Retains the same retry semantics as v5.1.
     """
     for attempt in range(RETRY_ATTEMPTS):
         try:
-            response_text, response_id, tool_call_log = run_assistant(
-                user_input=message,
-                output_type=st.session_state.get("output_type", "detailed_analysis"),
-                response_tone=st.session_state.get("response_tone", "professional"),
-                compliance_level=st.session_state.get("compliance_level", "strict"),
-                previous_response_id=st.session_state.get("last_response_id"),
-                uploaded_file_ids=st.session_state.get("uploaded_file_ids") or None,
-            )
+            with st.status("Planning...", expanded=False) as status_ctr:
+                def _phase_cb(phase_key: str, label: str):
+                    state = "complete" if phase_key == "complete" else "running"
+                    status_ctr.update(label=label, state=state)
+
+                response_text, response_id, tool_call_log = run_assistant_polymorphic(
+                    user_input=message,
+                    output_type=st.session_state.get("output_type", "detailed_analysis"),
+                    response_tone=st.session_state.get("response_tone", "professional"),
+                    compliance_level=st.session_state.get("compliance_level", "strict"),
+                    previous_response_id=st.session_state.get("last_response_id"),
+                    uploaded_file_ids=st.session_state.get("uploaded_file_ids") or None,
+                    on_phase_change=_phase_cb,
+                )
 
             if response_id:
                 st.session_state["last_response_id"] = response_id
@@ -2840,28 +2849,27 @@ if send and user_input.strip():
         else:
             st.session_state["_is_processing"] = True
             try:
-                with st.spinner("🗽 Processing your request..."):
-                    # Use improved_assistant_run for automatic retry (3 attempts)
-                    # with exponential backoff, container reset, and response-chain
-                    # recovery — the same resilience the sidebar quick actions get.
-                    response = improved_assistant_run(full_prompt)
+                # improved_assistant_run now uses the Traffic Controller
+                # (polymorphic agent) and manages its own st.status container
+                # for phase visualisation (Planning → Retrieving → Synthesising).
+                response = improved_assistant_run(full_prompt)
 
-                    if response and not response.startswith("❌") and response != "All attempts failed":
-                        st.session_state["history"].append({
-                            "role": "assistant",
-                            "content": response
-                        })
-                        # Attach tool call data to search history
-                        _enrich_last_search_entry()
-                        save_medical_context()
-                        st.success("✅ Response received!")
-                        log_user_action("message_completed", f"Successfully processed message with {len(response)} characters")
-                    else:
-                        # Clear all stale state so the next request can start fresh
-                        st.session_state["last_response_id"] = None
-                        reset_container()
-                        st.error(f"❌ Error: {response}")
-                        log_user_action("message_failed", f"Assistant error: {response}")
+                if response and not response.startswith("❌") and response != "All attempts failed":
+                    st.session_state["history"].append({
+                        "role": "assistant",
+                        "content": response
+                    })
+                    # Attach tool call data to search history
+                    _enrich_last_search_entry()
+                    save_medical_context()
+                    st.success("✅ Response received!")
+                    log_user_action("message_completed", f"Successfully processed message with {len(response)} characters")
+                else:
+                    # Clear all stale state so the next request can start fresh
+                    st.session_state["last_response_id"] = None
+                    reset_container()
+                    st.error(f"❌ Error: {response}")
+                    log_user_action("message_failed", f"Assistant error: {response}")
 
             except Exception as e:
                 # Clear stale response chain AND container on unexpected errors
