@@ -107,7 +107,7 @@ def get_api_keys():
             'openai_api_key': st.secrets["OPENAI_API_KEY"],
             'tavily_api_key': st.secrets.get("TAVILY_API_KEY", "")
         }
-    except Exception:
+    except (KeyError, FileNotFoundError, AttributeError):
         openai_key = os.getenv("OPENAI_API_KEY")
         if not openai_key:
             st.error("🔑 Missing API key! Set OPENAI_API_KEY in secrets or environment variables.")
@@ -928,7 +928,7 @@ def generate_pdf_download():
 
         try:
             history = list(st.session_state.get('history', []))
-        except Exception:
+        except (TypeError, RuntimeError):
             history = []
 
         # Filter out silent prompts (sidebar quick actions, deep dive, fact check,
@@ -1187,12 +1187,12 @@ def create_comprehensive_json_export():
                 'authenticated_user': user_info if user_info else {}
             },
             'user_profile': {
-                'name': user_info['name'] if user_info else '',
-                'email': user_info['email'] if user_info else '',
-                'role': user_info['role'] if user_info else '',
-                'client': user_info['client'] if user_info else '',
-                'access_level': user_info['access_level'] if user_info else '',
-                'login_time': user_info['login_time'] if user_info else ''
+                'name': user_info.get('name', '') if user_info else '',
+                'email': user_info.get('email', '') if user_info else '',
+                'role': user_info.get('role', '') if user_info else '',
+                'client': user_info.get('client', '') if user_info else '',
+                'access_level': user_info.get('access_level', '') if user_info else '',
+                'login_time': user_info.get('login_time', '') if user_info else ''
             },
             'thread_info': {
                 'response_id': st.session_state.get('last_response_id', ''),
@@ -1425,13 +1425,13 @@ def load_from_localstorage(key):
     if result:
         try:
             return json.loads(result)
-        except:
+        except (json.JSONDecodeError, TypeError, ValueError):
             return None
     return None
 
 def get_session_id():
     # Use authenticated user's email for session ID
-    user_email = user_info['email'] if user_info else "anonymous"
+    user_email = user_info.get('email', 'anonymous') if user_info else "anonymous"
     return f"medaffairs_{user_email}_{datetime.now().strftime('%Y%m%d')}"
 
 def save_medical_context():
@@ -1445,11 +1445,11 @@ def save_medical_context():
         "recent_history": st.session_state.get("history", [])[-8:],
         "response_id": st.session_state.get("last_response_id", ""),
         "user_profile": {
-            "name": user_info['name'] if user_info else "",
-            "email": user_info['email'] if user_info else "",
-            "role": user_info['role'] if user_info else "",
-            "client": user_info['client'] if user_info else "",
-            "access_level": user_info['access_level'] if user_info else ""
+            "name": user_info.get('name', '') if user_info else "",
+            "email": user_info.get('email', '') if user_info else "",
+            "role": user_info.get('role', '') if user_info else "",
+            "client": user_info.get('client', '') if user_info else "",
+            "access_level": user_info.get('access_level', '') if user_info else ""
         }
     }
     save_to_localstorage(f"medical_context_{session_id}", context_data)
@@ -1475,14 +1475,14 @@ def load_medical_context():
             profile = stored_data["user_profile"]
             # Don't override authenticated user info with stored data
             # Just validate it matches current user
-            if profile.get("email") == (user_info['email'] if user_info else ""):
+            if profile.get("email") == (user_info.get('email', '') if user_info else ""):
                 return True
         return True
     return False
 
 # --- USER/SESSION LOGIC (v5.0 Responses API) ---
 # No threads needed – conversation continuity via previous_response_id
-user_id = user_info['email'] if user_info else "anonymous"
+user_id = user_info.get('email', 'anonymous') if user_info else "anonymous"
 if "last_response_id" not in st.session_state:
     st.session_state["last_response_id"] = None
 
@@ -2028,7 +2028,7 @@ Output format:
                                     try:
                                         openai.files.delete(file_id)
                                         msg = "File removed from OpenAI storage"
-                                    except Exception:
+                                    except (openai.NotFoundError, openai.APIError):
                                         msg = "File removed from session (will auto‑expire)"
         
                                     st.success(f"✅ {file_info['name']} deleted! {msg}")
@@ -2473,7 +2473,7 @@ Output format:
                 hours, rem = divmod(duration.total_seconds(), 3600)
                 minutes = int(rem // 60)
                 st.caption(f"Session: {int(hours)}h {minutes}m")
-            except Exception:
+            except (ValueError, TypeError, KeyError):
                 pass
 
         # Show service health (circuit breaker status)
@@ -2818,7 +2818,7 @@ if (
             "turn": turns,
             "summary": summary,
             "timestamp": datetime.now().isoformat(),
-            "user": user_info['email'] if user_info else 'unknown'
+            "user": user_info.get('email', 'unknown') if user_info else 'unknown'
         })
         st.session_state["last_checkpoint_turn"] = turns
         st.session_state["checkpoint_pending"] = False
@@ -2834,8 +2834,8 @@ if (
 st.markdown(f"""
 <div class="footer-text">
     All outputs require human review for accuracy. | sAİmone - your medaffairs assistant | Powered by GPT-5.2<br>
-    <small>🔒 Authenticated User: {user_info['name'] if user_info else 'Unknown'} ({user_info['email'] if user_info else 'Unknown'}) | 
-    Access: {user_info['access_level'].title() if user_info else 'Unknown'} | 
+    <small>🔒 Authenticated User: {user_info.get('name', 'Unknown') if user_info else 'Unknown'} ({user_info.get('email', 'Unknown') if user_info else 'Unknown'}) |
+    Access: {user_info.get('access_level', 'unknown').title() if user_info else 'Unknown'} |
     Session: {get_session_id()}</small>
 </div>
 """, unsafe_allow_html=True)
@@ -2847,10 +2847,10 @@ def cleanup_session():
     """Clean up session resources on exit"""
     try:
         if user_info:
-            log_user_action("session_end", f"Session ended for {user_info['email']}")
+            log_user_action("session_end", f"Session ended for {user_info.get('email', 'unknown')}")
         save_medical_context()
-    except Exception as e:
-        pass  # Silent cleanup
+    except Exception:
+        pass  # Silent cleanup — atexit handler must not raise
 
 # Register cleanup function
 import atexit

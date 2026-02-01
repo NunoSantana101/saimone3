@@ -391,7 +391,7 @@ class LazyContextManager:
         now = time.time()
         expired = [
             key for key, (_, timestamp) in self._cache.items()
-            if now - timestamp > CONTEXT_CACHE_TTL * 2
+            if now - timestamp > CONTEXT_CACHE_TTL
         ]
         for key in expired:
             del self._cache[key]

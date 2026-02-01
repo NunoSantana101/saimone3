@@ -1068,7 +1068,12 @@ def _rate_limit_aware_get(url: str, **kw) -> requests.Response:
             return resp
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 429:
-                wait_time = int(e.response.headers.get("Retry-After", int(retry_delay)))
+                raw_retry = e.response.headers.get("Retry-After")
+                try:
+                    wait_time = int(raw_retry) if raw_retry else int(retry_delay)
+                except (ValueError, TypeError):
+                    wait_time = int(retry_delay)
+                wait_time = min(wait_time, 120)  # Cap at 2 minutes
                 logger.warning(f"Rate limit hit (429). Waiting {wait_time}s...")
                 time.sleep(wait_time)
                 retry_delay *= 2
@@ -6663,7 +6668,7 @@ def _orcid_get_token() -> str:
     try:
         resp = requests.post(ORCID_OAUTH_URL, data=data, timeout=30)
         if resp.status_code >= 400:
-            raise ValueError(f"ORCID token request failed: {resp.status_code} {resp.text[:300]}")
+            raise ValueError(f"ORCID token request failed: HTTP {resp.status_code}")
         token = resp.json().get("access_token")
         if not token:
             raise ValueError("ORCID token response missing access_token.")
