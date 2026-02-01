@@ -410,6 +410,8 @@ def run_stage_1_architect(
 
     _logger.info("Stage 1 (Architect): planning for query (len=%d)", len(user_query))
 
+    # Note: store=True (default) is required for tool-enabled calls so that
+    # previous_response_id chaining works in the tool-call continuation loop.
     try:
         response = client.responses.create(
             model=model,
@@ -418,7 +420,6 @@ def run_stage_1_architect(
             tools=tools,
             reasoning={"effort": "high"},
             text={"format": {"type": "json_object"}},
-            store=False,
         )
     except openai.APIError as exc:
         raise PipelineStageError("architect", f"API error: {exc}") from exc
@@ -594,7 +595,8 @@ def run_stage_2_researcher(
     tool_call_log: List[dict] = []
     start = time.time()
 
-    # Initial API call with tools
+    # Note: store=True (default) is required for tool-enabled calls so that
+    # previous_response_id chaining works in the tool-call continuation loop.
     try:
         response = client.responses.create(
             model=model,
@@ -603,7 +605,6 @@ def run_stage_2_researcher(
             tools=tools,
             reasoning={"effort": "medium"},
             text={"format": {"type": "json_object"}},
-            store=False,
         )
     except openai.BadRequestError as exc:
         _logger.warning("Stage 2 BadRequestError — resetting container: %s", exc)
@@ -617,7 +618,6 @@ def run_stage_2_researcher(
                 tools=tools,
                 reasoning={"effort": "medium"},
                 text={"format": {"type": "json_object"}},
-                store=False,
             )
         except openai.BadRequestError:
             raise PipelineStageError("researcher", f"API error after retry: {exc}") from exc
@@ -1121,13 +1121,14 @@ def _retry_with_backoff(
         _logger.warning("Stage %s rate limited; backing off %ds", stage_name, delay)
         time.sleep(delay)
         try:
+            # store=True (default) required when tools are present so
+            # previous_response_id chaining works in tool-call loops.
             kwargs: dict = {
                 "model": model,
                 "instructions": instructions,
                 "input": input_text,
                 "reasoning": {"effort": "medium"},
                 "text": {"format": {"type": "json_object"}},
-                "store": False,
             }
             if tools:
                 kwargs["tools"] = tools
