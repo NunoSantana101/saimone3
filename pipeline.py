@@ -497,6 +497,93 @@ def run_stage_1_architect(
 
     # Extract text from response
     raw_text = _extract_text(response)
+
+    # ── Handle pending tool calls after loop exhaustion ──
+    # If the model is still requesting tool calls after max_tool_rounds,
+    # the response has function_call items but no message text.  Fulfil
+    # the pending calls and continue WITHOUT providing tools so the model
+    # is forced to produce its final JSON output.
+    if not raw_text:
+        pending = _get_tool_calls_from_response(response)
+        if pending:
+            _logger.warning(
+                "Stage 1 (Architect): %d pending tool calls after tool loop; "
+                "fulfilling and forcing text-only continuation",
+                len(pending),
+            )
+            pend_outputs: List[dict] = []
+            for call in pending:
+                try:
+                    args = json.loads(call.arguments)
+                except json.JSONDecodeError:
+                    args = {}
+                try:
+                    output = tool_router(call.name, args)
+                except Exception as exc:
+                    output = json.dumps({"error": str(exc)})
+                pend_outputs.append({
+                    "type": "function_call_output",
+                    "call_id": call.call_id,
+                    "output": output,
+                })
+            try:
+                response = client.responses.create(
+                    model=model,
+                    previous_response_id=response.id,
+                    input=pend_outputs,
+                    instructions=instructions,
+                    reasoning={"effort": "high"},
+                    text={"format": {"type": "json_object"}},
+                    # Intentionally omit tools to force text output
+                )
+                raw_text = _extract_text(response)
+            except openai.APIError as exc:
+                _logger.warning(
+                    "Architect forced-text continuation failed: %s", exc,
+                )
+
+    # ── Retry once on empty response (transient API issue) ──
+    if not raw_text:
+        _logger.warning(
+            "Stage 1 (Architect): empty response from model; retrying once (2s backoff)",
+        )
+        time.sleep(2)
+        try:
+            retry_kwargs = dict(kwargs)
+            # Drop previous_response_id to avoid chaining to the failed attempt
+            retry_kwargs.pop("previous_response_id", None)
+            response = client.responses.create(**retry_kwargs)
+
+            # Allow one tool round on the retry
+            retry_calls = _get_tool_calls_from_response(response)
+            if retry_calls:
+                retry_outputs: List[dict] = []
+                for call in retry_calls:
+                    try:
+                        args = json.loads(call.arguments)
+                    except json.JSONDecodeError:
+                        args = {}
+                    try:
+                        output = tool_router(call.name, args)
+                    except Exception as exc:
+                        output = json.dumps({"error": str(exc)})
+                    retry_outputs.append({
+                        "type": "function_call_output",
+                        "call_id": call.call_id,
+                        "output": output,
+                    })
+                response = client.responses.create(
+                    model=model,
+                    previous_response_id=response.id,
+                    input=retry_outputs,
+                    instructions=instructions,
+                    reasoning={"effort": "high"},
+                    text={"format": {"type": "json_object"}},
+                )
+            raw_text = _extract_text(response)
+        except openai.APIError as exc:
+            _logger.error("Architect retry also failed: %s", exc)
+
     if not raw_text:
         raise PipelineStageError("architect", "Empty response from model")
 
@@ -775,6 +862,61 @@ def run_stage_2_researcher(
 
     # Parse the final FactSheet
     raw_text = _extract_text(response)
+
+    # ── Handle pending tool calls after loop exhaustion ──
+    if not raw_text:
+        pending = _get_tool_calls(response)
+        if pending:
+            _logger.warning(
+                "Stage 2 (Researcher): %d pending tool calls after tool loop; "
+                "fulfilling and forcing text-only continuation",
+                len(pending),
+            )
+            pend_outputs: List[dict] = []
+            for call in pending:
+                try:
+                    args = json.loads(call.arguments)
+                except json.JSONDecodeError:
+                    args = {}
+                try:
+                    output = tool_router(call.name, args)
+                except Exception as exc:
+                    output = json.dumps({"error": str(exc)})
+                pend_outputs.append({
+                    "type": "function_call_output",
+                    "call_id": call.call_id,
+                    "output": output,
+                })
+            try:
+                response = client.responses.create(
+                    model=model,
+                    previous_response_id=response.id,
+                    input=pend_outputs,
+                    instructions=instructions,
+                    reasoning={"effort": "medium"},
+                    text={"format": {"type": "json_object"}},
+                    # Intentionally omit tools to force text output
+                )
+                raw_text = _extract_text(response)
+            except openai.APIError as exc:
+                _logger.warning(
+                    "Researcher forced-text continuation failed: %s", exc,
+                )
+
+    # ── Retry once on empty response (transient API issue) ──
+    if not raw_text:
+        _logger.warning(
+            "Stage 2 (Researcher): empty response; retrying once (2s backoff)",
+        )
+        time.sleep(2)
+        try:
+            retry_kw = dict(init_kwargs)
+            retry_kw.pop("previous_response_id", None)
+            response = client.responses.create(**retry_kw)
+            raw_text = _extract_text(response)
+        except openai.APIError as exc:
+            _logger.error("Researcher retry also failed: %s", exc)
+
     if not raw_text:
         raise PipelineStageError("researcher", "Empty response from researcher")
 
@@ -1112,6 +1254,7 @@ class PipelineStageError(Exception):
 def _extract_text(response) -> str:
     """Extract text content from a Responses API response object."""
     if not hasattr(response, "output") or not response.output:
+        _logger.debug("_extract_text: response has no output or output is empty")
         return ""
     parts: List[str] = []
     for item in response.output:
@@ -1119,6 +1262,12 @@ def _extract_text(response) -> str:
             for block in getattr(item, "content", []):
                 if getattr(block, "type", None) == "output_text":
                     parts.append(block.text)
+    if not parts:
+        item_types = [getattr(it, "type", "unknown") for it in response.output]
+        _logger.warning(
+            "_extract_text: no output_text found; response.output item types: %s",
+            item_types,
+        )
     return "\n".join(parts) if parts else ""
 
 
