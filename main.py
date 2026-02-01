@@ -25,12 +25,8 @@ import unicodedata
 import textwrap
 
 # -- Import your backend utility functions (v5.0 Responses API)
-from assistant import (
-    run_assistant, run_assistant_polymorphic, run_simple,
-    handle_file_upload, validate_file_exists,
-    remove_file_from_vector_store, cleanup_uploaded_vector_store_files,
-)
-from core_assistant import reset_container, run_responses_sync as _core_run
+from assistant import run_assistant, run_simple, handle_file_upload, validate_file_exists
+from core_assistant import reset_container
 
 # -- Import Hard Logic layer (v7.4 – pandas DataFrames for JSON configs)
 from hard_logic import get_store as get_hard_logic_store
@@ -1508,8 +1504,6 @@ if "search_history" not in st.session_state:
     st.session_state["search_history"] = []
 if "_is_processing" not in st.session_state:
     st.session_state["_is_processing"] = False
-if "ghost_context_summary" not in st.session_state:
-    st.session_state["ghost_context_summary"] = ""
 
 # Pre-populate user info from authentication
 if user_info:
@@ -1594,31 +1588,23 @@ def checkpoint(history_slice):
     return checkpoint_data.get("summary", f"Summary unavailable. Session covers {len(history_slice)} exchanges.")
         
 def improved_assistant_run(message):
-    """Run assistant via the Traffic Controller (polymorphic agent).
+    """Run assistant using Responses API with improved error handling.
 
-    v6.0: Delegates to run_assistant_polymorphic() which orchestrates
-    the Ghost (triage + search) → Anchor (synthesis) pipeline.  A
-    st.status container visualises phase transitions so the user
-    understands latency without seeing raw AVTI logs.
-
-    Retains the same retry semantics as v5.1.
+    v5.1: Uses run_assistant() (not run_simple) so that all interactive
+    chat goes through the same context-building pipeline that the main
+    chat loop uses.  This prevents the response chain from containing
+    a mix of context-rich and context-free turns.
     """
     for attempt in range(RETRY_ATTEMPTS):
         try:
-            with st.status("Planning...", expanded=False) as status_ctr:
-                def _phase_cb(phase_key: str, label: str):
-                    state = "complete" if phase_key == "complete" else "running"
-                    status_ctr.update(label=label, state=state)
-
-                response_text, response_id, tool_call_log = run_assistant_polymorphic(
-                    user_input=message,
-                    output_type=st.session_state.get("output_type", "detailed_analysis"),
-                    response_tone=st.session_state.get("response_tone", "professional"),
-                    compliance_level=st.session_state.get("compliance_level", "strict"),
-                    previous_response_id=st.session_state.get("last_response_id"),
-                    uploaded_file_ids=st.session_state.get("uploaded_file_ids") or None,
-                    on_phase_change=_phase_cb,
-                )
+            response_text, response_id, tool_call_log = run_assistant(
+                user_input=message,
+                output_type=st.session_state.get("output_type", "detailed_analysis"),
+                response_tone=st.session_state.get("response_tone", "professional"),
+                compliance_level=st.session_state.get("compliance_level", "strict"),
+                previous_response_id=st.session_state.get("last_response_id"),
+                uploaded_file_ids=st.session_state.get("uploaded_file_ids") or None,
+            )
 
             if response_id:
                 st.session_state["last_response_id"] = response_id
@@ -1753,7 +1739,6 @@ with st.sidebar:
         log_user_action("new_chat", "User started new chat session")
         st.session_state["history"] = []
         st.session_state["last_response_id"] = None
-        st.session_state["ghost_context_summary"] = ""
         st.session_state.pop("welcome_sent", None)
         st.rerun()
 
@@ -1762,22 +1747,15 @@ with st.sidebar:
     # ───────────────────── RESET SESSION ────────────────────────
     if st.button("🔁 Reset Session"):
         try:
-            # Clean up user-uploaded files from vector store (v8.0)
-            cleanup_uploaded_vector_store_files()
-
             # Clear local session state
             st.session_state["history"] = []
             st.session_state["checkpoints"] = []
             st.session_state["uploaded_file_ids"] = []
-            st.session_state["uploaded_files_info"] = []
-            st.session_state["parsed_files"] = {}
             st.session_state["last_checkpoint_turn"] = 0
             st.session_state["checkpoint_pending"] = False
             st.session_state["last_response_id"] = None
-            st.session_state["ghost_context_summary"] = ""
             st.session_state["_is_processing"] = False
             st.session_state.pop("welcome_sent", None)
-            st.session_state["last_processed_upload"] = None
 
             # Reset container so stale server-side state doesn't persist
             reset_container()
@@ -1942,61 +1920,24 @@ Output format:
                             "uploaded_at": datetime.now().isoformat(),
                         }
                     )
-                    # Track file ID for subsequent queries (has_files flag)
-                    if file_id not in st.session_state.get("uploaded_file_ids", []):
-                        st.session_state["uploaded_file_ids"].append(file_id)
+                    st.success(f"✅ {uploaded_file.name} uploaded successfully!")
 
-                    vs_indexed = upload_result.get("vector_store_indexed", False)
-                    if vs_indexed:
-                        st.success(f"✅ {uploaded_file.name} uploaded and indexed for search!")
-                    else:
-                        st.warning(
-                            f"⚠️ {uploaded_file.name} uploaded but vector store indexing "
-                            "failed — file_search may not find its content."
+                    # -------- One‑off parsing run --------
+                    parse_prompt = (
+                        f"I've uploaded the file '{uploaded_file.name}'. "
+                        "Please provide: 1) brief acknowledgment, "
+                        "2) 2–3 sentence summary, "
+                        "3) medical‑affairs insights."
+                    )
+                    with st.spinner("🔍 Parsing file content…"):
+                        parse_response, resp_id, _ = run_assistant(
+                            user_input=parse_prompt,
+                            output_type="brief_summary",
+                            response_tone="professional",
+                            compliance_level="strict",
+                            previous_response_id=st.session_state.get("last_response_id"),
+                            uploaded_file_ids=[file_id],
                         )
-
-                    # -------- One-off parsing run (v8.1) --------
-                    # Pass the file directly as an input_file attachment so
-                    # the model reads the actual document content instead of
-                    # relying on file_search to locate it in the vector store.
-                    with st.spinner("Parsing file content..."):
-                        try:
-                            parse_response, resp_id, _ = _core_run(
-                                input_messages=[{
-                                    "role": "user",
-                                    "content": [
-                                        {
-                                            "type": "input_text",
-                                            "text": (
-                                                f"The document '{uploaded_file.name}' has been uploaded. "
-                                                "Read the attached file content and provide:\n"
-                                                "1) Brief acknowledgment of the document\n"
-                                                "2) 2-3 sentence summary of the actual content\n"
-                                                "3) Key medical affairs insights from the document\n\n"
-                                                "Base your response on the actual document content."
-                                            ),
-                                        },
-                                        {
-                                            "type": "input_file",
-                                            "file_id": file_id,
-                                            "filename": uploaded_file.name,
-                                        },
-                                    ],
-                                }],
-                            )
-                        except Exception:
-                            # Fallback: use file_search with improved prompt
-                            parse_response, resp_id, _ = _core_run(
-                                input_text=(
-                                    f"A document '{uploaded_file.name}' (file ID: {file_id}) "
-                                    "has been uploaded and indexed in the vector store. "
-                                    "Use the file_search tool to find and read its content, "
-                                    "then provide: 1) brief acknowledgment, "
-                                    "2) 2-3 sentence summary, "
-                                    "3) medical affairs insights. "
-                                    "Base your response on the actual content from the file."
-                                ),
-                            )
                         if resp_id:
                             st.session_state["last_response_id"] = resp_id
 
@@ -2045,37 +1986,19 @@ Output format:
                     # Re-analyse
                     with col1:
                         if st.button("🔍", key=f"rean_{file_id_short}"):
-                            with st.spinner("Re-analysing..."):
-                                # v8.1: pass file directly for reliable access
-                                try:
-                                    repl, resp_id, _ = _core_run(
-                                        input_messages=[{
-                                            "role": "user",
-                                            "content": [
-                                                {
-                                                    "type": "input_text",
-                                                    "text": (
-                                                        f"Re-analyse '{file_info['name']}'. "
-                                                        "Provide a fresh analysis focusing on "
-                                                        "medical affairs insights, key data, "
-                                                        "and recommendations."
-                                                    ),
-                                                },
-                                                {
-                                                    "type": "input_file",
-                                                    "file_id": file_id,
-                                                    "filename": file_info["name"],
-                                                },
-                                            ],
-                                        }],
-                                    )
-                                except Exception:
-                                    repl, resp_id, _ = _core_run(
-                                        input_text=(
-                                            f"Use file_search to retrieve '{file_info['name']}' "
-                                            "and provide a fresh analysis with medical affairs insights."
-                                        ),
-                                    )
+                            with st.spinner("Re‑analysing…"):
+                                reanalyse_prompt = (
+                                    f"Please provide a fresh analysis of '{file_info['name']}' "
+                                    "focusing on medical‑affairs insights, key data, and recommendations."
+                                )
+                                repl, resp_id, _ = run_assistant(
+                                    user_input=reanalyse_prompt,
+                                    output_type="detailed_analysis",
+                                    response_tone="professional",
+                                    compliance_level="strict",
+                                    previous_response_id=st.session_state.get("last_response_id"),
+                                    uploaded_file_ids=[file_id],
+                                )
                                 if resp_id:
                                     st.session_state["last_response_id"] = resp_id
                             if repl and not repl.startswith("❌"):
@@ -2100,22 +2023,14 @@ Output format:
                                         f for f in st.session_state["uploaded_files_info"] if f["id"] != file_id
                                     ]
                                     st.session_state["parsed_files"].pop(file_id, None)
-                                    # Remove from tracked file IDs (v8.1)
-                                    st.session_state["uploaded_file_ids"] = [
-                                        fid for fid in st.session_state.get("uploaded_file_ids", [])
-                                        if fid != file_id
-                                    ]
-
-                                    # Remove from vector store first (v8.0)
-                                    remove_file_from_vector_store(file_id)
-
+        
                                     import openai
                                     try:
                                         openai.files.delete(file_id)
                                         msg = "File removed from OpenAI storage"
                                     except Exception:
                                         msg = "File removed from session (will auto‑expire)"
-
+        
                                     st.success(f"✅ {file_info['name']} deleted! {msg}")
                                     log_user_action("file_deleted", f"Deleted {file_info['name']}")
                                     st.session_state.pop(confirm_key)  # Reset confirmation
@@ -2853,27 +2768,28 @@ if send and user_input.strip():
         else:
             st.session_state["_is_processing"] = True
             try:
-                # improved_assistant_run now uses the Traffic Controller
-                # (polymorphic agent) and manages its own st.status container
-                # for phase visualisation (Planning → Retrieving → Synthesising).
-                response = improved_assistant_run(full_prompt)
+                with st.spinner("🗽 Processing your request..."):
+                    # Use improved_assistant_run for automatic retry (3 attempts)
+                    # with exponential backoff, container reset, and response-chain
+                    # recovery — the same resilience the sidebar quick actions get.
+                    response = improved_assistant_run(full_prompt)
 
-                if response and not response.startswith("❌") and response != "All attempts failed":
-                    st.session_state["history"].append({
-                        "role": "assistant",
-                        "content": response
-                    })
-                    # Attach tool call data to search history
-                    _enrich_last_search_entry()
-                    save_medical_context()
-                    st.success("✅ Response received!")
-                    log_user_action("message_completed", f"Successfully processed message with {len(response)} characters")
-                else:
-                    # Clear all stale state so the next request can start fresh
-                    st.session_state["last_response_id"] = None
-                    reset_container()
-                    st.error(f"❌ Error: {response}")
-                    log_user_action("message_failed", f"Assistant error: {response}")
+                    if response and not response.startswith("❌") and response != "All attempts failed":
+                        st.session_state["history"].append({
+                            "role": "assistant",
+                            "content": response
+                        })
+                        # Attach tool call data to search history
+                        _enrich_last_search_entry()
+                        save_medical_context()
+                        st.success("✅ Response received!")
+                        log_user_action("message_completed", f"Successfully processed message with {len(response)} characters")
+                    else:
+                        # Clear all stale state so the next request can start fresh
+                        st.session_state["last_response_id"] = None
+                        reset_container()
+                        st.error(f"❌ Error: {response}")
+                        log_user_action("message_failed", f"Assistant error: {response}")
 
             except Exception as e:
                 # Clear stale response chain AND container on unexpected errors

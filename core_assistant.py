@@ -3,17 +3,6 @@ core_assistant.py
 Pure-python engine shared by the Streamlit UI (assistant.py) and any CLI or
 batch runner.  NO Streamlit or console I/O; it just raises exceptions.
 
-v7.6 – Soft Integration (Medical Links URI Provider):
-- New search_medical_links function tool for "Link-First" medical API access
-- PubMed: ESearch → ESummary → Markdown links (~50 tokens/result vs ~400)
-- FDA: openFDA → DailyMed/Drugs@FDA links with deduplication
-- EMA: Medicines dataset → product page links
-- Supports "all" source to query PubMed + FDA + EMA in one call
-- Model uses web_search_preview to deep-dive into specific links when needed
-- All 8 tools: web_search_preview, file_search, code_interpreter,
-  run_statistical_analysis, monte_carlo_simulation, bayesian_analysis,
-  query_hard_logic, search_medical_links
-
 v7.5.1 – Reasoning & Verbosity Controls:
 - Added reasoning.effort to all API calls (default: medium, auto-high for MC/stats)
 - Added text.verbosity to all API calls (default: medium)
@@ -120,11 +109,6 @@ from assistant_config import (
     HIGH_REASONING_EFFORT,
     DEFAULT_VERBOSITY,
     needs_high_reasoning,
-    GHOST_MODEL,
-    ANCHOR_MODEL,
-    SENTINEL_PLAN,
-    SENTINEL_DATA,
-    SENTINEL_ANSWER,
 )
 
 from hard_logic import (
@@ -406,132 +390,6 @@ def reset_container() -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-#  Vector Store – user-uploaded file management
-# ──────────────────────────────────────────────────────────────────────
-# After the Responses API migration (v5.0), uploaded files must be
-# explicitly added to a vector store for file_search to find them.
-# In the old Assistants API, files attached to thread messages were
-# automatically searchable — that's no longer the case.
-#
-# v8.0: Files uploaded by users are added to VECTOR_STORE_ID so the
-# file_search tool can retrieve their content during the session.
-# They are cleaned up on file deletion and session reset.
-
-_user_uploaded_vs_file_ids: List[str] = []
-
-
-def _get_vs_files_api():
-    """Return the vector-store files API handle (SDK compatibility)."""
-    client = get_client()
-    try:
-        return client.vector_stores.files
-    except AttributeError:
-        return client.beta.vector_stores.files
-
-
-def add_file_to_vector_store(file_id: str, *, poll_timeout: int = 60) -> bool:
-    """Add a user-uploaded file to the vector store for file_search access.
-
-    Polls until the file is indexed (status ``completed``) or *poll_timeout*
-    seconds elapse.  Returns True on success.
-    """
-    try:
-        vs_files = _get_vs_files_api()
-        vs_files.create(
-            vector_store_id=VECTOR_STORE_ID,
-            file_id=file_id,
-        )
-
-        # Poll until indexed
-        poll_interval = 2
-        for _ in range(poll_timeout // poll_interval):
-            info = vs_files.retrieve(
-                vector_store_id=VECTOR_STORE_ID,
-                file_id=file_id,
-            )
-            if info.status == "completed":
-                _user_uploaded_vs_file_ids.append(file_id)
-                _logger.info(
-                    "File %s indexed in vector store %s",
-                    file_id, VECTOR_STORE_ID,
-                )
-                # Brief delay to allow search index propagation.
-                # Vector store status "completed" means embedding is done,
-                # but the search index may need a moment to become queryable.
-                time.sleep(3)
-                return True
-            if info.status in ("failed", "cancelled"):
-                _logger.error(
-                    "Vector store indexing failed for %s: status=%s",
-                    file_id, info.status,
-                )
-                return False
-            time.sleep(poll_interval)
-
-        # Timed out but file may still finish indexing server-side
-        _user_uploaded_vs_file_ids.append(file_id)
-        _logger.warning(
-            "Vector store indexing timed out for %s — file_search may "
-            "still work once indexing completes",
-            file_id,
-        )
-        return True
-    except Exception as exc:
-        _logger.error(
-            "Failed to add file %s to vector store: %s", file_id, exc,
-        )
-        return False
-
-
-def remove_file_from_vector_store(file_id: str) -> bool:
-    """Remove a user-uploaded file from the vector store."""
-    try:
-        vs_files = _get_vs_files_api()
-        vs_files.delete(
-            vector_store_id=VECTOR_STORE_ID,
-            file_id=file_id,
-        )
-        if file_id in _user_uploaded_vs_file_ids:
-            _user_uploaded_vs_file_ids.remove(file_id)
-        _logger.info(
-            "Removed file %s from vector store %s",
-            file_id, VECTOR_STORE_ID,
-        )
-        return True
-    except Exception as exc:
-        _logger.warning(
-            "Could not remove file %s from vector store: %s",
-            file_id, exc,
-        )
-        if file_id in _user_uploaded_vs_file_ids:
-            _user_uploaded_vs_file_ids.remove(file_id)
-        return False
-
-
-def cleanup_uploaded_vector_store_files() -> int:
-    """Remove all user-uploaded files from the vector store.
-
-    Called during session reset to avoid accumulating stale files
-    in the shared vector store.  Returns the number of files removed.
-    """
-    removed = 0
-    for fid in list(_user_uploaded_vs_file_ids):
-        if remove_file_from_vector_store(fid):
-            removed += 1
-    if removed:
-        _logger.info("Cleaned up %d user-uploaded files from vector store", removed)
-    return removed
-
-
-def _cleanup_vector_store_files() -> None:
-    """atexit handler: best-effort removal of uploaded files."""
-    cleanup_uploaded_vector_store_files()
-
-
-atexit.register(_cleanup_vector_store_files)
-
-
-# ──────────────────────────────────────────────────────────────────────
 #  Tool Definitions for Responses API
 # ──────────────────────────────────────────────────────────────────────
 
@@ -695,66 +553,6 @@ def build_tools_list() -> List[dict]:
     #    loaded into pandas DataFrames at session start.
     tools.append(QUERY_HARD_LOGIC_TOOL)
 
-    # 8. search_medical_links – Soft Integration URI provider (v7.6)
-    #    "Link-First" architecture: returns clean Markdown links (~50 tokens/result)
-    #    instead of full abstracts/labels (~500-1000 tokens/result).
-    #    The model can deep-dive into specific links via web_search_preview.
-    #    Sources: PubMed (NCBI), FDA (openFDA/DailyMed), EMA
-    tools.append({
-        "type": "function",
-        "name": "search_medical_links",
-        "description": (
-            "Search PubMed, FDA, or EMA and return Markdown-formatted links with "
-            "minimal metadata. Use this for literature discovery, drug lookups, and "
-            "regulatory product searches. Returns direct URLs to source pages that "
-            "can be browsed for full details. Much more token-efficient than full "
-            "abstract retrieval — use this first, then deep-dive into specific "
-            "links with web_search_preview when needed."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "source": {
-                    "type": "string",
-                    "description": "Data source to search.",
-                    "enum": ["pubmed", "fda", "ema", "all"],
-                },
-                "query": {
-                    "type": "string",
-                    "description": (
-                        "Natural language search query. Can be a drug name, "
-                        "disease/condition, therapeutic area, or research topic."
-                    ),
-                },
-                "max_results": {
-                    "type": "integer",
-                    "description": "Maximum links to return per source. Default: 20, max: 100.",
-                    "default": 20,
-                },
-                "date_range": {
-                    "type": "string",
-                    "description": (
-                        "Optional date filter in format 'YYYY/MM/DD-YYYY/MM/DD'. "
-                        "Example: '2023/01/01-2025/12/31'."
-                    ),
-                },
-                "sort": {
-                    "type": "string",
-                    "description": "Sort order for PubMed results.",
-                    "enum": ["relevance", "date"],
-                    "default": "relevance",
-                },
-                "collection": {
-                    "type": "string",
-                    "description": "FDA collection to search. Default: 'drug/label'.",
-                    "enum": ["drug/label", "drug/event", "drug/enforcement"],
-                    "default": "drug/label",
-                },
-            },
-            "required": ["source", "query"],
-        },
-    })
-
     return tools
 
 
@@ -815,195 +613,6 @@ try:
 except FileNotFoundError:
     _logger.warning("system_instructions.txt not found at %s – using fallback", _INSTRUCTIONS_PATH)
     SYSTEM_INSTRUCTIONS = "You are sAImone, an expert Medical Affairs AI assistant powered by GPT-5.2."
-
-
-# ──────────────────────────────────────────────────────────────────────
-#  Traffic Controller – Ghost model instructions
-# ──────────────────────────────────────────────────────────────────────
-
-_GHOST_TRIAGE_TEMPLATE = """\
-You are a triage agent for sAImone, a Medical Affairs strategic AI system.
-Your ONLY job is to classify the user's query and choose the correct routing path.
-
-CONVERSATION CONTEXT (rolling summary of prior turns):
-{conversation_summary}
-
-AVAILABLE TAXONOMY DATASETS (loaded in-memory):
-{schema_summary}
-
-ROUTING RULES — read carefully:
-1. EXTERNAL DATA NEEDED (literature search, regulatory lookups, current events,
-   drug safety data, clinical trial results, PubMed/FDA/EMA queries, competitive
-   intelligence that requires live data, or any information NOT fully covered
-   by the taxonomy datasets above):
-   → Begin your response with exactly: AVTI_PLAN
-   → Then provide a concise retrieval plan:
-     • What specific information must be retrieved
-     • Which sources are most relevant (PubMed, FDA, EMA, web, medical links)
-     • Key search terms / drug names / MeSH concepts to query
-     • Why the taxonomy data alone is insufficient
-
-2. ANSWERABLE FROM TAXONOMY + GENERAL KNOWLEDGE (strategic framework
-   explanations, pillar/tactic/metric definitions, stakeholder mapping,
-   role-based deliverables, KOL lookup, pricing frameworks, MAPS workflow
-   guidance, or any query fully addressable from the datasets above):
-   → Begin your response with exactly: AVTI_ANSWER
-   → Then provide a thorough draft answer using the taxonomy data.
-
-CRITICAL RULES:
-- The sentinel token (AVTI_PLAN or AVTI_ANSWER) MUST be the very first
-  characters of your output. No preamble, no markdown fences, no whitespace.
-- When in doubt, prefer AVTI_PLAN — it is better to retrieve and confirm
-  than to answer with stale or incomplete information.
-- Your output is NEVER shown to the user. Be precise, not polished.
-"""
-
-_GHOST_SEARCH_INSTRUCTIONS = """\
-You are a data retrieval agent for sAImone. The previous response in this
-conversation chain contains a search plan (AVTI_PLAN). Execute it now.
-
-EXECUTION PROTOCOL:
-1. Use ALL relevant tools to gather the requested data comprehensively.
-   - web_search_preview for general / current information
-   - search_medical_links for PubMed, FDA, EMA literature & regulatory data
-   - file_search for proprietary documents in the vector store
-   - query_hard_logic for in-memory taxonomy DataFrame lookups
-   - code_interpreter for calculations / data processing if needed
-2. Retrieve from MULTIPLE sources when the plan calls for it.
-3. Include raw data, direct citations, URLs, publication dates, and key
-   quantitative findings.
-4. Begin your response with exactly: AVTI_DATA
-5. Structure findings clearly with headers per source/topic.
-
-CRITICAL RULES:
-- AVTI_DATA must be the very first characters of your output.
-- Your output is NEVER shown to the user. Optimise for completeness and
-  accuracy, not presentation.
-- Do NOT synthesise, summarise for lay audiences, or add disclaimers.
-  Provide raw research material for the synthesis agent.
-"""
-
-
-def _build_triage_instructions(conversation_summary: str = "") -> str:
-    """Build Phase-A system prompt by injecting schema and conversation summary.
-
-    Uses .replace() instead of .format() to avoid KeyError if the
-    injected values contain curly braces (common in JSON snippets).
-    """
-    try:
-        store = _get_hard_logic_store()
-        if store.is_loaded and store.available_datasets:
-            schema = store.get_schema_summary()
-        else:
-            schema = "(Hard Logic datasets not yet loaded — route via AVTI_PLAN when taxonomy data would be needed)"
-    except Exception:
-        schema = "(Hard Logic unavailable — route via AVTI_PLAN for any data-dependent query)"
-    summary = conversation_summary.strip() if conversation_summary else "(first turn — no prior context)"
-    # Safety cap: if the summary has drifted beyond ~300 words, truncate
-    if len(summary) > 2000:
-        summary = summary[:2000] + "\n...[summary truncated]"
-    return (
-        _GHOST_TRIAGE_TEMPLATE
-        .replace("{schema_summary}", schema)
-        .replace("{conversation_summary}", summary)
-    )
-
-
-def _build_anchor_tools() -> List[dict]:
-    """Return the tool subset available to the Anchor model (Phase C).
-
-    The Anchor gets web search for ad-hoc verification and query_hard_logic
-    for deterministic taxonomy lookups.  Heavy retrieval (file_search,
-    code_interpreter, search_medical_links) was already handled by the
-    Ghost in Phase B.
-    """
-    return [
-        {
-            "type": "web_search_preview",
-            "search_context_size": "high",
-        },
-        QUERY_HARD_LOGIC_TOOL,
-    ]
-
-
-# ──────────────────────────────────────────────────────────────────────
-#  Traffic Controller – Rolling conversation summary
-# ──────────────────────────────────────────────────────────────────────
-
-_GHOST_SUMMARY_INSTRUCTIONS = """\
-You are a conversation summariser for sAImone, a Medical Affairs AI system.
-Your job is to produce a concise rolling summary of the conversation so far.
-
-You will receive:
-- The PREVIOUS SUMMARY (if any) — a condensed record of earlier turns.
-- The LATEST EXCHANGE — the user's most recent query and the assistant's response.
-
-Produce an UPDATED SUMMARY that:
-1. Merges the previous summary with the new exchange.
-2. Preserves key decisions, drug names, regulatory points, compliance notes,
-   action items, and any strategic context the user has established.
-3. Drops redundant or superseded information (e.g. if a follow-up corrects
-   an earlier point, keep only the correction).
-4. Stays under 250 words. Be telegraphic — use fragments, not full sentences.
-5. Use a flat bullet list grouped by topic (no nested bullets).
-
-CRITICAL: Output ONLY the updated summary. No preamble, no headers, no
-markdown fences. Start directly with the first bullet.
-"""
-
-
-def generate_rolling_summary(
-    previous_summary: str,
-    user_query: str,
-    assistant_response: str,
-) -> str:
-    """Generate an updated rolling conversation summary using the Ghost model.
-
-    Called after each Traffic Controller turn.  The summary is stored in
-    session state and injected into Phase A's triage prompt on the next
-    turn, giving the Ghost compact conversation context without needing
-    a cross-model response chain.
-
-    Args:
-        previous_summary:   The rolling summary from prior turns ("" if first).
-        user_query:         The user's latest input (raw, before prompt assembly).
-        assistant_response: The final Phase C response shown to the user.
-
-    Returns:
-        The updated summary string, or the previous summary unchanged on error.
-    """
-    # Cap the assistant response to avoid blowing up the summary prompt
-    response_snippet = assistant_response[:2000]
-    if len(assistant_response) > 2000:
-        response_snippet += "\n...[truncated]"
-
-    prev_section = previous_summary.strip() if previous_summary else "(none — first turn)"
-
-    summary_prompt = (
-        f"PREVIOUS SUMMARY:\n{prev_section}\n\n"
-        f"LATEST EXCHANGE:\n"
-        f"User: {user_query}\n"
-        f"Assistant: {response_snippet}"
-    )
-
-    try:
-        text, _, _ = run_responses_sync(
-            model=GHOST_MODEL,
-            input_text=summary_prompt,
-            instructions=_GHOST_SUMMARY_INSTRUCTIONS,
-            previous_response_id=None,   # standalone — no chain needed
-            tools_override=[],           # no tools — pure text
-            reasoning_effort="low",      # fast and cheap
-            verbosity="low",
-        )
-        # Sanity: if the model returned something usable, use it
-        if text and len(text.strip()) > 20:
-            return text.strip()
-        _logger.warning("Rolling summary was too short (%d chars) — keeping previous", len(text or ""))
-        return previous_summary
-    except Exception as exc:
-        _logger.warning("Rolling summary generation failed: %s — keeping previous", exc)
-        return previous_summary
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -1511,22 +1120,6 @@ def _default_tool_router(name: str, args: Dict[str, Any]) -> str:
             _logger.error(f"Bayesian analysis error: {exc}")
             return json.dumps({"error": str(exc)})
 
-    # ── Soft Integration – Medical Links URI provider (v7.6) ──
-    if name == "search_medical_links":
-        try:
-            from soft_integration import search_medical_links
-            return search_medical_links(
-                source=args.get("source", "all"),
-                query=args.get("query", ""),
-                max_results=args.get("max_results", 20),
-                date_range=args.get("date_range"),
-                sort=args.get("sort", "relevance"),
-                collection=args.get("collection"),
-            )
-        except Exception as exc:
-            _logger.error(f"Soft integration error: {exc}")
-            return json.dumps({"error": str(exc)})
-
     return json.dumps({"error": f"Unknown function {name}"})
 
 
@@ -1575,7 +1168,6 @@ def run_responses_sync(
     on_tool_call: Optional[Callable[[str, dict], None]] = None,
     reasoning_effort: Optional[str] = None,
     verbosity: Optional[str] = None,
-    tools_override: Optional[List[dict]] = None,
 ) -> Tuple[str, Optional[str], List[dict]]:
     """
     Synchronous runner using the OpenAI Responses API.
@@ -1587,9 +1179,6 @@ def run_responses_sync(
             explicitly overridden.
         verbosity: "low"|"medium"|"high".  Maps to text.verbosity.
             Defaults to DEFAULT_VERBOSITY ("medium").
-        tools_override: If provided, use this tool list instead of
-            the default get_tools().  Pass an empty list to disable
-            all tools for a given phase.
 
     Returns:
         (response_text, response_id, tool_call_log)
@@ -1598,7 +1187,7 @@ def run_responses_sync(
         - tool_call_log: List of {name, args, output} dicts for audit
     """
     client = get_client()
-    tools = tools_override if tools_override is not None else get_tools()
+    tools = get_tools()
 
     # Build input
     if input_text and not input_messages:
@@ -1631,11 +1220,10 @@ def run_responses_sync(
         kwargs = {
             "model": model,
             "input": api_input,
+            "tools": tools,
             "reasoning": {"effort": _effort},
             "text": {"verbosity": _verbosity},
         }
-        if tools:
-            kwargs["tools"] = tools
         if instructions:
             kwargs["instructions"] = instructions
         if previous_response_id:
@@ -1649,11 +1237,8 @@ def run_responses_sync(
         # before giving up.
         _logger.warning("BadRequestError on initial call — resetting container and retrying: %s", e)
         reset_container()
-        if tools_override is None:
-            # Only rebuild tools when using the default full suite (may
-            # include a code-interpreter container that just expired).
-            tools = get_tools()
-            kwargs["tools"] = tools
+        tools = get_tools()
+        kwargs["tools"] = tools
         kwargs.pop("previous_response_id", None)
         try:
             response = client.responses.create(**kwargs)
@@ -1726,21 +1311,19 @@ def run_responses_sync(
             "model": model,
             "previous_response_id": response.id,
             "input": tool_outputs,
+            "tools": tools,
             "instructions": instructions,
             "reasoning": {"effort": _effort},
             "text": {"verbosity": _verbosity},
         }
-        if tools:
-            continuation_kwargs["tools"] = tools
         try:
             response = client.responses.create(**continuation_kwargs)
         except openai.BadRequestError as e:
             # Container may have expired mid-loop; reset and retry once
             _logger.warning("BadRequestError during tool loop — resetting container: %s", e)
             reset_container()
-            if tools_override is None:
-                tools = get_tools()
-                continuation_kwargs["tools"] = tools
+            tools = get_tools()
+            continuation_kwargs["tools"] = tools
             try:
                 response = client.responses.create(**continuation_kwargs)
             except openai.BadRequestError:
@@ -1765,181 +1348,6 @@ def run_responses_sync(
     response_id = response.id if hasattr(response, "id") else None
 
     return text, response_id, tool_call_log
-
-
-# ──────────────────────────────────────────────────────────────────────
-#  Traffic Controller – Polymorphic Agent orchestrator
-# ──────────────────────────────────────────────────────────────────────
-
-def _strip_sentinel(text: str) -> str:
-    """Remove the leading sentinel token and any trailing whitespace after it."""
-    for sentinel in (SENTINEL_PLAN, SENTINEL_DATA, SENTINEL_ANSWER):
-        if text.startswith(sentinel):
-            return text[len(sentinel):].lstrip(" \t").lstrip("\n")
-    return text
-
-
-def run_traffic_controller(
-    *,
-    input_text: str,
-    previous_response_id: Optional[str] = None,
-    on_tool_call: Optional[Callable[[str, dict], None]] = None,
-    on_phase_change: Optional[Callable[[str, str], None]] = None,
-    reasoning_effort: Optional[str] = None,
-    verbosity: Optional[str] = None,
-    conversation_summary: str = "",
-) -> Tuple[str, Optional[str], List[dict]]:
-    """Polymorphic Agent state machine (Traffic Controller).
-
-    Orchestrates a multi-phase conversation using sentinel tokens to
-    switch dynamically between models within a single response chain.
-
-    Phase A – Triage (Ghost / gpt-5-mini, no tools):
-        Classifies the query.  Returns AVTI_PLAN or AVTI_ANSWER.
-        Receives a rolling conversation summary for cross-turn context.
-
-    Phase B – Ghost Search (Ghost / gpt-5-mini, full tools):
-        Only runs if Phase A emitted AVTI_PLAN.
-        Executes the retrieval plan.  Returns AVTI_DATA.
-
-    Phase C – Anchor Synthesis (Anchor / gpt-5.2, web + DB tools):
-        Always runs.  Synthesises the final user-facing response.
-
-    IMPORTANT – Model-boundary isolation:
-        previous_response_id chains NEVER cross model families.
-        Phase A→B uses same-model chaining (both Ghost).
-        Phase C chains to the *previous turn's* Phase C (both Anchor).
-        Ghost findings are passed to Phase C as explicit input text,
-        not via previous_response_id, to avoid the reasoning-item
-        incompatibility bug in the Responses API.
-
-    Args:
-        input_text:             The assembled context prompt (from
-                                create_context_prompt_with_budget).
-        previous_response_id:   Chain from the *previous turn's Phase C*
-                                (Anchor model only — stored in session
-                                state as last_response_id).
-        on_tool_call:           Callback for tool-call UI spinners.
-        on_phase_change:        Callback ``(phase_key, label)`` for
-                                st.status updates in the UI layer.
-        reasoning_effort:       Override for the Anchor model.
-        verbosity:              Override for the Anchor model.
-        conversation_summary:   Rolling summary from prior turns, injected
-                                into Phase A's triage prompt for cross-turn
-                                context without cross-model chaining.
-
-    Returns:
-        (response_text, response_id, combined_tool_call_log)
-    """
-    all_tool_logs: List[dict] = []
-
-    def _notify_phase(key: str, label: str) -> None:
-        """Fire on_phase_change callback, swallowing UI errors."""
-        if on_phase_change:
-            try:
-                on_phase_change(key, label)
-            except Exception:
-                _logger.debug("on_phase_change callback failed for %s", key)
-
-    # ── Phase A: Triage (Ghost, no tools) ──────────────────────────
-    # No previous_response_id — Phase A is a fresh Ghost call every
-    # turn.  The rolling conversation summary gives it cross-turn
-    # context without needing a cross-model response chain.
-    _notify_phase("triage", "Planning — mapping query to taxonomy…")
-
-    triage_instructions = _build_triage_instructions(conversation_summary)
-
-    phase_a_text, phase_a_id, _ = run_responses_sync(
-        model=GHOST_MODEL,
-        input_text=input_text,
-        instructions=triage_instructions,
-        previous_response_id=None,      # never chain cross-model
-        tools_override=[],              # no tools for triage
-        reasoning_effort="low",         # fast classification
-        verbosity="low",
-    )
-
-    _logger.info(
-        "Traffic Controller Phase A complete — sentinel=%s  resp_id=%s",
-        phase_a_text[:20] if phase_a_text else "(empty)",
-        phase_a_id,
-    )
-
-    # ── Phase B: Ghost Search (only if AVTI_PLAN) ──────────────────
-    # Chains to Phase A via previous_response_id (same model: Ghost→Ghost).
-    ghost_output = phase_a_text          # default: Phase A's text
-
-    if phase_a_text.startswith(SENTINEL_PLAN):
-        _notify_phase("search", "Retrieving — searching external sources…")
-
-        phase_b_text, phase_b_id, phase_b_logs = run_responses_sync(
-            model=GHOST_MODEL,
-            input_text="Execute the retrieval plan from the previous response.",
-            instructions=_GHOST_SEARCH_INSTRUCTIONS,
-            previous_response_id=phase_a_id,    # same model ✓
-            on_tool_call=on_tool_call,
-            tools_override=None,                # full tool suite
-            reasoning_effort="medium",
-            verbosity="low",
-        )
-
-        all_tool_logs.extend(phase_b_logs)
-        ghost_output = phase_b_text             # upgrade to Phase B's findings
-
-        _logger.info(
-            "Traffic Controller Phase B complete — sentinel=%s  tools=%d  resp_id=%s",
-            phase_b_text[:20] if phase_b_text else "(empty)",
-            len(phase_b_logs),
-            phase_b_id,
-        )
-
-    elif not phase_a_text.startswith(SENTINEL_ANSWER):
-        # Fallback: model didn't emit a sentinel.  Treat as AVTI_ANSWER.
-        _logger.warning(
-            "Phase A did not emit a recognised sentinel — treating as AVTI_ANSWER.  "
-            "First 80 chars: %s",
-            phase_a_text[:80],
-        )
-
-    # ── Phase C: Anchor Synthesis (always runs) ────────────────────
-    # Chains to the *previous turn's* Phase C via previous_response_id
-    # (same model: Anchor→Anchor).  Ghost findings are injected as
-    # explicit input text to avoid crossing model boundaries.
-    _notify_phase("synthesis", "Synthesising — generating final response…")
-
-    phase_c_input = (
-        f"{input_text}\n\n"
-        f"── RETRIEVAL AGENT FINDINGS ──\n"
-        f"{ghost_output}\n"
-        f"── END FINDINGS ──\n\n"
-        "Synthesise the retrieval findings above with the conversation "
-        "context into a final, compliant, user-facing response."
-    )
-
-    phase_c_text, phase_c_id, phase_c_logs = run_responses_sync(
-        model=ANCHOR_MODEL,
-        input_text=phase_c_input,
-        instructions=SYSTEM_INSTRUCTIONS,
-        previous_response_id=previous_response_id,  # last turn's Phase C ✓
-        on_tool_call=on_tool_call,
-        tools_override=_build_anchor_tools(),
-        reasoning_effort=reasoning_effort,
-        verbosity=verbosity,
-    )
-
-    all_tool_logs.extend(phase_c_logs)
-    final_text = _strip_sentinel(phase_c_text)
-    final_id = phase_c_id or previous_response_id
-
-    _logger.info(
-        "Traffic Controller Phase C complete — resp_id=%s  total_tools=%d",
-        final_id,
-        len(all_tool_logs),
-    )
-
-    _notify_phase("complete", "Complete")
-
-    return final_text, final_id, all_tool_logs
 
 
 # ──────────────────────────────────────────────────────────────────────

@@ -28,11 +28,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from core_assistant import (
     create_context_prompt_with_budget as _make_prompt,
     run_responses_sync as _core_run,
-    run_traffic_controller as _traffic_controller,
-    generate_rolling_summary as _generate_summary,
-    add_file_to_vector_store,
-    remove_file_from_vector_store,
-    cleanup_uploaded_vector_store_files,
     SYSTEM_INSTRUCTIONS,
     DEFAULT_MODEL,
 )
@@ -122,93 +117,6 @@ def run_assistant(
 
 
 # ──────────────────────────────────────────────────────────────────────
-#  Polymorphic entry-point (Traffic Controller)
-# ──────────────────────────────────────────────────────────────────────
-def run_assistant_polymorphic(
-    *,
-    user_input: str,
-    output_type: str,
-    response_tone: str,
-    compliance_level: str,
-    previous_response_id: Optional[str] = None,
-    uploaded_file_ids: Optional[List[str]] = None,
-    on_phase_change: Optional[Any] = None,
-) -> Tuple[str, Optional[str], List[dict]]:
-    """Streamlit wrapper for the Traffic Controller (polymorphic agent).
-
-    Builds the context prompt identically to run_assistant(), then
-    delegates to run_traffic_controller() which orchestrates the
-    Ghost (triage + search) and Anchor (synthesis) phases.
-
-    After a successful turn, generates a rolling conversation summary
-    via the Ghost model and stores it in session state.  On the next
-    turn the summary is injected into Phase A's triage prompt, giving
-    the Ghost compact cross-turn context without cross-model chaining.
-
-    Returns:
-        (response_text, response_id, tool_call_log)
-    """
-    # Always serialize conversation history into the prompt text.
-    # Phase A (Ghost) has no response chain (cross-model chaining is
-    # broken), so it relies entirely on the prompt for prior context.
-    # Phase C (Anchor) gets the chain *and* the prompt — redundant
-    # but harmless, and the 400K context window can absorb it.
-    prompt = _make_prompt(
-        user_input,
-        output_type,
-        response_tone,
-        compliance_level,
-        st.session_state.get("user_role", ""),
-        st.session_state.get("user_client", ""),
-        st.session_state.get("history", []),
-        st.session_state.get("token_budget", 24_000),
-        has_files=bool(uploaded_file_ids),
-        has_response_chain=False,
-    )
-
-    # Retrieve the rolling summary from session state (empty on first turn)
-    prev_summary = st.session_state.get("ghost_context_summary", "")
-
-    try:
-        text, response_id, tool_log = _traffic_controller(
-            input_text=prompt,
-            previous_response_id=previous_response_id,
-            on_tool_call=_streamlit_tool_callback,
-            on_phase_change=on_phase_change,
-            conversation_summary=prev_summary,
-        )
-
-        # ── Rolling summary: update after a successful turn ──────
-        # Only generate when we got a real response (not an error).
-        if text and not text.startswith("❌"):
-            new_summary = _generate_summary(
-                previous_summary=prev_summary,
-                user_query=user_input,
-                assistant_response=text,
-            )
-            st.session_state["ghost_context_summary"] = new_summary
-
-        return text, response_id, tool_log
-    except RuntimeError as exc:
-        error_msg = str(exc)
-        st.error(f"❌ {error_msg}")
-        return f"❌ {error_msg}", None, []
-    except openai.BadRequestError as exc:
-        error_msg = str(exc)
-        st.error(f"❌ API Error (400): {error_msg}")
-        return f"❌ API Error: {error_msg}", None, []
-    except openai.RateLimitError as exc:
-        st.error(f"❌ Rate limited: {exc}")
-        return f"❌ Rate limited: {exc}", None, []
-    except TimeoutError as exc:
-        st.error(f"❌ Request timed out: {exc}")
-        return f"❌ {exc}", None, []
-    except Exception as exc:
-        st.error(f"❌ Unexpected error: {exc}")
-        return f"❌ {exc}", None, []
-
-
-# ──────────────────────────────────────────────────────────────────────
 #  Simple run (no UI context) – for quick actions, welcome, etc.
 # ──────────────────────────────────────────────────────────────────────
 def run_simple(
@@ -237,15 +145,7 @@ def run_simple(
 #  File utilities (unchanged – files API is independent of Responses API)
 # ──────────────────────────────────────────────────────────────────────
 def handle_file_upload(uploaded_file) -> Dict[str, Any]:
-    """Upload *uploaded_file* to OpenAI, add to vector store, return meta.
-
-    v8.0: After uploading via the Files API, the file is added to the
-    shared vector store (VECTOR_STORE_ID) so that the file_search tool
-    can retrieve its content.  This was the missing link after the
-    Assistants → Responses API migration: in the old API files attached
-    to thread messages were automatically searchable; now they must be
-    explicitly indexed in a vector store.
-    """
+    """Upload *uploaded_file* to OpenAI, wait until processed, return meta."""
     try:
         file_bytes = uploaded_file.getvalue()
         size_mb = len(file_bytes) / (1024 * 1024)
@@ -273,24 +173,16 @@ def handle_file_upload(uploaded_file) -> Dict[str, Any]:
         for _ in range(60):
             info = openai.files.retrieve(fobj.id)
             if info.status == "processed":
-                break
+                return {
+                    "success": True,
+                    "file_id": fobj.id,
+                    "filename": uploaded_file.name,
+                    "size_mb": size_mb,
+                }
             if info.status == "error":
                 return {"success": False, "error": "File processing failed"}
             time.sleep(2)
-        else:
-            return {"success": False, "error": "File processing timeout"}
-
-        # ── Add to vector store so file_search can access the content ──
-        with st.spinner(f"🔗 Indexing {uploaded_file.name} for search..."):
-            vs_ok = add_file_to_vector_store(fobj.id)
-
-        return {
-            "success": True,
-            "file_id": fobj.id,
-            "filename": uploaded_file.name,
-            "size_mb": size_mb,
-            "vector_store_indexed": vs_ok,
-        }
+        return {"success": False, "error": "File processing timeout"}
     except Exception as exc:
         return {"success": False, "error": f"Upload failed: {exc}"}
 

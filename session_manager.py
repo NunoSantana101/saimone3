@@ -65,10 +65,10 @@ except ImportError:
 
 # Model Selection
 MODEL_GPT52 = "gpt-5.2"
-# Checkpoints use gpt-5-mini: fast, cheap, supports temperature,
+# Checkpoints use gpt-4.1-mini: fast, cheap, supports temperature,
 # and adequate for 150-word session summaries.  GPT-5.2 (reasoning model)
 # rejects temperature → 400 errors via Chat Completions API.
-CHECKPOINT_MODEL = "gpt-5-mini"
+CHECKPOINT_MODEL = "gpt-4.1-mini"
 
 # Circuit breaker settings
 CIRCUIT_BREAKER_THRESHOLD = 3
