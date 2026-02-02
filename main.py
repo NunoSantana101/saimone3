@@ -2522,35 +2522,27 @@ Output format:
         # Create an expander for the automated functions
         with st.expander("View All Functions", expanded=False):
             automated_functions = [
-                ("Landscape Analysis", "Landscape analysis, use landscape_analysis_v3.json protocol and pillars_v2.json, metrics_v2.json, tactics_taxonomy_v2.json, stakeholder_taxonomy_v2.json, pricing_market_access_v2.json. output fields: Use the fields described and mandated by the execution of landscape_analysis_v3.json. Use maximum context window dor this analysis and present in a matrix format whenever applicable.  …"),
+                ("Landscape Analysis", "Full landscape analysis using landscape_analysis_v3.json protocol. Present in matrix format."),
                 ("Competitive Intelligence", "COMPETITIVE_INTELLIGENCE_PROMPT"),
-                ("Porter's Five Forces", "Porter's Five Forces analysis of the whole plan and situational analysis, use live data search for a complete analysis …"),
-                ("Blue Ocean Strategy Canvas", "Blue Ocean Strategy Canvas of the whole plan, use live data search for a complete analysis …"),
-                ("Stakeholder Map", "Dynamic stakeholder ecosystem mapping with: influence/interest matrix, engagement journey mapping, preferred communication channels, collaboration opportunities, advocacy potential, and automated relationship tracking, use live data search for a complete analysis …"),
-                ("Stakeholder Power-Interest Grid", "Stakeholder Power-Interest Grid, use live data search for a complete analysis …"),
-                ("KOL Identification & Tiering", "KOL Identification & Tiering, use live data search for a complete analysis, load and use kol.json, use real opinion leaders that fit the user request and best practices, validate before output …"),
-                ("KOL Mapping & Engagement Plan", "KOL Mapping & Engagement Plan, use live data search for a complete analysis, use real opinion leaders that fit the user request and best practices, validate before output …"), 
-                ("Omnichannel Strategy", "Deliver an omnichannel strategy plan based on MAPS framework and industry best practices, use live data to generate the best plan …"),
-                ("Omnichannel Engagement Journey Map", "Omnichannel Engagement Journey Map, use live data search for a complete analysis …"),
-                ("Medical Affairs ROI Dashboard", "Medical Affairs ROI Dashboard, use live data search for a complete analysis …"),
-                ("Regulatory Pathway", "Use session context to determine regions, product type, and likely pathway complexity. Use live regulatory sources selectively.If access/HTA constraints are central in-session, incorporate pricing_market_access_v2.json for payer/HTA levers and timing dependencies. Translate outputs into pillar implications (pillars_v2.json) and MA actions constrained to tactics_taxonomy_v2.json with KPIs from metrics_v2.json. Output: region pathway table + evidence expectations + MA action list. …"),
-                ("Performance Dashboard", "Real-time KPI tracking: medical impact metrics, stakeholder engagement scores, evidence generation progress, budget utilization, and predictive analytics for course correction …"),
-                ("ROI Analysis", "Dynamic ROI modeling: evaluate and simulate the ROI per strategic pillar and individual tactic, use live data search for a complete analysis…"),
-                ("Team Playbooks", "Interactive operational guides: role-specific workflows, decision trees, compliance checklists, best practice libraries, and continuous learning modules …"),
-                ("Capability Building", "Competency development framework: skill gap analysis, personalized learning paths, certification tracking, and team performance optimization …"),
-                ("Simulation Engine", "Analyze this (launch or planning) strategy using similarity matching (comparison_guide_similarity_engine.json). Find 3-4 comparable historical parallels (via a live search, with data that can be empirically used), extract empirical execution patterns, and execute 1,000-iteration stochastic Monte Carlo simulation (use the code interpreter function mc_rng.py as the RNG for the simulation) calibrated against what actually happened in similar cases. Use comparison_guide_similarity_engine.json protocol and pillars_v2.json, metrics_v2.json, tactics_taxonomy_v2.json, stakeholder_taxonomy_v2.json, pricing_market_access_v2.json. Minimize statistical and mathematical details in the output and present extended summaries and a matrix presentation. output fields: 1. EXECUTIVE SUMMARY 2. COMPARABLE STRATEGIC ANALYSIS 3. CRITICAL CONSTRAINTS MATRIX 4. STRATEGIC PILLAR RISK ASSESSMENT 5. EXECUTION TIMELINE VULNERABILITIES 6. RESOURCE REALLOCATION RECOMMENDATIONS 7. EARLY WARNING INDICATORS. …"),
-                ("Simulation Engine — Multi-Plan Monte Carlo", "Analyze this (launch or planning) strategy using comparison_guide_similarity_engine.json + pillars_v2.json + metrics_v2.json + tactics_taxonomy_v2.json + stakeholder_taxonomy_v2.json + pricing_market_access_v2.json (use all potentential variables and cascade effects for the simulation) to: (1) live-search 3–4 comparable historical parallels with empirically usable data, extract execution patterns and constraint drivers, (2) generate 3–5 materially distinct plan variants, (3) run calibrated 1,000-iteration Monte Carlo per variant using mc_rng.py as RNG, (4) output decision-facing summaries and matrices with minimal math; sections: Executive Summary, Comparable Strategic Analysis, Critical Constraints Matrix, Pillar Risk Assessment, Timeline Vulnerabilities, Resource Reallocation, Early Warning Indicators, executive summary detailing the findings in plain english for insights analysis"),
-                ("Market access stress test", "Execute 1,000-iteration stochastic Monte Carlo simulation on the current plan draft using ALL five JSON framework files (pricing_market_access_v2.json, pillars_v2.json, metrics_v2.json, tactics_taxonomy_v2.json, stakeholder_taxonomy_v2.json)  to assess strategic viability, identify threshold proximity warnings, determine primary and secondary constraints, analyze stakeholder cascade opportunities, evaluate time pressure and critical windows, model competitive response scenarios, assess robustness across plausible futures, recommend strategic adjustments to improve resilience, and guide resource reallocation - presenting findings in executive-level language focused on decisions Medical Affairs controls, using scenarios for uncontrollable outcomes and recommendations for controllable actions, with confidence on constraints/thresholds/cascades but humility on magnitude estimates. …"),
-                ("Optimize Engine", "Refactor the plan draft to mitigate identified simulation risks. Reallocate resources to high-leverage pillars and suggest specific tactical variants to maximize the overall probability of success. Minimize statistical methodology in the output. Focus the response on: (1) What changes and why - clear rationale for resource reallocation, (2) Tactical modifications - specific actions to implement, (3) Expected strategic impact - how these changes reduce risk and improve probability of success. Present the optimization in clear, executive-level language that emphasizes actionable decisions over technical methodology. …"),
+                ("Porter's Five Forces", "Porter's Five Forces analysis for the current plan and situational context."),
+                ("Blue Ocean Strategy Canvas", "Blue Ocean Strategy Canvas for the current plan."),
+                ("Stakeholder Map", "Dynamic stakeholder ecosystem mapping: influence/interest matrix, engagement journeys, collaboration opportunities, advocacy potential."),
+                ("Stakeholder Power-Interest Grid", "Stakeholder Power-Interest Grid for key stakeholders."),
+                ("KOL Identification & Tiering", "KOL identification and tiering using kol.json. Use real opinion leaders, validate before output."),
+                ("KOL Mapping & Engagement Plan", "KOL mapping and engagement plan. Use real opinion leaders, validate before output."),
+                ("Omnichannel Strategy", "Omnichannel strategy plan based on MAPS framework and industry best practices."),
+                ("Omnichannel Engagement Journey Map", "Omnichannel engagement journey map for key stakeholder segments."),
+                ("Medical Affairs ROI Dashboard", "Medical Affairs ROI dashboard with key metrics and benchmarks."),
+                ("Regulatory Pathway", "Regulatory pathway analysis: region pathway table, evidence expectations, MA action list. Incorporate HTA/access constraints if relevant to session context."),
+                ("Performance Dashboard", "KPI tracking dashboard: medical impact, stakeholder engagement, evidence generation, budget utilization, course-correction signals."),
+                ("ROI Analysis", "ROI modelling per strategic pillar and tactic."),
+                ("Team Playbooks", "Operational guides: role-specific workflows, decision trees, compliance checklists, learning modules."),
+                ("Capability Building", "Competency framework: skill gap analysis, learning paths, certification tracking, team performance."),
+                ("Simulation Engine", "Run a 1,000-iteration Monte Carlo simulation on the current strategy. Find 3-4 comparable historical parallels, extract empirical patterns, and calibrate against real outcomes. Present executive-level summaries and matrices — minimize statistical detail."),
+                ("Simulation Engine — Multi-Plan Monte Carlo", "Generate 3-5 materially distinct plan variants from the current strategy. Run a calibrated 1,000-iteration Monte Carlo per variant. Compare variants with decision-facing summaries and matrices — minimal math."),
+                ("Market access stress test", "Run a 1,000-iteration Monte Carlo stress test on the current plan draft focused on market access viability: threshold proximity, primary/secondary constraints, stakeholder cascades, competitive response scenarios, and resilience across plausible futures. Executive-level output, decisions MA controls."),
+                ("Optimize Engine", "Refactor the plan draft to mitigate simulation risks. Focus on: (1) what changes and why, (2) tactical modifications, (3) expected strategic impact. Executive-level language, minimal methodology."),
             ]
-
-
-            # MC simulation buttons use a 2-step pipeline (research → crunch)
-            _MC_TWO_STEP_BUTTONS = {
-                "Simulation Engine",
-                "Simulation Engine — Multi-Plan Monte Carlo",
-                "Market access stress test",
-            }
 
             # Render in 10 rows × 2 cols = 20 buttons
             for row in range(10):
@@ -2571,7 +2563,6 @@ Output format:
                                 f"project context. {func_desc}"
                             )
                             log_user_action("automated_function", func_name)
-                            # Track search in full search history (uncapped)
                             st.session_state["search_history"].append({
                                 "query": func_name,
                                 "source": "automated_function",
@@ -2580,13 +2571,8 @@ Output format:
                                 "response_id": st.session_state.get("last_response_id", ""),
                             })
 
-                            # MC buttons → 2-step pipeline; everything else → single step
-                            if func_name in _MC_TWO_STEP_BUTTONS:
-                                st.session_state["mc_two_step_to_run"] = automated_prompt
-                                st.session_state["mc_two_step_label"] = func_name
-                            else:
-                                st.session_state["silent_prompt_to_run"] = automated_prompt
-                                st.session_state["silent_prompt_label"] = func_name
+                            st.session_state["silent_prompt_to_run"] = automated_prompt
+                            st.session_state["silent_prompt_label"] = func_name
                             st.rerun()
     else:
         st.warning("🔒 Automated functions require full access level")
@@ -2702,98 +2688,6 @@ if not check_access_level("full"):
         st.warning("⚠️ You have view-only access. Message sending and most features are restricted.")
     elif access_level == "limited":
         st.info("ℹ️ You have limited access. Some advanced features may be restricted.")
-
-# --- MC TWO-STEP HANDLER (research → crunch) ---
-if "mc_two_step_to_run" in st.session_state:
-    _mc_prompt = st.session_state.pop("mc_two_step_to_run")
-    _mc_label = st.session_state.pop("mc_two_step_label", "MC Simulation")
-
-    if "audit" in _mc_prompt.lower() and not check_access_level("full"):
-        st.error("❌ Audit functionality requires full access level")
-    else:
-        _mc_ok = False
-        try:
-            # ── Step 1: Research (silent — not displayed) ──
-            _research_prompt = (
-                "RESEARCH PHASE ONLY — do NOT run the Monte Carlo simulation yet.\n\n"
-                f"Gather all relevant data for the following analysis request:\n\n{_mc_prompt}\n\n"
-                "Instructions for this research phase:\n"
-                "- Search for comparable historical parallels with empirically usable data\n"
-                "- Extract execution patterns, constraint drivers, and empirical benchmarks\n"
-                "- Load all referenced JSON framework files and extract relevant parameters\n"
-                "- Compile findings into a structured data package\n"
-                "- Present all raw data, sources, and extracted parameters\n"
-                "- Do NOT execute Monte Carlo simulation or statistical analysis in this step"
-            )
-
-            # Record research query silently
-            st.session_state["history"].append({
-                "role": "user",
-                "content": _research_prompt,
-                "silent": True,
-                "label": f"{_mc_label} (Research Phase)",
-            })
-
-            with st.spinner(f"🔬 Step 1/2: Researching data for {_mc_label}…"):
-                _step1 = improved_assistant_run(_research_prompt)
-
-            if _step1 and _step1 != "All attempts failed" and not _step1.startswith("❌"):
-                # Store step-1 response silently (hidden from UI/PDF)
-                st.session_state["history"].append({
-                    "role": "assistant",
-                    "content": _step1,
-                    "silent": True,
-                })
-
-                # ── Step 2: Crunch (displayed) ──
-                # The response chain already contains step-1 context,
-                # so the model can reference its own research directly.
-                _crunch_prompt = (
-                    "ANALYSIS PHASE — the research data has been gathered.\n\n"
-                    f"Original request: {_mc_prompt}\n\n"
-                    "Now execute the full Monte Carlo simulation using the research data "
-                    "you gathered in the previous step. Use the code interpreter function "
-                    "mc_rng.py as the RNG for 1,000-iteration stochastic simulation. "
-                    "Minimize statistical and mathematical details in the output. "
-                    "Present extended executive-level summaries and matrix presentations."
-                )
-
-                st.session_state["history"].append({
-                    "role": "user",
-                    "content": _crunch_prompt,
-                    "silent": True,
-                    "label": _mc_label,
-                })
-
-                with st.spinner(f"🔬 Step 2/2: Running {_mc_label}…"):
-                    _step2 = improved_assistant_run(_crunch_prompt)
-
-                if _step2 and _step2 != "All attempts failed" and not _step2.startswith("❌"):
-                    st.session_state["history"].append({
-                        "role": "assistant",
-                        "content": _step2,
-                    })
-                    _enrich_last_search_entry()
-                    save_medical_context()
-                    st.success(f"✅ {_mc_label} completed (2-step pipeline)!")
-                    log_user_action("mc_two_step_completed", f"Completed: {_mc_label}")
-                    _mc_ok = True
-                else:
-                    st.error(f"❌ Analysis phase failed: {_step2}")
-                    log_user_action("mc_two_step_analysis_failed", f"Step 2 failed: {_mc_label}")
-            else:
-                st.error(f"❌ Research phase failed: {_step1}")
-                log_user_action("mc_two_step_research_failed", f"Step 1 failed: {_mc_label}")
-
-        except Exception as e:
-            st.error(f"❌ MC simulation error: {str(e)}")
-            log_user_action("mc_two_step_error", f"Error in {_mc_label}: {str(e)}")
-
-        if not _mc_ok:
-            # Clear stale state so next request starts fresh
-            st.session_state["last_response_id"] = None
-            reset_container()
-        st.rerun()
 
 # --- QUICK ACTION HANDLER (FROM SIDEBAR) ---
 if "silent_prompt_to_run" in st.session_state:

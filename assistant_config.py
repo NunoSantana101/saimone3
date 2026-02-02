@@ -1,71 +1,19 @@
 # assistant_config.py - GPT-5.2 Responses API Configuration
 # ────────────────────────────────────────────────────────────────
-# v6.3 – Query Complexity Profiles (Lightweight Pipeline)
-# - Added QueryProfile: controls reasoning, search depth, tool rounds,
-#   timeout, and verbosity from a single query classification
-# - get_query_profile() returns a full pipeline config per query
+# v6.5 – Simplification
+# - Removed dead needs_high_reasoning() / get_reasoning_effort() stubs
+# - Capped deep profile tool rounds 20→12 to prevent runaway loops
+# - Removed 2-step MC pipeline (handled in main.py removal)
+# - All reasoning stays flat at "medium" — GPT-5.2 handles depth
+#
+# v6.3 – Query Complexity Profiles
 # - Three tiers: lightweight / standard / deep
-# - Prevents timeout on simple queries by capping tool rounds & search
-#
-# v6.4 – Flat Reasoning (medium across all tiers)
-# - Dropped xhigh/high/low reasoning escalation — all queries use "medium"
-# - Reduces latency & cost while GPT-5.2 adaptive reasoning handles depth
-#
-# v6.2 – Reasoning & Verbosity Controls
-# - Added reasoning.effort: medium (default)
-# - Added text.verbosity: low | medium | high (native API control)
-# - Removed dead get_responses_config() / max_output_tokens cap
+# - Controls timeout, tool rounds, search depth, verbosity, result limits
 #
 # v6.0 – GPT-5.2 Upgrade
-# GPT-5.2 features: 400K token context, 128K max output, adaptive
-# reasoning, improved function calling, and enhanced coding/science.
-#
-# Responses API context management:
-# - Conversation continuity via previous_response_id
-# - Instructions passed directly to each API call
-# - No server-side thread storage (stateless API)
-# - Token budgets define how much local context to include in prompts
+# - 400K context, 128K max output, adaptive reasoning
+# - Stateless Responses API, previous_response_id for continuity
 # ────────────────────────────────────────────────────────────────
-
-# Sidebar Context Management Settings (for main.py integration)
-"""
-st.sidebar.markdown("### Context Management")
-context_mode = st.sidebar.selectbox("Context Mode:", [
-    "Fast (24k tokens) - GPT-5.2 Standard",
-    "Extended (48k tokens) - GPT-5.2 Extended",
-    "Maximum (96k tokens) - GPT-5.2 Maximum",
-], index=0)
-
-if "24k" in context_mode:
-    token_budget = 24000   # GPT-5.2 optimized default - balanced responses
-elif "48k" in context_mode:
-    token_budget = 48000   # Extended for complex queries
-elif "96k" in context_mode:
-    token_budget = 96000   # Maximum for deep analysis
-else:
-    token_budget = 24000   # Default to fast mode
-
-st.session_state["token_budget"] = token_budget
-
-# GPT-5.2 Status Indicator
-st.sidebar.markdown("### API Status")
-st.sidebar.success("GPT-5.2 Active - Responses API")
-st.sidebar.caption("Conversation continuity via response chaining")
-
-if st.session_state["history"]:
-    total_exchanges = len(st.session_state["history"])
-    estimated_tokens = sum(len(msg["content"]) // 4 for msg in st.session_state["history"])
-    st.sidebar.caption(f"Total: {total_exchanges} exchanges (~{estimated_tokens:,} tokens)")
-    st.sidebar.caption(f"Budget: {token_budget:,} tokens per request")
-
-    # Context utilization
-    utilization = (estimated_tokens / 400_000) * 100
-    st.sidebar.caption(f"Context Used: {utilization:.2f}% of 400K")
-
-# Initialize session start time for tracking
-if "session_start" not in st.session_state:
-    st.session_state["session_start"] = time.time()
-"""
 
 # ────────────────────────────────────────────────────────────────
 # GPT-5.2 Model Configuration
@@ -78,54 +26,27 @@ GPT52_CONFIG = {
     "default_token_budget": 24_000,
     "extended_token_budget": 48_000,
     "maximum_token_budget": 96_000,
-    # Responses API: stateless, no server-side history
     "api": "responses",
 }
 
 # ────────────────────────────────────────────────────────────────
-# GPT-5.2 Reasoning & Verbosity Defaults
+# Reasoning & Verbosity Defaults
 # ────────────────────────────────────────────────────────────────
-# GPT-5.2 reasoning.effort values: none | low | medium | high | xhigh
-# GPT-5.2 text.verbosity values:   low | medium | high
-#
-# Default reasoning is "none" if omitted, so we pin to "medium".
-# v6.4 – Flat reasoning: all tiers use "medium" to reduce latency/cost
-#         while still benefiting from GPT-5.2's adaptive reasoning.
+# All tiers use "medium" reasoning — GPT-5.2 adaptive reasoning
+# handles depth internally. No keyword-based escalation.
 DEFAULT_REASONING_EFFORT = "medium"
 
 DEFAULT_VERBOSITY = "medium"
 
 
-def needs_high_reasoning(user_input: str) -> bool:  # noqa: ARG001
-    """Return False — all queries now use medium reasoning (v6.4)."""
-    return False
-
-
-def get_reasoning_effort(user_input: str) -> str:  # noqa: ARG001
-    """Return 'medium' for all queries (v6.4 — flat reasoning)."""
-    return DEFAULT_REASONING_EFFORT
-
-
 # ────────────────────────────────────────────────────────────────
-# Query Complexity Profiles (v6.3)
+# Query Complexity Profiles
 # ────────────────────────────────────────────────────────────────
-# Controls the ENTIRE pipeline weight — not just reasoning effort.
-# Each profile sets: reasoning, search depth, tool rounds, timeout,
-# verbosity, and result limits as a single coherent config.
-#
-# Three tiers:
-#   lightweight — simple lookups, definitions, single-fact questions
-#                 Fast path: low search, few tool rounds, short timeout
-#   standard    — typical strategy/tactical queries, drug status checks,
-#                 regulatory questions. Balanced search and reasoning.
-#   deep        — full landscape analysis, multi-step, MC simulations,
-#                 cascade analysis, portfolio optimization.
-#                 Full pipeline: high search, many rounds, long timeout.
+# Controls the full pipeline weight per query.
+# Three tiers: lightweight / standard / deep
 # ────────────────────────────────────────────────────────────────
 
 # Keywords that signal lightweight queries (fast path)
-# These should be specific patterns that clearly indicate a single-fact lookup,
-# NOT broad prefixes like "what are the" which can start complex questions.
 LIGHTWEIGHT_KEYWORDS = [
     "what is", "when was", "who is", "define",
     "approval date", "status of", "price of", "what date",
@@ -135,8 +56,7 @@ LIGHTWEIGHT_KEYWORDS = [
     "summarise this", "recap", "remind me", "what was",
 ]
 
-# If any of these words appear alongside a lightweight keyword, upgrade to standard.
-# Prevents "what is the full competitive landscape..." from being lightweight.
+# If any of these appear alongside a lightweight keyword, upgrade to standard.
 LIGHTWEIGHT_UPGRADE_WORDS = [
     "landscape", "competitive", "strategy", "analysis", "compare",
     "assess", "evaluate", "recommendation", "framework", "tactical",
@@ -147,23 +67,19 @@ LIGHTWEIGHT_UPGRADE_WORDS = [
 
 # Keywords that signal deep queries (full pipeline)
 DEEP_KEYWORDS = [
-    # Multi-step analysis
     "comprehensive analysis", "full landscape", "deep dive",
     "multi-step", "end-to-end strategy", "complete competitive",
     "scenario modelling", "portfolio optimization",
     "cascade analysis", "similarity scoring",
-    # Quantitative
     "monte carlo", "simulation", "bayesian", "statistical analysis",
     "sensitivity analysis", "probability", "scenario analysis",
     "confidence interval", "hypothesis", "p-value", "regression",
-    # Broad research
     "full competitive", "landscape analysis", "market assessment",
     "complete swot", "tows matrix", "war gaming",
     "all assets", "all competitors", "every molecule",
     "complete pipeline", "full pipeline review",
 ]
 
-# Query profiles — each controls the full pipeline
 QUERY_PROFILES = {
     "lightweight": {
         "reasoning_effort": "medium",
@@ -197,8 +113,8 @@ QUERY_PROFILES = {
         "reasoning_effort": "medium",
         "verbosity": "medium",
         "search_context_size": "high",
-        "max_tool_rounds": 20,
-        "timeout": 600,
+        "max_tool_rounds": 12,
+        "timeout": 480,
         "max_results_per_source": 12,
         "max_results_total": 30,
         "tier_1_count": 8,
@@ -211,42 +127,24 @@ QUERY_PROFILES = {
 
 
 def classify_query_complexity(user_input: str) -> str:
-    """Classify query into lightweight / standard / deep.
-
-    Checks deep keywords first (highest priority), then lightweight.
-    Lightweight is guarded: if the query contains complexity-indicating
-    words (landscape, strategy, analysis, etc.) or is long, it upgrades
-    to standard.  Anything else defaults to standard.
-    """
+    """Classify query into lightweight / standard / deep."""
     q = user_input.lower()
 
-    # Deep triggers — multi-step, quantitative, broad landscape
     if any(kw in q for kw in DEEP_KEYWORDS):
         return "deep"
 
-    # Lightweight triggers — simple factual lookups
     if any(kw in q for kw in LIGHTWEIGHT_KEYWORDS):
-        # Guard 1: if complexity-indicating words are present, upgrade
         if any(w in q for w in LIGHTWEIGHT_UPGRADE_WORDS):
             return "standard"
-        # Guard 2: long queries are usually not simple lookups
         if len(user_input.strip()) > 150:
             return "standard"
         return "lightweight"
 
-    # Default: standard (balanced)
     return "standard"
 
 
 def get_query_profile(user_input: str) -> dict:
-    """Return a full pipeline profile for the query.
-
-    The profile controls: reasoning effort, search depth, tool rounds,
-    timeout, verbosity, and result limits.  Consumed by core_assistant.py
-    to configure the entire request pipeline from a single classification.
-
-    v6.4: All tiers use medium reasoning — no escalation.
-    """
+    """Return a full pipeline profile for the query."""
     complexity = classify_query_complexity(user_input)
     profile = dict(QUERY_PROFILES[complexity])
     profile["complexity"] = complexity
