@@ -463,41 +463,97 @@ added to `system_instructions.txt` (Modifications 1 and 2).
 
 ---
 
+## Modification 11 — Web Search Rules (NEW — GPT-5.2 Guide Section 9)
+
+### What GPT-5.2 guide says
+Section 9: GPT-5.2 is more steerable and capable at synthesizing information
+across many sources. Specify the research bar up front. Constrain ambiguity by
+instruction, not questions. Require breadth and depth when uncertainty exists.
+Continue research until marginal value drops. Include citations for all
+web-derived information.
+
+### Current state
+- `system_instructions.txt` lines 58-59: mandate web search before output.
+- SEARCH & VALIDATION PROTOCOL specifies 5-step validation.
+- search_medical_links workflow describes the link-first pattern.
+- No explicit guidance on research depth, contradiction resolution, or
+  second-order investigation.
+
+### Proposed change
+Add a `<web_search_rules>` block to **`system_instructions.txt`** after the
+`<extraction_spec>` block and before the CODE EXECUTION PROTOCOL.
+
+```
+<web_search_rules>
+- Default to comprehensive, well-sourced research. Prefer web research over
+  assumptions whenever facts may be uncertain, incomplete, or time-sensitive.
+- You MUST search the web for:
+  - Drug approvals, regulatory filings, pipeline status, pricing, or any
+    time-sensitive data.
+  - Competitive landscape, market access, or reimbursement queries.
+  - Clinical trial results, safety signals, or conference abstracts.
+  - Any query where data may have changed since training.
+- Research all parts of the query. Resolve contradictions between sources
+  (e.g., conflicting approval dates, differing clinical endpoints). Follow
+  important second-order leads (related molecules, combination therapies,
+  competing assets in the same indication).
+- Continue searching until major data gaps are filled and additional research
+  is unlikely to materially change the answer.
+- Include citations with hyperlinks for all web-derived claims. Anchor claims
+  to specific sources rather than speaking generically.
+- When multiple sources disagree, present the discrepancy explicitly and note
+  which source is most authoritative.
+</web_search_rules>
+```
+
+### Rationale
+Web research is core to sAImone's value proposition. The existing instructions
+mandate searches but don't guide research depth or contradiction handling.
+GPT-5.2's improved multi-source synthesis benefits from explicit guidance on
+when to keep searching vs. when to stop, and how to handle source conflicts —
+especially critical in medical affairs where conflicting regulatory data across
+FDA/EMA/national agencies is common.
+
+### Dependencies
+- Complements the existing SEARCH & VALIDATION PROTOCOL (operational steps)
+  and search_medical_links workflow (tool-specific guidance).
+- Works with the `<uncertainty_and_ambiguity>` block (Mod 4) which covers
+  what to do when data is missing vs. this block which covers how to search.
+
+---
+
 ## Implementation Priority
 
-| Priority | Mod # | Description | Effort | Impact |
-|---|---|---|---|---|
-| P0 | 1 | Output verbosity spec | Low | High — directly reduces token waste |
-| P0 | 2 | Scope discipline | Low | High — prevents scope creep |
-| P0 | 4 | Uncertainty safeguards | Low | High — critical for medical affairs |
-| P1 | 5 | User updates spec | Low | Medium — improves UX |
-| P1 | 6 | Tool usage rules | Low | Medium — reduces latency via parallelism |
-| P1 | 3 | Long-context handling | Low | Medium — improves multi-phase coherence |
-| P1 | 8 | Structured extraction | Low | Medium — improves PDF/label processing |
-| P1 | 10 | Silent instructions update | Low | Medium — reinforces P0 changes |
-| P2 | 9 | Reasoning effort tuning | Medium | Medium — cost/latency optimisation |
-| P2 | 7 | Compaction integration | High | Medium — extends effective context |
+| Priority | Mod # | Description | Effort | Impact | Status |
+|---|---|---|---|---|---|
+| P0 | 1 | Output verbosity spec | Low | High — directly reduces token waste | **DONE** |
+| P0 | 2 | Scope discipline | Low | High — prevents scope creep | **DONE** |
+| P0 | 4 | Uncertainty safeguards | Low | High — critical for medical affairs | **DONE** |
+| P1 | 5 | User updates spec | Low | Medium — improves UX | **DONE** |
+| P1 | 6 | Tool usage rules | Low | Medium — reduces latency via parallelism | **DONE** |
+| P1 | 3 | Long-context handling | Low | Medium — improves multi-phase coherence | **DONE** |
+| P1 | 8 | Structured extraction | Low | Medium — improves PDF/label processing | **DONE** |
+| P1 | 10 | Silent instructions update | Low | Medium — reinforces P0 changes | **DONE** |
+| P1 | 11 | Web search rules | Low | High — improves research quality | **DONE** |
+| P2 | 9 | Reasoning effort tuning | Medium | Medium — cost/latency optimisation | **DONE** |
+| P2 | 7 | Compaction integration | High | Medium — extends effective context | **DONE** |
 
 ---
 
 ## Implementation Order
 
-1. **Batch 1 (P0 — instruction-only, no code):** Mods 1, 2, 4, 5
+1. **Batch 1 (P0 — instruction-only, no code):** Mods 1, 2, 4, 5 — **COMPLETE**
    - All changes to `system_instructions.txt`.
-   - No code changes. Can be deployed immediately.
-   - Estimated token impact on system_instructions.txt: +~800 tokens.
-   - Verify prompt cache remains above 1024-token threshold (it will — current
-     file is ~4000 tokens).
+   - No code changes. Deployed.
 
-2. **Batch 2 (P1 — instruction + minor code):** Mods 3, 6, 8, 10
-   - Mods 3, 6, 8: changes to `system_instructions.txt`.
+2. **Batch 2 (P1 — instruction + minor code):** Mods 3, 6, 8, 10, 11 — **COMPLETE**
+   - Mods 3, 6, 8, 11: changes to `system_instructions.txt`.
    - Mod 10: changes to `session_manager.py` (silent instructions).
 
-3. **Batch 3 (P2 — code changes + eval):** Mods 9, 7
-   - Mod 9: changes to `assistant_config.py` + `core_assistant.py`.
-   - Mod 7: changes to `session_manager.py` + `core_assistant.py` + `tool_config.py`.
-   - Requires eval runs to validate reasoning effort tiers and compaction
-     behaviour.
+3. **Batch 3 (P2 — code changes + eval):** Mods 9, 7 — **COMPLETE**
+   - Mod 9: `assistant_config.py` — 4-tier reasoning effort (xhigh/high/medium/low).
+   - Mod 7: `core_assistant.py` — proactive + reactive compaction via
+     `/responses/compact` endpoint.
 
 ---
 
@@ -509,7 +565,7 @@ Per GPT-5.2 guide Section 8 (migration steps):
 2. Run existing eval suite with `DEFAULT_REASONING_EFFORT = "medium"` unchanged.
 3. If results are stable or improved, ship Batch 1.
 4. Apply Batch 2. Re-run evals.
-5. Apply Batch 3. Re-run evals with low/medium/high reasoning tiers.
+5. Apply Batch 3. Re-run evals with low/medium/high/xhigh reasoning tiers.
 6. Measure: token usage, response latency, output quality (factual accuracy,
    scope adherence, formatting compliance).
 
@@ -525,4 +581,4 @@ Per GPT-5.2 guide Section 8 (migration steps):
 - **Circuit breaker pattern**: Infrastructure resilience — orthogonal to
   prompting changes.
 - **Tool configurations (tool_config.py)**: Result limits and tiering are
-  already optimised (v4.2). Only add `COMPACTION_THRESHOLD` in Batch 3.
+  already optimised (v4.2). `COMPACTION_THRESHOLD` already in place.
