@@ -131,6 +131,7 @@ def run_assistant(
             text, response_id, tool_log = _core_run(
                 model=model,
                 input_text=prompt,
+                user_query=user_input,     # raw query for profile classification
                 previous_response_id=previous_response_id,
                 on_tool_call=_streamlit_tool_callback,
             )
@@ -175,6 +176,7 @@ def run_simple(
         text, response_id, tool_log = _core_run(
             model=model,
             input_text=message,
+            user_query=message,            # raw query for profile classification
             previous_response_id=previous_response_id,
             on_tool_call=on_tool_call or _streamlit_tool_callback,
         )
