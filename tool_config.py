@@ -351,6 +351,11 @@ CONTEXT_CONFIG = {
     "checkpoint_max_tokens": 600,
     "context_cache_ttl": 300,
     "thread_validation_cache_ttl": 60,
+    # Compaction: when cumulative input_tokens across tool rounds exceeds this
+    # threshold, compact the conversation chain to avoid context_length_exceeded.
+    "compaction_threshold": 300_000,     # 75% of 400K context window
+    "compaction_model": "gpt-4.1-mini", # Fast/cheap model for summarisation
+    "compaction_max_tokens": 1200,       # Max tokens for the compacted summary
 }
 
 TOKEN_BUDGETS = {

@@ -79,8 +79,10 @@ GPT52_CONFIG = {
 #
 # Default reasoning is "none" if omitted, so we pin to "medium".
 # MC / Bayesian / statistical analysis queries get "high".
+# Simple factual lookups get "low" (cost/latency savings).
 DEFAULT_REASONING_EFFORT = "medium"
 HIGH_REASONING_EFFORT = "high"
+LOW_REASONING_EFFORT = "low"
 
 DEFAULT_VERBOSITY = "medium"
 
@@ -91,8 +93,31 @@ HIGH_REASONING_KEYWORDS = [
     "confidence interval", "hypothesis", "p-value", "regression",
 ]
 
+# Keywords that allow low reasoning effort (simple factual lookups)
+LOW_REASONING_KEYWORDS = [
+    "what is", "when was", "who is", "define", "list",
+    "approval date", "status of", "price of", "what date",
+    "tell me the", "what are the", "name of",
+]
+
 
 def needs_high_reasoning(user_input: str) -> bool:
     """Return True if the query warrants high reasoning effort."""
     q = user_input.lower()
     return any(kw in q for kw in HIGH_REASONING_KEYWORDS)
+
+
+def get_reasoning_effort(user_input: str) -> str:
+    """Return the appropriate reasoning effort for the query.
+
+    Three-tier approach:
+      high   — MC simulations, Bayesian, statistical analysis
+      medium — default (strategy, tactical, multi-phase workflows)
+      low    — simple factual lookups (dates, names, definitions)
+    """
+    q = user_input.lower()
+    if any(kw in q for kw in HIGH_REASONING_KEYWORDS):
+        return HIGH_REASONING_EFFORT
+    if any(kw in q for kw in LOW_REASONING_KEYWORDS):
+        return LOW_REASONING_EFFORT
+    return DEFAULT_REASONING_EFFORT
