@@ -78,11 +78,24 @@ GPT52_CONFIG = {
 # GPT-5.2 text.verbosity values:   low | medium | high
 #
 # Default reasoning is "none" if omitted, so we pin to "medium".
-# MC / Bayesian / statistical analysis queries get "high".
+# xhigh — brand-new in GPT-5.2: deepest reasoning for multi-step analytical queries
+# high   — MC / Bayesian / statistical analysis
+# medium — default (strategy, tactical, multi-phase workflows)
+# low    — simple factual lookups (dates, names, definitions)
 DEFAULT_REASONING_EFFORT = "medium"
+XHIGH_REASONING_EFFORT = "xhigh"
 HIGH_REASONING_EFFORT = "high"
+LOW_REASONING_EFFORT = "low"
 
 DEFAULT_VERBOSITY = "medium"
+
+# Keywords that trigger xhigh reasoning effort (multi-step complex analysis)
+XHIGH_REASONING_KEYWORDS = [
+    "comprehensive analysis", "full landscape", "deep dive",
+    "multi-step", "end-to-end strategy", "complete competitive",
+    "scenario modelling", "portfolio optimization",
+    "cascade analysis", "similarity scoring",
+]
 
 # Keywords that trigger high reasoning effort (MC sims, stats, Bayesian)
 HIGH_REASONING_KEYWORDS = [
@@ -91,8 +104,34 @@ HIGH_REASONING_KEYWORDS = [
     "confidence interval", "hypothesis", "p-value", "regression",
 ]
 
+# Keywords that allow low reasoning effort (simple factual lookups)
+LOW_REASONING_KEYWORDS = [
+    "what is", "when was", "who is", "define", "list",
+    "approval date", "status of", "price of", "what date",
+    "tell me the", "what are the", "name of",
+]
+
 
 def needs_high_reasoning(user_input: str) -> bool:
     """Return True if the query warrants high reasoning effort."""
     q = user_input.lower()
     return any(kw in q for kw in HIGH_REASONING_KEYWORDS)
+
+
+def get_reasoning_effort(user_input: str) -> str:
+    """Return the appropriate reasoning effort for the query.
+
+    Four-tier approach (GPT-5.2):
+      xhigh  — multi-step complex analyses, full landscape, cascade scoring
+      high   — MC simulations, Bayesian, statistical analysis
+      medium — default (strategy, tactical, multi-phase workflows)
+      low    — simple factual lookups (dates, names, definitions)
+    """
+    q = user_input.lower()
+    if any(kw in q for kw in XHIGH_REASONING_KEYWORDS):
+        return XHIGH_REASONING_EFFORT
+    if any(kw in q for kw in HIGH_REASONING_KEYWORDS):
+        return HIGH_REASONING_EFFORT
+    if any(kw in q for kw in LOW_REASONING_KEYWORDS):
+        return LOW_REASONING_EFFORT
+    return DEFAULT_REASONING_EFFORT

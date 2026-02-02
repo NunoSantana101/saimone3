@@ -52,6 +52,11 @@ try:
     MAX_HISTORY_FOR_CONTEXT = CONTEXT_CONFIG.get("max_history_for_context", 40)
     CONTEXT_CACHE_TTL = CONTEXT_CONFIG.get("context_cache_ttl", 300)
     CHECKPOINT_MAX_TOKENS = CONTEXT_CONFIG.get("checkpoint_max_tokens", 600)
+    COMPACTION_THRESHOLD = CONTEXT_CONFIG.get("compaction_threshold", 300_000)
+    # DEPRECATED: compaction_model / compaction_max_tokens no longer used.
+    # Compaction is handled by client.responses.compact() in core_assistant.py.
+    COMPACTION_MODEL = CONTEXT_CONFIG.get("compaction_model", "gpt-5.2")
+    COMPACTION_MAX_TOKENS = CONTEXT_CONFIG.get("compaction_max_tokens", 0)
     _CONFIG_LOADED = True
 except ImportError:
     _CONFIG_LOADED = False
@@ -62,6 +67,9 @@ except ImportError:
     CONTEXT_CACHE_TTL = 300
     MAX_HISTORY_FOR_CONTEXT = 40
     CHECKPOINT_MAX_TOKENS = 600
+    COMPACTION_THRESHOLD = 300_000
+    COMPACTION_MODEL = "gpt-5.2"       # Deprecated — kept for compat
+    COMPACTION_MAX_TOKENS = 0          # Deprecated — unused
 
 # Model Selection
 MODEL_GPT52 = "gpt-5.2"
@@ -568,3 +576,41 @@ def is_complex_query(user_input: str) -> bool:
     ]
     input_lower = user_input.lower()
     return any(ind in input_lower for ind in complex_indicators)
+
+
+# ────────────────────────────────────────────────────────────────
+# Compaction – Summarise Conversation Chain to Extend Context
+# ────────────────────────────────────────────────────────────────
+
+import logging as _logging
+_compact_logger = _logging.getLogger(__name__)
+
+
+def needs_compaction(input_tokens: int) -> bool:
+    """Return True when cumulative input tokens exceed the compaction threshold."""
+    return input_tokens >= COMPACTION_THRESHOLD
+
+
+def compact_context(
+    history: List[Dict[str, str]],
+    current_query: str = "",
+) -> Tuple[str, bool]:
+    """DEPRECATED — Use client.responses.compact() instead.
+
+    GPT-5.2 provides a first-class /responses/compact endpoint that returns
+    encrypted, opaque items preserving the model's internal state.  This is
+    far superior to DIY summarisation via a secondary model.
+
+    The compact endpoint is called directly in core_assistant.py's sync and
+    async runners.  This function is retained only for backwards compatibility
+    and will be removed in a future version.
+
+    Returns:
+        ("", False) — always signals callers to fall through to their own
+        compaction or chain-drop logic.
+    """
+    _compact_logger.warning(
+        "compact_context() is DEPRECATED — compaction is now handled by "
+        "client.responses.compact() in core_assistant.py"
+    )
+    return "", False

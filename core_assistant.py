@@ -97,8 +97,11 @@ from tool_config import (
 from assistant_config import (
     DEFAULT_REASONING_EFFORT,
     HIGH_REASONING_EFFORT,
+    LOW_REASONING_EFFORT,
+    XHIGH_REASONING_EFFORT,
     DEFAULT_VERBOSITY,
     needs_high_reasoning,
+    get_reasoning_effort,
 )
 
 from hard_logic import (
@@ -1481,18 +1484,19 @@ def run_responses_sync(
     else:
         raise ValueError("Either input_text or input_messages must be provided")
 
-    # Resolve reasoning effort — auto-escalate for MC/stats queries
-    _effort = reasoning_effort or DEFAULT_REASONING_EFFORT
-    if _effort == DEFAULT_REASONING_EFFORT:
+    # Resolve reasoning effort — three-tier: low / medium / high
+    if reasoning_effort:
+        _effort = reasoning_effort
+    else:
         query_text = input_text or ""
         if input_messages:
             query_text = " ".join(
                 m.get("content", "") for m in input_messages
                 if isinstance(m, dict)
             )
-        if needs_high_reasoning(query_text):
-            _effort = HIGH_REASONING_EFFORT
-            _logger.info("Auto-escalated reasoning effort to '%s' for MC/stats query", _effort)
+        _effort = get_reasoning_effort(query_text)
+        if _effort != DEFAULT_REASONING_EFFORT:
+            _logger.info("Auto-selected reasoning effort '%s' for query", _effort)
 
     _verbosity = verbosity or DEFAULT_VERBOSITY
 
@@ -1517,6 +1521,7 @@ def run_responses_sync(
         "reasoning": {"effort": _effort},
         "text": {"verbosity": _verbosity},
         "prompt_cache_key": PROMPT_CACHE_KEY,
+        "truncation": "auto",          # v9.0: auto-truncate to avoid context_length_exceeded
     }
     if instructions:
         kwargs["instructions"] = instructions
@@ -1527,23 +1532,60 @@ def run_responses_sync(
     try:
         response = client.responses.create(**kwargs)
     except openai.BadRequestError as e:
-        # 400 can be caused by a stale previous_response_id OR an expired
-        # code-interpreter container.  Reset both and retry once without
-        # the response chain.
-        stale_id = kwargs.pop("previous_response_id", None)
-        _logger.warning(
-            "BadRequestError on initial call — resetting container "
-            "and dropping response chain (%s): %s", stale_id, e,
-        )
-        reset_container()
-        tools = get_tools()
-        kwargs["tools"] = tools
-        if stale_id:
-            chain_was_reset = True
-        try:
-            response = client.responses.create(**kwargs)
-        except openai.BadRequestError:
-            raise RuntimeError(f"API error (400): {str(e)}")
+        error_str = str(e).lower()
+        # ── Context overflow: compact via /responses/compact then retry ──
+        if "context_length_exceeded" in error_str or "context window" in error_str:
+            _logger.warning(
+                "context_length_exceeded on initial call — attempting first-class compaction"
+            )
+            _compacted_ok = False
+            stale_id = kwargs.get("previous_response_id")
+            if stale_id and hasattr(client.responses, "compact"):
+                try:
+                    _compact_resp = client.responses.compact(
+                        model=model,
+                        previous_response_id=stale_id,
+                        **({"instructions": instructions} if instructions else {}),
+                    )
+                    _compacted_items = [
+                        item.model_dump() if hasattr(item, "model_dump") else item
+                        for item in _compact_resp.output
+                    ]
+                    kwargs.pop("previous_response_id", None)
+                    kwargs["input"] = _compacted_items
+                    chain_was_reset = True
+                    response = client.responses.create(**kwargs)
+                    _compacted_ok = True
+                    _logger.info("Recovered via /responses/compact on initial call")
+                except Exception as compact_exc:
+                    _logger.warning("First-class compaction failed: %s", compact_exc)
+            if not _compacted_ok:
+                # Fallback: drop chain entirely and retry
+                kwargs.pop("previous_response_id", None)
+                if stale_id:
+                    chain_was_reset = True
+                try:
+                    response = client.responses.create(**kwargs)
+                except openai.BadRequestError:
+                    raise RuntimeError(f"API error (400): {str(e)}")
+        else:
+            # 400 can be caused by a stale previous_response_id OR an expired
+            # code-interpreter container.  Reset both and retry once without
+            # the response chain.
+            stale_id = kwargs.pop("previous_response_id", None)
+            _logger.warning(
+                "BadRequestError on initial call — resetting container "
+                "and dropping response chain (%s): %s", stale_id, e,
+            )
+            reset_container()
+            tools = get_tools()
+            kwargs["tools"] = tools
+            if stale_id:
+                chain_was_reset = True
+            try:
+                response = client.responses.create(**kwargs)
+            except openai.BadRequestError:
+                raise RuntimeError(f"API error (400): {str(e)}")
     except openai.NotFoundError as e:
         raise RuntimeError(f"Resource not found: {str(e)}")
     except openai.RateLimitError:
@@ -1657,6 +1699,46 @@ def run_responses_sync(
                 "round": round_num,
             })
 
+        # ── Proactive compaction via /responses/compact ──
+        # Compact after major tool-heavy phases (per GPT-5.2 best practices),
+        # not every turn.  Trigger when cumulative tokens approach the limit.
+        try:
+            from session_manager import needs_compaction as _needs_compact
+            if (_needs_compact(cumulative_cache_metrics["total_input_tokens"])
+                    and hasattr(client.responses, "compact")
+                    and hasattr(response, "id")):
+                _logger.warning(
+                    "Proactive compaction triggered at %d cumulative input tokens "
+                    "(round %d) — calling /responses/compact",
+                    cumulative_cache_metrics["total_input_tokens"], round_num,
+                )
+                try:
+                    _compact_resp = client.responses.compact(
+                        model=model,
+                        previous_response_id=response.id,
+                        **({"instructions": instructions} if instructions else {}),
+                    )
+                    _compacted_items = [
+                        item.model_dump() if hasattr(item, "model_dump") else item
+                        for item in _compact_resp.output
+                    ]
+                    kwargs.pop("previous_response_id", None)
+                    kwargs["input"] = _compacted_items
+                    chain_was_reset = True
+                    response = client.responses.create(**kwargs)
+                    metrics = _log_cache_metrics(response, "post-compaction")
+                    # Reset cumulative counters (fresh chain after compaction)
+                    cumulative_cache_metrics["total_input_tokens"] = metrics["input_tokens"]
+                    cumulative_cache_metrics["total_cached_tokens"] = metrics["cached_tokens"]
+                    cumulative_cache_metrics["total_output_tokens"] += metrics["output_tokens"]
+                    cumulative_cache_metrics["api_calls"] += 1
+                    _logger.info("Compaction succeeded — continuing with reduced context")
+                    continue  # re-enter the while loop with the fresh response
+                except Exception as compact_exc:
+                    _logger.warning("Proactive compaction failed: %s — continuing without", compact_exc)
+        except ImportError:
+            pass
+
         # ── Continue conversation with tool outputs ──
         continuation_kwargs: Dict[str, Any] = {
             "model": model,
@@ -1667,13 +1749,53 @@ def run_responses_sync(
             "reasoning": {"effort": _effort},
             "text": {"verbosity": _verbosity},
             "prompt_cache_key": PROMPT_CACHE_KEY,
+            "truncation": "auto",          # v9.0: auto-truncate safety net
         }
         try:
             response = client.responses.create(**continuation_kwargs)
         except openai.BadRequestError as e:
             error_str = str(e).lower()
-            # Determine if this is a chain/response-id issue or container issue
-            if "previous_response_id" in error_str or "response" in error_str:
+            # ── Context overflow during tool loop — try /responses/compact ──
+            if "context_length_exceeded" in error_str or "context window" in error_str:
+                _logger.warning(
+                    "context_length_exceeded in tool loop round %d — "
+                    "attempting /responses/compact", round_num,
+                )
+                _recovered = False
+                if hasattr(client.responses, "compact") and hasattr(response, "id"):
+                    try:
+                        _compact_resp = client.responses.compact(
+                            model=model,
+                            previous_response_id=response.id,
+                            **({"instructions": instructions} if instructions else {}),
+                        )
+                        _compacted_items = [
+                            item.model_dump() if hasattr(item, "model_dump") else item
+                            for item in _compact_resp.output
+                        ]
+                        restart_kwargs = dict(kwargs)
+                        restart_kwargs.pop("previous_response_id", None)
+                        restart_kwargs["input"] = _compacted_items
+                        restart_kwargs["tools"] = tools
+                        chain_was_reset = True
+                        response = client.responses.create(**restart_kwargs)
+                        _recovered = True
+                        _logger.info("Recovered via /responses/compact in tool loop round %d", round_num)
+                    except Exception as compact_exc:
+                        _logger.warning("Compaction fallback failed: %s", compact_exc)
+                if not _recovered:
+                    # Final fallback: drop chain entirely
+                    restart_kwargs = dict(kwargs)
+                    restart_kwargs.pop("previous_response_id", None)
+                    restart_kwargs["tools"] = tools
+                    chain_was_reset = True
+                    try:
+                        response = client.responses.create(**restart_kwargs)
+                    except Exception as restart_exc:
+                        raise RuntimeError(
+                            f"Tool loop restart failed after context overflow: {restart_exc}"
+                        )
+            elif "previous_response_id" in error_str or "response" in error_str:
                 # Response chain broken — restart the entire request fresh
                 _logger.warning(
                     "BadRequestError (chain broken) during tool loop round %d — "
@@ -1809,17 +1931,19 @@ async def run_responses_async(
     else:
         raise ValueError("Either input_text or input_messages must be provided")
 
-    # Resolve reasoning effort — auto-escalate for MC/stats queries
-    _effort = reasoning_effort or DEFAULT_REASONING_EFFORT
-    if _effort == DEFAULT_REASONING_EFFORT:
+    # Resolve reasoning effort — three-tier: low / medium / high
+    if reasoning_effort:
+        _effort = reasoning_effort
+    else:
         query_text = input_text or ""
         if input_messages:
             query_text = " ".join(
                 m.get("content", "") for m in input_messages
                 if isinstance(m, dict)
             )
-        if needs_high_reasoning(query_text):
-            _effort = HIGH_REASONING_EFFORT
+        _effort = get_reasoning_effort(query_text)
+        if _effort != DEFAULT_REASONING_EFFORT:
+            _logger.info("Auto-selected reasoning effort '%s' for async query", _effort)
 
     _verbosity = verbosity or DEFAULT_VERBOSITY
 
@@ -1840,6 +1964,7 @@ async def run_responses_async(
         "reasoning": {"effort": _effort},
         "text": {"verbosity": _verbosity},
         "prompt_cache_key": PROMPT_CACHE_KEY,
+        "truncation": "auto",          # v9.0: auto-truncate to avoid context_length_exceeded
     }
     if instructions:
         kwargs["instructions"] = instructions
@@ -1850,20 +1975,59 @@ async def run_responses_async(
     try:
         response = await asyncio.to_thread(client.responses.create, **kwargs)
     except openai.BadRequestError as e:
-        stale_id = kwargs.pop("previous_response_id", None)
-        _logger.warning(
-            "BadRequestError on async initial call — resetting container "
-            "and dropping response chain (%s): %s", stale_id, e,
-        )
-        reset_container()
-        tools = get_tools()
-        kwargs["tools"] = tools
-        if stale_id:
-            chain_was_reset = True
-        try:
-            response = await asyncio.to_thread(client.responses.create, **kwargs)
-        except openai.BadRequestError:
-            raise RuntimeError(f"API error (400): {str(e)}")
+        error_str = str(e).lower()
+        # ── Context overflow: compact via /responses/compact then retry ──
+        if "context_length_exceeded" in error_str or "context window" in error_str:
+            _logger.warning(
+                "context_length_exceeded on async initial call — "
+                "attempting first-class compaction"
+            )
+            _compacted_ok = False
+            stale_id = kwargs.get("previous_response_id")
+            if stale_id and hasattr(client.responses, "compact"):
+                try:
+                    _compact_resp = await asyncio.to_thread(
+                        client.responses.compact,
+                        model=model,
+                        previous_response_id=stale_id,
+                        **({"instructions": instructions} if instructions else {}),
+                    )
+                    _compacted_items = [
+                        item.model_dump() if hasattr(item, "model_dump") else item
+                        for item in _compact_resp.output
+                    ]
+                    kwargs.pop("previous_response_id", None)
+                    kwargs["input"] = _compacted_items
+                    chain_was_reset = True
+                    response = await asyncio.to_thread(client.responses.create, **kwargs)
+                    _compacted_ok = True
+                    _logger.info("Recovered via /responses/compact on async initial call")
+                except Exception as compact_exc:
+                    _logger.warning("First-class compaction failed (async): %s", compact_exc)
+            if not _compacted_ok:
+                # Fallback: drop chain entirely and retry
+                kwargs.pop("previous_response_id", None)
+                if stale_id:
+                    chain_was_reset = True
+                try:
+                    response = await asyncio.to_thread(client.responses.create, **kwargs)
+                except openai.BadRequestError:
+                    raise RuntimeError(f"API error (400) after chain drop: {str(e)}")
+        else:
+            stale_id = kwargs.pop("previous_response_id", None)
+            _logger.warning(
+                "BadRequestError on async initial call — resetting container "
+                "and dropping response chain (%s): %s", stale_id, e,
+            )
+            reset_container()
+            tools = get_tools()
+            kwargs["tools"] = tools
+            if stale_id:
+                chain_was_reset = True
+            try:
+                response = await asyncio.to_thread(client.responses.create, **kwargs)
+            except openai.BadRequestError:
+                raise RuntimeError(f"API error (400): {str(e)}")
     except openai.RateLimitError:
         response = await asyncio.to_thread(
             _retry_with_backoff,
@@ -1960,6 +2124,47 @@ async def run_responses_async(
 
         tool_outputs = await asyncio.gather(*[_one(c) for c in tool_calls])
 
+        # ── Proactive compaction via /responses/compact (async) ──
+        # Compact after major tool-heavy phases (per GPT-5.2 best practices),
+        # not every turn.  Trigger when cumulative tokens approach the limit.
+        try:
+            from session_manager import needs_compaction as _needs_compact
+            if (_needs_compact(cumulative_cache_metrics["total_input_tokens"])
+                    and hasattr(client.responses, "compact")
+                    and hasattr(response, "id")):
+                _logger.warning(
+                    "Proactive compaction triggered (async) at %d cumulative input tokens "
+                    "(round %d) — calling /responses/compact",
+                    cumulative_cache_metrics["total_input_tokens"], round_num,
+                )
+                try:
+                    _compact_resp = await asyncio.to_thread(
+                        client.responses.compact,
+                        model=model,
+                        previous_response_id=response.id,
+                        **({"instructions": instructions} if instructions else {}),
+                    )
+                    _compacted_items = [
+                        item.model_dump() if hasattr(item, "model_dump") else item
+                        for item in _compact_resp.output
+                    ]
+                    kwargs.pop("previous_response_id", None)
+                    kwargs["input"] = _compacted_items
+                    chain_was_reset = True
+                    response = await asyncio.to_thread(client.responses.create, **kwargs)
+                    metrics = _log_cache_metrics(response, "async-post-compaction")
+                    # Reset cumulative counters (fresh chain after compaction)
+                    cumulative_cache_metrics["total_input_tokens"] = metrics["input_tokens"]
+                    cumulative_cache_metrics["total_cached_tokens"] = metrics["cached_tokens"]
+                    cumulative_cache_metrics["total_output_tokens"] += metrics["output_tokens"]
+                    cumulative_cache_metrics["api_calls"] += 1
+                    _logger.info("Compaction succeeded (async) — continuing with reduced context")
+                    continue  # re-enter the loop with the fresh response
+                except Exception as compact_exc:
+                    _logger.warning("Proactive compaction failed (async): %s — continuing without", compact_exc)
+        except ImportError:
+            pass
+
         continuation_kwargs: Dict[str, Any] = {
             "model": model,
             "previous_response_id": response.id,
@@ -1969,6 +2174,7 @@ async def run_responses_async(
             "reasoning": {"effort": _effort},
             "text": {"verbosity": _verbosity},
             "prompt_cache_key": PROMPT_CACHE_KEY,
+            "truncation": "auto",          # v9.0: auto-truncate safety net
         }
         try:
             response = await asyncio.to_thread(
@@ -1976,7 +2182,52 @@ async def run_responses_async(
             )
         except openai.BadRequestError as e:
             error_str = str(e).lower()
-            if "previous_response_id" in error_str or "response" in error_str:
+            # ── Context overflow during async tool loop — try /responses/compact ──
+            if "context_length_exceeded" in error_str or "context window" in error_str:
+                _logger.warning(
+                    "context_length_exceeded in async tool loop round %d — "
+                    "attempting /responses/compact", round_num,
+                )
+                _recovered = False
+                if hasattr(client.responses, "compact") and hasattr(response, "id"):
+                    try:
+                        _compact_resp = await asyncio.to_thread(
+                            client.responses.compact,
+                            model=model,
+                            previous_response_id=response.id,
+                            **({"instructions": instructions} if instructions else {}),
+                        )
+                        _compacted_items = [
+                            item.model_dump() if hasattr(item, "model_dump") else item
+                            for item in _compact_resp.output
+                        ]
+                        restart_kwargs = dict(kwargs)
+                        restart_kwargs.pop("previous_response_id", None)
+                        restart_kwargs["input"] = _compacted_items
+                        restart_kwargs["tools"] = tools
+                        chain_was_reset = True
+                        response = await asyncio.to_thread(
+                            client.responses.create, **restart_kwargs,
+                        )
+                        _recovered = True
+                        _logger.info("Recovered via /responses/compact in async tool loop round %d", round_num)
+                    except Exception as compact_exc:
+                        _logger.warning("Compaction fallback failed (async): %s", compact_exc)
+                if not _recovered:
+                    # Final fallback: drop chain entirely
+                    restart_kwargs = dict(kwargs)
+                    restart_kwargs.pop("previous_response_id", None)
+                    restart_kwargs["tools"] = tools
+                    chain_was_reset = True
+                    try:
+                        response = await asyncio.to_thread(
+                            client.responses.create, **restart_kwargs,
+                        )
+                    except Exception as restart_exc:
+                        raise RuntimeError(
+                            f"Async tool loop restart failed after context overflow: {restart_exc}"
+                        )
+            elif "previous_response_id" in error_str or "response" in error_str:
                 _logger.warning(
                     "BadRequestError (chain broken) in async tool loop round %d: %s",
                     round_num, e,
