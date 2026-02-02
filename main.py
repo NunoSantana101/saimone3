@@ -2545,6 +2545,13 @@ Output format:
             ]
 
 
+            # MC simulation buttons use a 2-step pipeline (research → crunch)
+            _MC_TWO_STEP_BUTTONS = {
+                "Simulation Engine",
+                "Simulation Engine — Multi-Plan Monte Carlo",
+                "Market access stress test",
+            }
+
             # Render in 10 rows × 2 cols = 20 buttons
             for row in range(10):
                 cols = st.columns(2)
@@ -2572,8 +2579,14 @@ Output format:
                                 "user": user_info.get("email", "unknown") if user_info else "unknown",
                                 "response_id": st.session_state.get("last_response_id", ""),
                             })
-                            st.session_state["silent_prompt_to_run"] = automated_prompt
-                            st.session_state["silent_prompt_label"] = func_name
+
+                            # MC buttons → 2-step pipeline; everything else → single step
+                            if func_name in _MC_TWO_STEP_BUTTONS:
+                                st.session_state["mc_two_step_to_run"] = automated_prompt
+                                st.session_state["mc_two_step_label"] = func_name
+                            else:
+                                st.session_state["silent_prompt_to_run"] = automated_prompt
+                                st.session_state["silent_prompt_label"] = func_name
                             st.rerun()
     else:
         st.warning("🔒 Automated functions require full access level")
@@ -2689,6 +2702,98 @@ if not check_access_level("full"):
         st.warning("⚠️ You have view-only access. Message sending and most features are restricted.")
     elif access_level == "limited":
         st.info("ℹ️ You have limited access. Some advanced features may be restricted.")
+
+# --- MC TWO-STEP HANDLER (research → crunch) ---
+if "mc_two_step_to_run" in st.session_state:
+    _mc_prompt = st.session_state.pop("mc_two_step_to_run")
+    _mc_label = st.session_state.pop("mc_two_step_label", "MC Simulation")
+
+    if "audit" in _mc_prompt.lower() and not check_access_level("full"):
+        st.error("❌ Audit functionality requires full access level")
+    else:
+        _mc_ok = False
+        try:
+            # ── Step 1: Research (silent — not displayed) ──
+            _research_prompt = (
+                "RESEARCH PHASE ONLY — do NOT run the Monte Carlo simulation yet.\n\n"
+                f"Gather all relevant data for the following analysis request:\n\n{_mc_prompt}\n\n"
+                "Instructions for this research phase:\n"
+                "- Search for comparable historical parallels with empirically usable data\n"
+                "- Extract execution patterns, constraint drivers, and empirical benchmarks\n"
+                "- Load all referenced JSON framework files and extract relevant parameters\n"
+                "- Compile findings into a structured data package\n"
+                "- Present all raw data, sources, and extracted parameters\n"
+                "- Do NOT execute Monte Carlo simulation or statistical analysis in this step"
+            )
+
+            # Record research query silently
+            st.session_state["history"].append({
+                "role": "user",
+                "content": _research_prompt,
+                "silent": True,
+                "label": f"{_mc_label} (Research Phase)",
+            })
+
+            with st.spinner(f"🔬 Step 1/2: Researching data for {_mc_label}…"):
+                _step1 = improved_assistant_run(_research_prompt)
+
+            if _step1 and _step1 != "All attempts failed" and not _step1.startswith("❌"):
+                # Store step-1 response silently (hidden from UI/PDF)
+                st.session_state["history"].append({
+                    "role": "assistant",
+                    "content": _step1,
+                    "silent": True,
+                })
+
+                # ── Step 2: Crunch (displayed) ──
+                # The response chain already contains step-1 context,
+                # so the model can reference its own research directly.
+                _crunch_prompt = (
+                    "ANALYSIS PHASE — the research data has been gathered.\n\n"
+                    f"Original request: {_mc_prompt}\n\n"
+                    "Now execute the full Monte Carlo simulation using the research data "
+                    "you gathered in the previous step. Use the code interpreter function "
+                    "mc_rng.py as the RNG for 1,000-iteration stochastic simulation. "
+                    "Minimize statistical and mathematical details in the output. "
+                    "Present extended executive-level summaries and matrix presentations."
+                )
+
+                st.session_state["history"].append({
+                    "role": "user",
+                    "content": _crunch_prompt,
+                    "silent": True,
+                    "label": _mc_label,
+                })
+
+                with st.spinner(f"🔬 Step 2/2: Running {_mc_label}…"):
+                    _step2 = improved_assistant_run(_crunch_prompt)
+
+                if _step2 and _step2 != "All attempts failed" and not _step2.startswith("❌"):
+                    st.session_state["history"].append({
+                        "role": "assistant",
+                        "content": _step2,
+                    })
+                    _enrich_last_search_entry()
+                    save_medical_context()
+                    st.success(f"✅ {_mc_label} completed (2-step pipeline)!")
+                    log_user_action("mc_two_step_completed", f"Completed: {_mc_label}")
+                    _mc_ok = True
+                else:
+                    st.error(f"❌ Analysis phase failed: {_step2}")
+                    log_user_action("mc_two_step_analysis_failed", f"Step 2 failed: {_mc_label}")
+            else:
+                st.error(f"❌ Research phase failed: {_step1}")
+                log_user_action("mc_two_step_research_failed", f"Step 1 failed: {_mc_label}")
+
+        except Exception as e:
+            st.error(f"❌ MC simulation error: {str(e)}")
+            log_user_action("mc_two_step_error", f"Error in {_mc_label}: {str(e)}")
+
+        if not _mc_ok:
+            # Clear stale state so next request starts fresh
+            st.session_state["last_response_id"] = None
+            reset_container()
+        st.rerun()
 
 # --- QUICK ACTION HANDLER (FROM SIDEBAR) ---
 if "silent_prompt_to_run" in st.session_state:
