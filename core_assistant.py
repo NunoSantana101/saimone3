@@ -96,12 +96,7 @@ from tool_config import (
 
 from assistant_config import (
     DEFAULT_REASONING_EFFORT,
-    HIGH_REASONING_EFFORT,
-    LOW_REASONING_EFFORT,
-    XHIGH_REASONING_EFFORT,
     DEFAULT_VERBOSITY,
-    needs_high_reasoning,
-    get_reasoning_effort,
     get_query_profile,
 )
 

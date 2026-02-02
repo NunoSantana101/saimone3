@@ -7,8 +7,12 @@
 # - Three tiers: lightweight / standard / deep
 # - Prevents timeout on simple queries by capping tool rounds & search
 #
+# v6.4 – Flat Reasoning (medium across all tiers)
+# - Dropped xhigh/high/low reasoning escalation — all queries use "medium"
+# - Reduces latency & cost while GPT-5.2 adaptive reasoning handles depth
+#
 # v6.2 – Reasoning & Verbosity Controls
-# - Added reasoning.effort: medium (default), high (MC/stats queries)
+# - Added reasoning.effort: medium (default)
 # - Added text.verbosity: low | medium | high (native API control)
 # - Removed dead get_responses_config() / max_output_tokens cap
 #
@@ -85,62 +89,20 @@ GPT52_CONFIG = {
 # GPT-5.2 text.verbosity values:   low | medium | high
 #
 # Default reasoning is "none" if omitted, so we pin to "medium".
-# xhigh — brand-new in GPT-5.2: deepest reasoning for multi-step analytical queries
-# high   — MC / Bayesian / statistical analysis
-# medium — default (strategy, tactical, multi-phase workflows)
-# low    — simple factual lookups (dates, names, definitions)
+# v6.4 – Flat reasoning: all tiers use "medium" to reduce latency/cost
+#         while still benefiting from GPT-5.2's adaptive reasoning.
 DEFAULT_REASONING_EFFORT = "medium"
-XHIGH_REASONING_EFFORT = "xhigh"
-HIGH_REASONING_EFFORT = "high"
-LOW_REASONING_EFFORT = "low"
 
 DEFAULT_VERBOSITY = "medium"
 
-# Keywords that trigger xhigh reasoning effort (multi-step complex analysis)
-XHIGH_REASONING_KEYWORDS = [
-    "comprehensive analysis", "full landscape", "deep dive",
-    "multi-step", "end-to-end strategy", "complete competitive",
-    "scenario modelling", "portfolio optimization",
-    "cascade analysis", "similarity scoring",
-]
 
-# Keywords that trigger high reasoning effort (MC sims, stats, Bayesian)
-HIGH_REASONING_KEYWORDS = [
-    "monte carlo", "simulation", "bayesian", "statistical analysis",
-    "sensitivity analysis", "probability", "scenario analysis",
-    "confidence interval", "hypothesis", "p-value", "regression",
-]
-
-# Keywords that allow low reasoning effort (simple factual lookups)
-LOW_REASONING_KEYWORDS = [
-    "what is", "when was", "who is", "define", "list",
-    "approval date", "status of", "price of", "what date",
-    "tell me the", "what are the", "name of",
-]
+def needs_high_reasoning(user_input: str) -> bool:  # noqa: ARG001
+    """Return False — all queries now use medium reasoning (v6.4)."""
+    return False
 
 
-def needs_high_reasoning(user_input: str) -> bool:
-    """Return True if the query warrants high reasoning effort."""
-    q = user_input.lower()
-    return any(kw in q for kw in HIGH_REASONING_KEYWORDS)
-
-
-def get_reasoning_effort(user_input: str) -> str:
-    """Return the appropriate reasoning effort for the query.
-
-    Four-tier approach (GPT-5.2):
-      xhigh  — multi-step complex analyses, full landscape, cascade scoring
-      high   — MC simulations, Bayesian, statistical analysis
-      medium — default (strategy, tactical, multi-phase workflows)
-      low    — simple factual lookups (dates, names, definitions)
-    """
-    q = user_input.lower()
-    if any(kw in q for kw in XHIGH_REASONING_KEYWORDS):
-        return XHIGH_REASONING_EFFORT
-    if any(kw in q for kw in HIGH_REASONING_KEYWORDS):
-        return HIGH_REASONING_EFFORT
-    if any(kw in q for kw in LOW_REASONING_KEYWORDS):
-        return LOW_REASONING_EFFORT
+def get_reasoning_effort(user_input: str) -> str:  # noqa: ARG001
+    """Return 'medium' for all queries (v6.4 — flat reasoning)."""
     return DEFAULT_REASONING_EFFORT
 
 
@@ -204,7 +166,7 @@ DEEP_KEYWORDS = [
 # Query profiles — each controls the full pipeline
 QUERY_PROFILES = {
     "lightweight": {
-        "reasoning_effort": "low",
+        "reasoning_effort": "medium",
         "verbosity": "low",
         "search_context_size": "low",
         "max_tool_rounds": 4,
@@ -232,7 +194,7 @@ QUERY_PROFILES = {
         "tier_3_content": 150,
     },
     "deep": {
-        "reasoning_effort": "high",
+        "reasoning_effort": "medium",
         "verbosity": "medium",
         "search_context_size": "high",
         "max_tool_rounds": 20,
@@ -283,17 +245,9 @@ def get_query_profile(user_input: str) -> dict:
     timeout, verbosity, and result limits.  Consumed by core_assistant.py
     to configure the entire request pipeline from a single classification.
 
-    Also preserves the existing four-tier reasoning escalation within
-    the deep profile (high → xhigh for specific keywords).
+    v6.4: All tiers use medium reasoning — no escalation.
     """
     complexity = classify_query_complexity(user_input)
     profile = dict(QUERY_PROFILES[complexity])
     profile["complexity"] = complexity
-
-    # Within deep tier: escalate reasoning for xhigh keywords
-    if complexity == "deep":
-        q = user_input.lower()
-        if any(kw in q for kw in XHIGH_REASONING_KEYWORDS):
-            profile["reasoning_effort"] = "xhigh"
-
     return profile
