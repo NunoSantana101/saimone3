@@ -352,10 +352,14 @@ CONTEXT_CONFIG = {
     "context_cache_ttl": 300,
     "thread_validation_cache_ttl": 60,
     # Compaction: when cumulative input_tokens across tool rounds exceeds this
-    # threshold, compact the conversation chain to avoid context_length_exceeded.
+    # threshold, trigger /responses/compact to avoid context_length_exceeded.
+    # GPT-5.2 first-class compaction uses the same model — no separate model needed.
     "compaction_threshold": 300_000,     # 75% of 400K context window
-    "compaction_model": "gpt-4.1-mini", # Fast/cheap model for summarisation
-    "compaction_max_tokens": 1200,       # Max tokens for the compacted summary
+    # DEPRECATED: compaction_model and compaction_max_tokens are no longer used.
+    # Compaction is now handled by client.responses.compact() which uses the
+    # same GPT-5.2 model and returns encrypted opaque items (no token limit).
+    "compaction_model": "gpt-5.2",      # Kept for backwards compat only
+    "compaction_max_tokens": 0,          # Unused — /responses/compact manages this
 }
 
 TOKEN_BUDGETS = {

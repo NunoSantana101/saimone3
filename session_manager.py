@@ -53,8 +53,10 @@ try:
     CONTEXT_CACHE_TTL = CONTEXT_CONFIG.get("context_cache_ttl", 300)
     CHECKPOINT_MAX_TOKENS = CONTEXT_CONFIG.get("checkpoint_max_tokens", 600)
     COMPACTION_THRESHOLD = CONTEXT_CONFIG.get("compaction_threshold", 300_000)
-    COMPACTION_MODEL = CONTEXT_CONFIG.get("compaction_model", "gpt-4.1-mini")
-    COMPACTION_MAX_TOKENS = CONTEXT_CONFIG.get("compaction_max_tokens", 1200)
+    # DEPRECATED: compaction_model / compaction_max_tokens no longer used.
+    # Compaction is handled by client.responses.compact() in core_assistant.py.
+    COMPACTION_MODEL = CONTEXT_CONFIG.get("compaction_model", "gpt-5.2")
+    COMPACTION_MAX_TOKENS = CONTEXT_CONFIG.get("compaction_max_tokens", 0)
     _CONFIG_LOADED = True
 except ImportError:
     _CONFIG_LOADED = False
@@ -66,8 +68,8 @@ except ImportError:
     MAX_HISTORY_FOR_CONTEXT = 40
     CHECKPOINT_MAX_TOKENS = 600
     COMPACTION_THRESHOLD = 300_000
-    COMPACTION_MODEL = "gpt-4.1-mini"
-    COMPACTION_MAX_TOKENS = 1200
+    COMPACTION_MODEL = "gpt-5.2"       # Deprecated — kept for compat
+    COMPACTION_MAX_TOKENS = 0          # Deprecated — unused
 
 # Model Selection
 MODEL_GPT52 = "gpt-5.2"
@@ -593,62 +595,22 @@ def compact_context(
     history: List[Dict[str, str]],
     current_query: str = "",
 ) -> Tuple[str, bool]:
-    """Produce a compact summary of the conversation so far.
+    """DEPRECATED — Use client.responses.compact() instead.
 
-    When the response-chain's cumulative ``input_tokens`` approach the
-    model's context limit, calling this function produces a condensed
-    summary using a fast model.  The summary replaces the
-    ``previous_response_id`` chain — the next API call starts a fresh
-    chain with the summary prepended to the user prompt.
+    GPT-5.2 provides a first-class /responses/compact endpoint that returns
+    encrypted, opaque items preserving the model's internal state.  This is
+    far superior to DIY summarisation via a secondary model.
+
+    The compact endpoint is called directly in core_assistant.py's sync and
+    async runners.  This function is retained only for backwards compatibility
+    and will be removed in a future version.
 
     Returns:
-        (summary_text, success)
+        ("", False) — always signals callers to fall through to their own
+        compaction or chain-drop logic.
     """
-    cb = get_circuit_breaker("openai_compact")
-    if not cb.can_execute():
-        return "", False
-
-    # Build a trimmed view of the conversation for summarisation
-    trimmed: List[str] = []
-    for msg in history[-24:]:
-        role = msg.get("role", "?")
-        content = msg.get("content", "")
-        if len(content) > 600:
-            content = content[:300] + " ...[trimmed]... " + content[-250:]
-        trimmed.append(f"[{role}] {content}")
-
-    convo_block = "\n".join(trimmed)
-
-    prompt = (
-        "You are a medical-affairs session compactor. Summarise the "
-        "conversation below into a concise briefing (max 300 words) that "
-        "preserves:\n"
-        "- Key decisions, recommendations, and action items\n"
-        "- Regulatory/compliance points raised\n"
-        "- Drug names, trial names, and specific data points cited\n"
-        "- Any unresolved questions\n\n"
-        f"Conversation:\n{convo_block}\n\n"
-        "Compact summary:"
+    _compact_logger.warning(
+        "compact_context() is DEPRECATED — compaction is now handled by "
+        "client.responses.compact() in core_assistant.py"
     )
-
-    try:
-        response = openai.chat.completions.create(
-            model=COMPACTION_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=COMPACTION_MAX_TOKENS,
-            temperature=0.0,
-        )
-        summary = response.choices[0].message.content.strip()
-        cb.record_success()
-        _compact_logger.info(
-            "Compaction produced %d-char summary from %d messages "
-            "(tokens used: %s)",
-            len(summary),
-            len(history),
-            response.usage.total_tokens if response.usage else "?",
-        )
-        return summary, True
-    except Exception as exc:
-        cb.record_failure()
-        _compact_logger.warning("Compaction failed: %s", exc)
-        return "", False
+    return "", False
