@@ -59,6 +59,63 @@ MAX_WAIT = 420  # 7 minutes
 POLLING_INTERVAL = 1.0
 RETRY_ATTEMPTS = 3
 
+# --- Markdown table normalizer -------------------------------------------
+# Models sometimes collapse table rows onto a single line, breaking
+# Streamlit's markdown renderer.  This fixes the two most common cases:
+#   1. Separator row (|---|---|) not on its own line
+#   2. Multiple data rows merged onto one line
+_MD_SEP = re.compile(
+    r'\|[\s:]*-{2,}[\s:]*(?:\|[\s:]*-{2,}[\s:]*)+\|?'
+)
+_MD_SEP_LINE = re.compile(
+    r'^\s*\|[\s:]*-{2,}[\s:]*(?:\|[\s:]*-{2,}[\s:]*)+\|?\s*$'
+)
+
+def _normalize_md_tables(text: str) -> str:
+    """Ensure markdown table rows are on separate lines."""
+    pat = _MD_SEP.pattern
+    # Step 1 — separator rows must be on their own line
+    text = re.sub(r'([^\n])[ \t]*(' + pat + r')', r'\1\n\2', text)
+    text = re.sub(r'(' + pat + r')[ \t]*([^\n])', r'\1\n\2', text)
+
+    # Step 2 — split collapsed data rows using column count from separator
+    lines = text.split('\n')
+    out = []
+    col_count = 0
+    for line in lines:
+        stripped = line.strip()
+        if _MD_SEP_LINE.match(stripped):
+            col_count = len(re.findall(r'-{2,}', stripped))
+            out.append(line)
+            continue
+        if col_count > 0 and stripped.startswith('|'):
+            pipe_count = stripped.count('|')
+            expected = col_count + 1          # n columns → n+1 pipes per row
+            if pipe_count > expected + 1:     # looks like collapsed rows
+                parts = stripped.split('|')
+                cells = parts[1:]             # drop leading empty
+                if cells and cells[-1].strip() == '':
+                    cells = cells[:-1]        # drop trailing empty
+                clean: list[str] = []
+                for c in cells:
+                    # At a row boundary (clean has full row), skip the
+                    # empty entry produced by the adjacent "| |" pipes.
+                    if c.strip() == '' and clean and len(clean) % col_count == 0:
+                        continue
+                    clean.append(c)
+                for i in range(0, len(clean), col_count):
+                    row = clean[i:i + col_count]
+                    if any(c.strip() for c in row):
+                        out.append('| ' + ' | '.join(c.strip() for c in row) + ' |')
+            else:
+                out.append(line)
+        else:
+            if stripped and not stripped.startswith('|'):
+                col_count = 0                 # left table context
+            out.append(line)
+    return '\n'.join(out)
+# -------------------------------------------------------------------------
+
 # --- PAGE CONFIG ---
 st.set_page_config(
     page_title="sAİmone - MedAffairs Assistant", 
@@ -2645,18 +2702,14 @@ if st.session_state["history"]:
                 f"</div>",
                 unsafe_allow_html=True,
             )
-            # Detect markdown tables via separator row (|---|---|)
-            # or explicit HTML tags — enable unsafe_allow_html so
-            # in-cell formatting (<b>, <br>, <sup>, etc.) renders.
-            _has_table = bool(re.search(
-                r'^\s*\|[\s:]*-{2,}[\s:]*(\|[\s:]*-{2,}[\s:]*)+\|?\s*$',
-                msg["content"], re.MULTILINE,
-            ))
-            _has_html = bool(re.search(r'<(?:br|b|i|u|sup|sub|a |em|strong)\b', msg["content"]))
+            # Normalise collapsed markdown tables, then decide HTML mode
+            _content = _normalize_md_tables(msg["content"])
+            _has_table = bool(_MD_SEP_LINE.search(_content))
+            _has_html = bool(re.search(r'<(?:br|b|i|u|sup|sub|a |em|strong)\b', _content))
             if _has_table or _has_html:
-                st.markdown(msg["content"], unsafe_allow_html=True)
+                st.markdown(_content, unsafe_allow_html=True)
             else:
-                st.markdown(msg["content"], unsafe_allow_html=False)
+                st.markdown(_content, unsafe_allow_html=False)
 
             
 
