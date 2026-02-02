@@ -1056,6 +1056,15 @@ def generate_pdf_download():
                         j += 1
                     yield ('table', '\n'.join(lines[i:j])); i = j; continue
 
+                # Separator row without preceding header (edge case safety net)
+                if SEP.match(ln):
+                    j = i + 1
+                    while j < len(lines) and '|' in lines[j]:
+                        j += 1
+                    if j > i + 1:
+                        yield ('table', '\n'.join(lines[i:j])); i = j; continue
+                    i += 1; continue
+
                 if bullet_rx_unordered.match(ln) or bullet_rx_ordered.match(ln):
                     ordered = bool(bullet_rx_ordered.match(ln))
                     start = int(bullet_rx_ordered.match(ln).group(1)) if ordered else 1
@@ -1078,6 +1087,7 @@ def generate_pdf_download():
                         or FENCE.match(cur)
                         or (cur.lstrip().startswith('> ') or cur.lstrip() == '>')
                         or bullet_rx_unordered.match(cur) or bullet_rx_ordered.match(cur)
+                        or SEP.match(cur)
                         or (j+1 < len(lines) and HDR.match(cur) and SEP.match(lines[j+1]))
                         or re.match(r'^\s*-{3,}\s*$', cur)):
                         break
@@ -1269,7 +1279,10 @@ def generate_pdf_download():
             story.append(header_table)
             story.append(Spacer(1, 0.1*inch))
 
-            content = normalize_for_pdf(msg.get('content', '') or '')
+            content = msg.get('content', '') or ''
+            content = normalize_for_pdf(content)
+            content = repair_pipe_tables(content)
+            content = _ensure_table_blank_lines(content)
             m = re.match(r'\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)', content, flags=re.S)
             if m:
                 ts, email, content = m.group(1), m.group(2), m.group(3)
