@@ -533,11 +533,23 @@ def _split_pipe_text_into_rows(text: str, n_cols: int) -> list:
 
     Ensures every output row has exactly *n_cols* cells so that header /
     separator / data column counts always match (required for valid Markdown).
+    Handles cases where the AI omits the trailing ``|`` on the last row.
     """
     pipe_pos = [i for i, c in enumerate(text) if c == '|']
     if len(pipe_pos) < 2:
         return [text] if text.strip() else []
     pipes_per_row = n_cols + 1          # | c1 | c2 | c3 | → 4 pipes for 3 cols
+
+    # If the total pipe count doesn't divide evenly AND there is
+    # meaningful text after the last pipe, treat it as a missing
+    # trailing pipe so the last row can be captured.
+    remainder = len(pipe_pos) % pipes_per_row
+    if remainder and remainder > 0:
+        tail = text[pipe_pos[-1] + 1:].strip()
+        if tail:
+            # Append a virtual pipe at the end of the text
+            pipe_pos.append(len(text))
+
     rows = []
     for start in range(0, len(pipe_pos), pipes_per_row):
         rp = pipe_pos[start:start + pipes_per_row]
@@ -657,12 +669,26 @@ def repair_pipe_tables(text: str) -> str:
             i += 1
             while i < len(lines):
                 nxt = lines[i].strip()
-                if not nxt or nxt.count('|') < 2:
+                # Skip a single blank line between separator and data –
+                # the AI sometimes inserts one but the rows still belong
+                # to this table.
+                if not nxt:
+                    if (i + 1 < len(lines)
+                            and lines[i + 1].strip().startswith('|')
+                            and lines[i + 1].strip().count('|') >= 2):
+                        i += 1
+                        continue          # swallow blank line; grab data
+                    break
+                if nxt.count('|') < 2:
                     break
                 if nxt.count('|') > n_cols + 2:        # too many pipes → concatenated
                     out.extend(_split_pipe_text_into_rows(nxt, n_cols))
                 else:
-                    out.append(lines[i])
+                    # Ensure trailing pipe so row is valid Markdown
+                    row_line = lines[i].rstrip()
+                    if not row_line.rstrip().endswith('|'):
+                        row_line = row_line + ' |'
+                    out.append(row_line)
                 i += 1
             continue
 
@@ -726,7 +752,14 @@ def _ensure_table_blank_lines(text: str) -> str:
             and stripped.count('|') >= 3
         )
         is_sep = bool(_sep_re.match(stripped))
-        is_table_line = is_pipe or is_sep
+        # When already inside a table, be lenient: any line starting
+        # with | and containing 2+ pipes is probably a data row whose
+        # trailing pipe was omitted by the AI.
+        is_continuation = bool(
+            in_table and stripped.startswith('|')
+            and stripped.count('|') >= 2
+        )
+        is_table_line = is_pipe or is_sep or is_continuation
 
         if is_table_line and not in_table:
             # Entering a table block – ensure blank line before
