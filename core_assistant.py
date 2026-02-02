@@ -102,6 +102,7 @@ from assistant_config import (
     DEFAULT_VERBOSITY,
     needs_high_reasoning,
     get_reasoning_effort,
+    get_query_profile,
 )
 
 from hard_logic import (
@@ -446,8 +447,10 @@ def reset_container() -> None:
     fresh container.
     Thread-safe: acquires _container_lock.
     """
+    global _cached_tools
     with _container_lock:
         _reset_container_unlocked()
+    _cached_tools = None  # Clear all cached tool lists
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -458,9 +461,12 @@ def reset_container() -> None:
 # Web search is handled by OpenAI's built-in web_search_preview tool.
 
 
-def build_tools_list() -> List[dict]:
+def build_tools_list(search_context_size: str = "medium") -> List[dict]:
     """
     Build the complete tools list for Responses API.
+
+    v7.6.1: search_context_size is now dynamic — set by query profile.
+    lightweight queries use "low", standard use "medium", deep use "high".
 
     v7.6: Added search_medical_links (soft integration) for Link-First
     access to PubMed, FDA, and EMA.  Returns compact Markdown links
@@ -483,16 +489,27 @@ def build_tools_list() -> List[dict]:
     med_affairs_data / Tavily backend.  The model manages all web search
     internally; no function-call routing is needed for search.
     Statistical analysis function tools are retained.
+
+    Args:
+        search_context_size: "low" | "medium" | "high".  Controls how much
+            web search context is fed back to the model.  Default changed
+            from "high" to "medium" (v7.6.1) to reduce token cost and
+            latency on standard queries.
     """
+    # Validate search_context_size
+    if search_context_size not in ("low", "medium", "high"):
+        search_context_size = "medium"
+
     tools: List[dict] = []
 
     # 1. OpenAI built-in web search (v7.0)
     #    - Model decides when to search, what to query, and synthesizes results
-    #    - search_context_size "high" maximises context fed back to the model
+    #    - search_context_size set by query profile (v7.6.1):
+    #      "low" for simple lookups, "medium" for standard, "high" for deep analysis
     #    - No function_call is emitted; search happens server-side
     tools.append({
         "type": "web_search_preview",
-        "search_context_size": "high",
+        "search_context_size": search_context_size,
     })
 
     # 2. OpenAI built-in file_search (v7.1)
@@ -688,24 +705,28 @@ def build_tools_list() -> List[dict]:
 _REQUIRED_TOOL_TYPES = frozenset({"web_search_preview", "file_search", "code_interpreter"})
 
 
-# Cache the tools list.  Only cached once the code-interpreter
-# container has been resolved (success OR permanent fallback).
-# If the container creation fails transiently, the list is rebuilt
-# on the next call so the container can be retried.
-_cached_tools: Optional[List[dict]] = None
+# Cache the tools list per search_context_size.  Only cached once the
+# code-interpreter container has been resolved (success OR permanent
+# fallback).  If the container creation fails transiently, the list is
+# rebuilt on the next call so the container can be retried.
+_cached_tools: Optional[dict] = None  # keyed by search_context_size
 
 
-def get_tools() -> List[dict]:
-    """Return cached tools list, rebuilding if container is unresolved.
+def get_tools(search_context_size: str = "medium") -> List[dict]:
+    """Return tools list for the given search context size.
 
-    Guarantees that web_search_preview, file_search, and code_interpreter
-    are always present — raises immediately if the invariant is violated
-    so the bug is caught during development, not silently in production.
+    Caches per search_context_size level.  Guarantees that
+    web_search_preview, file_search, and code_interpreter are always
+    present — raises immediately if the invariant is violated.
     """
     global _cached_tools
-    if _cached_tools is not None:
-        return _cached_tools
-    tools = build_tools_list()
+    if _cached_tools is None:
+        _cached_tools = {}
+
+    if search_context_size in _cached_tools:
+        return _cached_tools[search_context_size]
+
+    tools = build_tools_list(search_context_size=search_context_size)
 
     # ── Invariant: required built-in tools must always be present ──
     present = {t.get("type") for t in tools}
@@ -720,7 +741,7 @@ def get_tools() -> List[dict]:
     # unavailable after the grace window).  _ci_container_id is set to
     # a string on success; it stays None on transient failure.
     if _ci_container_id is not None:
-        _cached_tools = tools
+        _cached_tools[search_context_size] = tools
     return tools
 
 
@@ -1431,14 +1452,22 @@ def run_responses_sync(
     instructions: str = STATIC_CONTEXT_BLOCK,
     previous_response_id: Optional[str] = None,
     tool_router: Callable[[str, Dict[str, Any]], str] = _default_tool_router,
-    timeout: int = 600,
-    max_tool_rounds: int = 20,
+    timeout: Optional[int] = None,
+    max_tool_rounds: Optional[int] = None,
     on_tool_call: Optional[Callable[[str, dict], None]] = None,
     reasoning_effort: Optional[str] = None,
     verbosity: Optional[str] = None,
 ) -> Tuple[str, Optional[str], List[dict]]:
     """
     Synchronous runner using the OpenAI Responses API.
+
+    v8.1 – Query Complexity Profiles (Lightweight Pipeline):
+    - timeout and max_tool_rounds now default to None; when not explicitly
+      set by the caller they are derived from the query profile
+      (lightweight=120s/4 rounds, standard=300s/8, deep=600s/20).
+    - search_context_size is set per query profile ("low"/"medium"/"high")
+    - Prevents 600s timeouts on simple/standard queries by capping the
+      pipeline weight proportionally to query complexity.
 
     v8.0 – Prompt Caching & Agent Resilience:
     - instructions defaults to STATIC_CONTEXT_BLOCK (immutable prefix >1024
@@ -1458,12 +1487,14 @@ def run_responses_sync(
             (the immutable prefix from prompt_cache.py) to maximise prompt
             cache hits.  MUST remain identical across requests — no dynamic
             content (timestamps, user_ids, session state).
+        timeout: Wall-clock timeout in seconds.  When None (default), set
+            automatically from query profile (120/300/600).
+        max_tool_rounds: Maximum tool call rounds.  When None (default),
+            set automatically from query profile (4/8/20).
         reasoning_effort: "none"|"low"|"medium"|"high"|"xhigh".
-            Defaults to DEFAULT_REASONING_EFFORT ("medium").
-            Auto-escalated to "high" for MC/stats queries when not
-            explicitly overridden.
+            When None, set from query profile.
         verbosity: "low"|"medium"|"high".  Maps to text.verbosity.
-            Defaults to DEFAULT_VERBOSITY ("medium").
+            When None, set from query profile.
 
     Returns:
         (response_text, response_id, tool_call_log)
@@ -1473,7 +1504,6 @@ def run_responses_sync(
           Last entry may contain _cache_metrics and/or _chain_reset metadata.
     """
     client = get_client()
-    tools = get_tools()
     chain_was_reset = False
 
     # Build input
@@ -1484,21 +1514,28 @@ def run_responses_sync(
     else:
         raise ValueError("Either input_text or input_messages must be provided")
 
-    # Resolve reasoning effort — three-tier: low / medium / high
-    if reasoning_effort:
-        _effort = reasoning_effort
-    else:
-        query_text = input_text or ""
-        if input_messages:
-            query_text = " ".join(
-                m.get("content", "") for m in input_messages
-                if isinstance(m, dict)
-            )
-        _effort = get_reasoning_effort(query_text)
-        if _effort != DEFAULT_REASONING_EFFORT:
-            _logger.info("Auto-selected reasoning effort '%s' for query", _effort)
+    # ── Query profile: derive pipeline params from query complexity ──
+    query_text = input_text or ""
+    if input_messages:
+        query_text = " ".join(
+            m.get("content", "") for m in input_messages
+            if isinstance(m, dict)
+        )
+    profile = get_query_profile(query_text)
+    _logger.info(
+        "Query profile: complexity=%s, reasoning=%s, search=%s, "
+        "timeout=%ds, max_rounds=%d",
+        profile["complexity"], profile["reasoning_effort"],
+        profile["search_context_size"], profile["timeout"],
+        profile["max_tool_rounds"],
+    )
 
-    _verbosity = verbosity or DEFAULT_VERBOSITY
+    # Use explicit overrides if provided, otherwise use profile defaults
+    _effort = reasoning_effort or profile["reasoning_effort"]
+    _verbosity = verbosity or profile.get("verbosity", DEFAULT_VERBOSITY)
+    _timeout = timeout if timeout is not None else profile["timeout"]
+    _max_tool_rounds = max_tool_rounds if max_tool_rounds is not None else profile["max_tool_rounds"]
+    _search_context_size = profile["search_context_size"]
 
     tool_call_log: List[dict] = []
     cumulative_cache_metrics: Dict[str, Any] = {
@@ -1511,7 +1548,7 @@ def run_responses_sync(
 
     # ── Proactive container age check before the API call ──
     _check_container_age()
-    tools = get_tools()  # refresh if container was reset
+    tools = get_tools(search_context_size=_search_context_size)
 
     # ── Build initial request kwargs ──
     kwargs: Dict[str, Any] = {
@@ -1578,7 +1615,7 @@ def run_responses_sync(
                 "and dropping response chain (%s): %s", stale_id, e,
             )
             reset_container()
-            tools = get_tools()
+            tools = get_tools(search_context_size=_search_context_size)
             kwargs["tools"] = tools
             if stale_id:
                 chain_was_reset = True
@@ -1607,9 +1644,9 @@ def run_responses_sync(
     cumulative_cache_metrics["api_calls"] += 1
 
     # ── Tool call loop – keep going until text response or limits ──
-    for round_num in range(max_tool_rounds):
-        if time.time() - start > timeout:
-            raise TimeoutError(f"Response exceeded {timeout}s timeout")
+    for round_num in range(_max_tool_rounds):
+        if time.time() - start > _timeout:
+            raise TimeoutError(f"Response exceeded {_timeout}s timeout")
 
         tool_calls = _get_tool_calls(response)
 
@@ -1646,7 +1683,7 @@ def run_responses_sync(
 
         # ── Proactive container age check each round ──
         _check_container_age()
-        tools = get_tools()
+        tools = get_tools(search_context_size=_search_context_size)
 
         # ── Process each tool call ──
         tool_outputs: List[dict] = []
@@ -1802,7 +1839,7 @@ def run_responses_sync(
                     "restarting request from scratch: %s", round_num, e,
                 )
                 reset_container()
-                tools = get_tools()
+                tools = get_tools(search_context_size=_search_context_size)
                 restart_kwargs = dict(kwargs)
                 restart_kwargs.pop("previous_response_id", None)
                 restart_kwargs["tools"] = tools
@@ -1820,7 +1857,7 @@ def run_responses_sync(
                     "resetting container: %s", round_num, e,
                 )
                 reset_container()
-                tools = get_tools()
+                tools = get_tools(search_context_size=_search_context_size)
                 continuation_kwargs["tools"] = tools
                 try:
                     response = client.responses.create(**continuation_kwargs)
@@ -1866,11 +1903,19 @@ def run_responses_sync(
             "overall_cache_hit_rate": overall_hit_rate,
         },
         "_chain_reset": chain_was_reset,
+        "_query_profile": {
+            "complexity": profile["complexity"],
+            "reasoning_effort": _effort,
+            "search_context_size": _search_context_size,
+            "timeout": _timeout,
+            "max_tool_rounds": _max_tool_rounds,
+        },
     })
 
     _logger.info(
-        "run_responses_sync complete: %d tool rounds, %d API calls, "
+        "run_responses_sync complete: complexity=%s, %d tool rounds, %d API calls, "
         "%.1f%% cache hit rate, chain_reset=%s",
+        profile["complexity"],
         len([e for e in tool_call_log if "round" in e]),
         cumulative_cache_metrics["api_calls"],
         overall_hit_rate,
@@ -1891,14 +1936,15 @@ async def run_responses_async(
     instructions: str = STATIC_CONTEXT_BLOCK,
     previous_response_id: Optional[str] = None,
     tool_router_async: Optional[Callable[[str, Dict[str, Any]], Coroutine[Any, Any, str]]] = None,
-    timeout: int = 600,
-    max_tool_rounds: int = 20,
+    timeout: Optional[int] = None,
+    max_tool_rounds: Optional[int] = None,
     reasoning_effort: Optional[str] = None,
     verbosity: Optional[str] = None,
 ) -> Tuple[str, Optional[str], List[dict]]:
     """
     Async runner using the OpenAI Responses API.
 
+    v8.1: Query complexity profiles (parity with sync runner).
     v8.0: Full parity with sync runner:
     - STATIC_CONTEXT_BLOCK as default instructions for prompt caching
     - prompt_cache_key for consistent server routing
@@ -1920,10 +1966,6 @@ async def run_responses_async(
     client = get_client()
     chain_was_reset = False
 
-    # ── Proactive container age check ──
-    _check_container_age()
-    tools = get_tools()
-
     if input_text and not input_messages:
         api_input = input_text
     elif input_messages:
@@ -1931,21 +1973,32 @@ async def run_responses_async(
     else:
         raise ValueError("Either input_text or input_messages must be provided")
 
-    # Resolve reasoning effort — three-tier: low / medium / high
-    if reasoning_effort:
-        _effort = reasoning_effort
-    else:
-        query_text = input_text or ""
-        if input_messages:
-            query_text = " ".join(
-                m.get("content", "") for m in input_messages
-                if isinstance(m, dict)
-            )
-        _effort = get_reasoning_effort(query_text)
-        if _effort != DEFAULT_REASONING_EFFORT:
-            _logger.info("Auto-selected reasoning effort '%s' for async query", _effort)
+    # ── Query profile: derive pipeline params from query complexity ──
+    query_text = input_text or ""
+    if input_messages:
+        query_text = " ".join(
+            m.get("content", "") for m in input_messages
+            if isinstance(m, dict)
+        )
+    profile = get_query_profile(query_text)
+    _logger.info(
+        "Async query profile: complexity=%s, reasoning=%s, search=%s, "
+        "timeout=%ds, max_rounds=%d",
+        profile["complexity"], profile["reasoning_effort"],
+        profile["search_context_size"], profile["timeout"],
+        profile["max_tool_rounds"],
+    )
 
-    _verbosity = verbosity or DEFAULT_VERBOSITY
+    # Use explicit overrides if provided, otherwise use profile defaults
+    _effort = reasoning_effort or profile["reasoning_effort"]
+    _verbosity = verbosity or profile.get("verbosity", DEFAULT_VERBOSITY)
+    _timeout = timeout if timeout is not None else profile["timeout"]
+    _max_tool_rounds = max_tool_rounds if max_tool_rounds is not None else profile["max_tool_rounds"]
+    _search_context_size = profile["search_context_size"]
+
+    # ── Proactive container age check ──
+    _check_container_age()
+    tools = get_tools(search_context_size=_search_context_size)
 
     tool_call_log: List[dict] = []
     cumulative_cache_metrics: Dict[str, Any] = {
@@ -2020,7 +2073,7 @@ async def run_responses_async(
                 "and dropping response chain (%s): %s", stale_id, e,
             )
             reset_container()
-            tools = get_tools()
+            tools = get_tools(search_context_size=_search_context_size)
             kwargs["tools"] = tools
             if stale_id:
                 chain_was_reset = True
@@ -2046,9 +2099,9 @@ async def run_responses_async(
     cumulative_cache_metrics["api_calls"] += 1
 
     # ── Tool call loop ──
-    for round_num in range(max_tool_rounds):
-        if time.time() - start > timeout:
-            raise TimeoutError(f"Response exceeded {timeout}s timeout")
+    for round_num in range(_max_tool_rounds):
+        if time.time() - start > _timeout:
+            raise TimeoutError(f"Response exceeded {_timeout}s timeout")
 
         tool_calls = _get_tool_calls(response)
 
@@ -2081,7 +2134,7 @@ async def run_responses_async(
 
         # ── Proactive container age check ──
         _check_container_age()
-        tools = get_tools()
+        tools = get_tools(search_context_size=_search_context_size)
 
         async def _one(call):
             fn_name = call.name
@@ -2233,7 +2286,7 @@ async def run_responses_async(
                     round_num, e,
                 )
                 reset_container()
-                tools = get_tools()
+                tools = get_tools(search_context_size=_search_context_size)
                 restart_kwargs = dict(kwargs)
                 restart_kwargs.pop("previous_response_id", None)
                 restart_kwargs["tools"] = tools
@@ -2247,7 +2300,7 @@ async def run_responses_async(
                     round_num, e,
                 )
                 reset_container()
-                tools = get_tools()
+                tools = get_tools(search_context_size=_search_context_size)
                 continuation_kwargs["tools"] = tools
                 try:
                     response = await asyncio.to_thread(
@@ -2298,6 +2351,13 @@ async def run_responses_async(
             "overall_cache_hit_rate": overall_hit_rate,
         },
         "_chain_reset": chain_was_reset,
+        "_query_profile": {
+            "complexity": profile["complexity"],
+            "reasoning_effort": _effort,
+            "search_context_size": _search_context_size,
+            "timeout": _timeout,
+            "max_tool_rounds": _max_tool_rounds,
+        },
     })
 
     return text, response_id, tool_call_log

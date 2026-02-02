@@ -41,13 +41,12 @@ OPTIMIZATION v4.0 – Token-Efficient Tiered Results:
 - URLs stripped by default (added back only for citation requests)
 - Net effect: ~40-60% fewer tokens with equal or better agent reasoning
 
-v4.2 – Increased Search Results Depth:
-- Tier-1: 5→8 results at 900→1500 chars (richer top-k content)
-- Tier-2: 10→12 results at 400→800 chars (more mid-tier substance)
-- Tier-3: 0→200 chars (brief snippets instead of title-only)
-- Default total: 20→30 results, per-source: 8→12
-- Intent limits scaled proportionally (~40% increase across all intents)
-- Estimated payload: ~100-160KB on broad queries (within 200KB hard limit)
+v4.3 – Reduced Default Limits (Lightweight Pipeline):
+- Default max_total: 30→20, per-source: 12→8 (matches standard profile)
+- Intent limits reduced ~30% across all categories
+- Result tiers now driven by query profile from assistant_config.py
+- Deep queries still get v4.2-level limits via profile override
+- Estimated payload: ~60-100KB on standard queries (was 100-160KB)
 
 v3.3 Agent Data Pipeline:
 - Structured data compression (gzip+base64) for large results
@@ -67,11 +66,10 @@ from enum import Enum
 #    These control how much data reaches the agent after fetching
 # ────────────────────────────────────────────────────────────────
 
-# v4.0: Dramatically reduced – the agent cannot meaningfully reason
-# over 50+ results; it summarizes or cherry-picks.  Fewer, richer
-# results produce better synthesis at lower token cost.
-DEFAULT_MAX_PER_SOURCE = 12          # Was 8 – more per source for richer coverage
-DEFAULT_MAX_TOTAL = 30               # Was 20 – 30 ranked results with tiered content
+# v4.3: Reduced defaults — standard queries don't need 30 results.
+# Deep queries get higher limits via query profile override.
+DEFAULT_MAX_PER_SOURCE = 8           # Was 12 — 8 is enough for standard queries
+DEFAULT_MAX_TOTAL = 20               # Was 30 — 20 ranked results for standard
 DEFAULT_MAX_REFINEMENT_SUGGESTIONS = 0  # Moved to lazy tool; 0 = don't include inline
 
 # ────────────────────────────────────────────────────────────────
@@ -87,42 +85,43 @@ DEFAULT_MAX_REFINEMENT_SUGGESTIONS = 0  # Moved to lazy tool; 0 = don't include 
 # ────────────────────────────────────────────────────────────────
 
 # Adaptive limits by query intent
-# v4.0: All reduced to actionable counts.  Agent gets ranked, deduped,
-# tiered results – quality over quantity.
+# v4.3: Reduced ~30% across all intents.  The agent gets ranked, deduped,
+# tiered results — quality over quantity.  Deep queries can override these
+# via query profile.
 INTENT_BASED_LIMITS = {
     "safety": {
-        "max_per_source": 15,
-        "max_total": 35,          # Was 25 – more safety signals with richer content
+        "max_per_source": 10,
+        "max_total": 25,          # Was 35 — still generous for safety signals
         "priority_sources": ["faers", "fda_safety_communications", "pubmed"],
     },
     "regulatory": {
-        "max_per_source": 16,
-        "max_total": 40,          # Was 30 – broader regulatory landscape
+        "max_per_source": 10,
+        "max_total": 25,          # Was 40 — 25 is plenty for regulatory landscape
         "priority_sources": ["regulatory_combined", "fda_drugs", "ema"],
     },
     "kol": {
-        "max_per_source": 15,
-        "max_total": 35,          # Was 25
+        "max_per_source": 10,
+        "max_total": 25,          # Was 35
         "priority_sources": ["openalex_kol", "pubmed_investigators", "pubmed"],
     },
     "clinical_trial": {
-        "max_per_source": 15,
-        "max_total": 35,          # Was 25
+        "max_per_source": 10,
+        "max_total": 25,          # Was 35
         "priority_sources": ["clinicaltrials", "eu_clinical_trials", "who_ictrp"],
     },
     "latam": {
-        "max_per_source": 15,
-        "max_total": 35,          # Was 25
+        "max_per_source": 10,
+        "max_total": 25,          # Was 35
         "priority_sources": ["latam_trials", "anvisa", "latam_regulatory", "paho", "regional_kol"],
     },
     "asia": {
-        "max_per_source": 15,
-        "max_total": 35,          # Was 25
+        "max_per_source": 10,
+        "max_total": 25,          # Was 35
         "priority_sources": ["asia_trials", "pmda", "nmpa", "asia_regulatory", "regional_kol"],
     },
     "general": {
-        "max_per_source": 12,
-        "max_total": 30,          # Was 20
+        "max_per_source": 8,
+        "max_total": 20,          # Was 30
         "priority_sources": ["clinicaltrials", "pubmed", "regulatory_combined"],
     },
 }
@@ -134,11 +133,11 @@ INTENT_BASED_LIMITS = {
 # scan the rest for breadth.
 # ────────────────────────────────────────────────────────────────
 RESULT_TIERS = {
-    "tier_1_count": 8,       # Top N results: full content (was 5)
-    "tier_1_content": 1500,  # chars of content for tier-1 (was 900)
-    "tier_2_count": 12,      # Next N results: summary content (was 10)
-    "tier_2_content": 800,   # chars of content for tier-2 (was 400)
-    "tier_3_content": 200,   # Remaining: title + key fields + brief snippet (was 0)
+    "tier_1_count": 5,       # Top N results: full content (was 8, now standard profile)
+    "tier_1_content": 1200,  # chars of content for tier-1 (was 1500)
+    "tier_2_count": 8,       # Next N results: summary content (was 12)
+    "tier_2_content": 600,   # chars of content for tier-2 (was 800)
+    "tier_3_content": 150,   # Remaining: title + key fields + brief snippet (was 200)
 }
 
 # Field truncation limits for individual results
@@ -155,60 +154,63 @@ RESULT_FIELD_LIMITS = {
 #    These control how much data is fetched from each source
 # ────────────────────────────────────────────────────────────────
 
-# Per-source limits for aggregated_search (DOUBLED for richer results)
+# Per-source fetch limits for aggregated_search
+# v4.3: Reduced to sensible defaults.  The previous "doubled" limits
+# fetched far more data than the agent could consume, inflating token
+# cost and latency.  Deep queries can still override via query profile.
 AGGREGATED_SOURCE_LIMITS = {
     # Literature
-    "pubmed": 40,                    # Was 20
-    "europe_pmc": 30,                # Was 15
+    "pubmed": 20,                    # Was 40 — 20 is enough for synthesis
+    "europe_pmc": 15,                # Was 30
 
     # Clinical Trials - Global
-    "clinicaltrials": 50,            # Was 25
-    "eu_clinical_trials": 40,        # Was 20
-    "who_ictrp": 30,                 # Was 15
+    "clinicaltrials": 25,            # Was 50
+    "eu_clinical_trials": 20,        # Was 40
+    "who_ictrp": 15,                 # Was 30
 
     # Clinical Trials - LATAM (v3.1)
-    "rebec": 35,                     # Brazil registry
-    "latam_trials": 50,              # Aggregated LATAM
+    "rebec": 15,                     # Was 35
+    "latam_trials": 25,              # Was 50
 
     # Clinical Trials - Asia (v3.1)
-    "ctri": 35,                      # India registry
-    "chictr": 35,                    # China registry
-    "jprn": 35,                      # Japan registry
-    "asia_trials": 50,               # Aggregated Asia
+    "ctri": 15,                      # Was 35
+    "chictr": 15,                    # Was 35
+    "jprn": 15,                      # Was 35
+    "asia_trials": 25,               # Was 50
 
     # Conference abstracts
-    "asco": 30,
-    "esmo": 30,
+    "asco": 15,                      # Was 30
+    "esmo": 15,                      # Was 30
 
     # Regulatory - US
-    "regulatory_combined": 80,       # Was 20
-    "fda_drugs": 60,                 # Was 15
+    "regulatory_combined": 30,       # Was 80 — 30 covers most queries
+    "fda_drugs": 25,                 # Was 60
 
     # Regulatory - EU
-    "ema": 60,                       # Was 15
+    "ema": 25,                       # Was 60
 
     # Regulatory - LATAM (v3.1)
-    "anvisa": 35,                    # Brazil - largest LATAM market
-    "cofepris": 30,                  # Mexico - 2nd largest LATAM
-    "latam_regulatory": 50,          # Combined LATAM
+    "anvisa": 15,                    # Was 35
+    "cofepris": 15,                  # Was 30
+    "latam_regulatory": 25,          # Was 50
 
     # Regulatory - Asia (v3.1)
-    "pmda": 35,                      # Japan - 3rd largest global
-    "nmpa": 35,                      # China - 2nd largest global
-    "cdsco": 30,                     # India - major hub
-    "asia_regulatory": 50,           # Combined Asia
+    "pmda": 15,                      # Was 35
+    "nmpa": 15,                      # Was 35
+    "cdsco": 15,                     # Was 30
+    "asia_regulatory": 25,           # Was 50
 
-    # Safety/Pharmacovigilance (increased significantly for safety queries)
-    "faers": 40,                     # Was 15
-    "fda_safety_communications": 30, # Was 15
+    # Safety/Pharmacovigilance
+    "faers": 20,                     # Was 40
+    "fda_safety_communications": 15, # Was 30
 
     # KOL Discovery
-    "openalex_kol": 30,              # Was 15
-    "pubmed_investigators": 30,      # Was 15
-    "regional_kol": 40,              # v3.1: Regional KOL discovery
+    "openalex_kol": 15,              # Was 30
+    "pubmed_investigators": 15,      # Was 30
+    "regional_kol": 20,              # Was 40
 
     # Epidemiology - Regional (v3.1)
-    "paho": 35,                      # LATAM health data
+    "paho": 15,                      # Was 35
 }
 
 
