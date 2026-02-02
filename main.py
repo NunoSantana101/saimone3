@@ -220,15 +220,31 @@ st.markdown("""
 /* -----------------------------------------------------------
    TABLES & MARKDOWN
 ----------------------------------------------------------- */
+/* Scrollable wrapper so wide tables never break layout */
+.stMarkdown{ overflow-x:auto; }
+
 .stMarkdown table{
   background:var(--navy-medium)!important; border-radius:8px; overflow:hidden;
   box-shadow:0 4px 16px var(--shadow-soft); border:1px solid var(--navy-light);
+  width:100%; table-layout:auto; border-collapse:collapse;
 }
 .stMarkdown th,.stMarkdown td{
   background:var(--black-secondary)!important; color:var(--text-primary)!important;
-  border:1px solid var(--navy-light)!important; padding:12px!important; font-family:'Source Sans Pro',sans-serif!important;
+  border:1px solid var(--navy-light)!important; padding:12px 14px!important;
+  font-family:'Source Sans Pro',sans-serif!important; font-size:.93rem!important;
+  line-height:1.55!important; vertical-align:top!important;
+  word-wrap:break-word!important; overflow-wrap:break-word!important;
+  max-width:400px; min-width:80px;
 }
-.stMarkdown th{ background:var(--navy-light)!important; font-weight:600!important; color:var(--white-primary)!important; }
+.stMarkdown th{
+  background:var(--navy-light)!important; font-weight:600!important;
+  color:var(--white-primary)!important; white-space:nowrap;
+}
+/* First column (labels / identifiers) gets a subtle highlight */
+.stMarkdown td:first-child{ font-weight:500; min-width:120px; }
+/* Alternating row shading for readability */
+.stMarkdown tr:nth-child(even) td{ background:var(--navy-medium)!important; }
+.stMarkdown tr:hover td{ background:var(--navy-light)!important; transition:background .15s ease; }
 .stMarkdown h1,.stMarkdown h2,.stMarkdown h3{ color:var(--text-primary); font-family:'Playfair Display',serif; font-weight:600; }
 .stMarkdown h1{ font-size:1.75rem!important; margin-top:1.5rem; margin-bottom:.75rem; }
 .stMarkdown h2{ font-size:1.4rem!important; margin-top:1.25rem; margin-bottom:.6rem; }
@@ -503,8 +519,126 @@ hr.msg-divider{ border:none; border-top:2px solid var(--navy-light); margin:2em 
 # dashboard.py - Part 2
 # Download Helper Functions
 
-# --- DOWNLOAD HELPER FUNCTIONS ---
-# --- DOWNLOAD HELPER FUNCTIONS ---
+# --- PIPE-TABLE REPAIR UTILITY ---
+# Fixes malformed markdown tables where the AI outputs all table content
+# (header + separator + data rows) on a single line or with missing separators.
+_SEP_INLINE_RE = re.compile(
+    r'(\|[\s:]*-{2,}[\s:]*(?:\|[\s:]*-{2,}[\s:]*)+\|?)'
+)
+_PIPE_ROW_RE = re.compile(r'^\s*\|.+\|\s*$')
+
+
+def _split_pipe_text_into_rows(text: str, n_cols: int) -> list:
+    """Split flat pipe-separated text into markdown table rows of *n_cols* columns."""
+    pipe_pos = [i for i, c in enumerate(text) if c == '|']
+    if len(pipe_pos) < 2:
+        return [text] if text.strip() else []
+    pipes_per_row = n_cols + 1          # | c1 | c2 | c3 | → 4 pipes for 3 cols
+    rows = []
+    for start in range(0, len(pipe_pos), pipes_per_row):
+        rp = pipe_pos[start:start + pipes_per_row]
+        if len(rp) < 2:
+            break
+        cells = []
+        for j in range(len(rp) - 1):
+            cells.append(text[rp[j] + 1:rp[j + 1]].strip())
+        if cells:
+            rows.append('| ' + ' | '.join(cells) + ' |')
+    return rows if rows else ([text] if text.strip() else [])
+
+
+def repair_pipe_tables(text: str) -> str:
+    """Post-process AI output to fix malformed markdown tables.
+
+    Handles three common issues:
+      1. All table content (header + separator + data) on a single line / paragraph
+      2. Data rows concatenated after a proper header + separator
+      3. Consecutive pipe-delimited rows with no separator row at all
+    """
+    if not text or '|' not in text:
+        return text
+
+    lines = text.split('\n')
+    out: list[str] = []
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        # --- Case 1: embedded separator inside a long line -----------------
+        sep_m = _SEP_INLINE_RE.search(stripped)
+        if sep_m:
+            before = stripped[:sep_m.start()].strip()
+            after  = stripped[sep_m.end():].strip()
+
+            if before or (after and after.count('|') > 2):
+                sep_txt = sep_m.group(0).strip()
+                n_cols  = len([c for c in sep_txt.split('|') if c.strip()])
+                if n_cols >= 2:
+                    rebuilt: list[str] = []
+                    if before:
+                        rebuilt.extend(_split_pipe_text_into_rows(before, n_cols))
+                    rebuilt.append(sep_txt)
+                    if after:
+                        rebuilt.extend(_split_pipe_text_into_rows(after, n_cols))
+                    out.append('\n'.join(rebuilt))
+                    i += 1
+                    continue
+
+        # --- Case 2: standalone separator, following data rows concatenated -
+        if re.match(
+            r'^\s*\|[\s:]*-{2,}[\s:]*(\|[\s:]*-{2,}[\s:]*)+\|?\s*$', stripped
+        ):
+            n_cols = len([c for c in stripped.split('|') if c.strip()])
+            out.append(line)
+            i += 1
+            while i < len(lines):
+                nxt = lines[i].strip()
+                if not nxt or nxt.count('|') < 2:
+                    break
+                if nxt.count('|') > n_cols + 2:        # too many pipes → concatenated
+                    out.extend(_split_pipe_text_into_rows(nxt, n_cols))
+                else:
+                    out.append(lines[i])
+                i += 1
+            continue
+
+        # --- Case 3: consecutive pipe rows with no separator ---------------
+        if _PIPE_ROW_RE.match(stripped) and stripped.count('|') >= 4:
+            block = [stripped]
+            j = i + 1
+            while (j < len(lines)
+                   and _PIPE_ROW_RE.match(lines[j].strip())
+                   and lines[j].strip().count('|') >= 4):
+                block.append(lines[j].strip())
+                j += 1
+
+            if len(block) >= 2:
+                has_sep = any(
+                    re.match(r'^\s*\|[\s:]*-{2,}', row) for row in block
+                )
+                if not has_sep:
+                    first_cols = len(
+                        [c for c in block[0].split('|') if c.strip()]
+                    )
+                    if first_cols >= 2:
+                        sep = '| ' + ' | '.join(['---'] * first_cols) + ' |'
+                        out.append(block[0])
+                        out.append(sep)
+                        out.extend(block[1:])
+                        i = j
+                        continue
+            out.append(line)
+            i += 1
+            continue
+
+        out.append(line)
+        i += 1
+
+    return '\n'.join(out)
+
+
 # --- DOWNLOAD HELPER FUNCTIONS ---
 def generate_pdf_download():
     """PDF generator: exact session order, robust links, bullets/numbered lists, tables with repeating headers.
@@ -2645,18 +2779,21 @@ if st.session_state["history"]:
                 f"</div>",
                 unsafe_allow_html=True,
             )
+            # --- Repair malformed pipe-tables before rendering -----
+            _display_content = repair_pipe_tables(msg["content"])
+
             # Detect markdown tables via separator row (|---|---|)
             # or explicit HTML tags — enable unsafe_allow_html so
             # in-cell formatting (<b>, <br>, <sup>, etc.) renders.
             _has_table = bool(re.search(
                 r'^\s*\|[\s:]*-{2,}[\s:]*(\|[\s:]*-{2,}[\s:]*)+\|?\s*$',
-                msg["content"], re.MULTILINE,
+                _display_content, re.MULTILINE,
             ))
-            _has_html = bool(re.search(r'<(?:br|b|i|u|sup|sub|a |em|strong)\b', msg["content"]))
+            _has_html = bool(re.search(r'<(?:br|b|i|u|sup|sub|a |em|strong)\b', _display_content))
             if _has_table or _has_html:
-                st.markdown(msg["content"], unsafe_allow_html=True)
+                st.markdown(_display_content, unsafe_allow_html=True)
             else:
-                st.markdown(msg["content"], unsafe_allow_html=False)
+                st.markdown(_display_content, unsafe_allow_html=False)
 
             
 
