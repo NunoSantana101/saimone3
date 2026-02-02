@@ -529,7 +529,11 @@ _PIPE_ROW_RE = re.compile(r'^\s*\|.+\|\s*$')
 
 
 def _split_pipe_text_into_rows(text: str, n_cols: int) -> list:
-    """Split flat pipe-separated text into markdown table rows of *n_cols* columns."""
+    """Split flat pipe-separated text into markdown table rows of *n_cols* columns.
+
+    Ensures every output row has exactly *n_cols* cells so that header /
+    separator / data column counts always match (required for valid Markdown).
+    """
     pipe_pos = [i for i, c in enumerate(text) if c == '|']
     if len(pipe_pos) < 2:
         return [text] if text.strip() else []
@@ -542,7 +546,11 @@ def _split_pipe_text_into_rows(text: str, n_cols: int) -> list:
         cells = []
         for j in range(len(rp) - 1):
             cells.append(text[rp[j] + 1:rp[j + 1]].strip())
-        if cells:
+        # Pad / truncate to exactly n_cols so column counts stay consistent
+        while len(cells) < n_cols:
+            cells.append('')
+        cells = cells[:n_cols]
+        if any(c for c in cells):           # skip completely empty rows
             rows.append('| ' + ' | '.join(cells) + ' |')
     return rows if rows else ([text] if text.strip() else [])
 
@@ -577,11 +585,49 @@ def repair_pipe_tables(text: str) -> str:
                 n_cols  = len([c for c in sep_txt.split('|') if c.strip()])
                 if n_cols >= 2:
                     rebuilt: list[str] = []
+
+                    header_added = False
                     if before:
-                        rebuilt.extend(_split_pipe_text_into_rows(before, n_cols))
+                        before_s = before.strip()
+                        if before_s.startswith('|') and before_s.endswith('|'):
+                            # Looks like a header row – split & pad to n_cols
+                            rebuilt.extend(
+                                _split_pipe_text_into_rows(before, n_cols)
+                            )
+                            header_added = bool(rebuilt)
+                        else:
+                            # Not a pipe-row – emit as regular text
+                            out.append(before)
+
+                    if not header_added:
+                        # Check if the previous output line is a usable header
+                        prev_is_header = False
+                        if out:
+                            prev = out[-1].strip()
+                            if prev and _PIPE_ROW_RE.match(prev):
+                                prev_cells = [
+                                    c.strip()
+                                    for c in prev.strip('|').split('|')
+                                ]
+                                # Pad / truncate to match n_cols
+                                while len(prev_cells) < n_cols:
+                                    prev_cells.append('')
+                                prev_cells = prev_cells[:n_cols]
+                                out[-1] = '| ' + ' | '.join(prev_cells) + ' |'
+                                prev_is_header = True
+
+                        if not prev_is_header:
+                            # Generate a minimal header so the table is valid MD
+                            rebuilt.insert(
+                                0,
+                                '| ' + ' | '.join([' '] * n_cols) + ' |',
+                            )
+
                     rebuilt.append(sep_txt)
                     if after:
-                        rebuilt.extend(_split_pipe_text_into_rows(after, n_cols))
+                        rebuilt.extend(
+                            _split_pipe_text_into_rows(after, n_cols)
+                        )
                     out.append('\n'.join(rebuilt))
                     i += 1
                     continue
@@ -591,6 +637,22 @@ def repair_pipe_tables(text: str) -> str:
             r'^\s*\|[\s:]*-{2,}[\s:]*(\|[\s:]*-{2,}[\s:]*)+\|?\s*$', stripped
         ):
             n_cols = len([c for c in stripped.split('|') if c.strip()])
+
+            # Ensure the previous line is a valid header with matching cols
+            prev_ok = False
+            if out:
+                prev = out[-1].strip()
+                if prev and _PIPE_ROW_RE.match(prev):
+                    prev_cells = [c.strip() for c in prev.strip('|').split('|')]
+                    if len(prev_cells) != n_cols:
+                        while len(prev_cells) < n_cols:
+                            prev_cells.append('')
+                        prev_cells = prev_cells[:n_cols]
+                        out[-1] = '| ' + ' | '.join(prev_cells) + ' |'
+                    prev_ok = True
+            if not prev_ok:
+                out.append('| ' + ' | '.join([' '] * n_cols) + ' |')
+
             out.append(line)
             i += 1
             while i < len(lines):
@@ -637,6 +699,49 @@ def repair_pipe_tables(text: str) -> str:
         i += 1
 
     return '\n'.join(out)
+
+
+def _ensure_table_blank_lines(text: str) -> str:
+    """Guarantee blank lines around every Markdown table block.
+
+    Many Markdown parsers (including Streamlit's Python-Markdown) only
+    recognise a pipe-table when it is separated from surrounding content
+    by blank lines.  This pass inserts those blank lines without altering
+    anything inside the table itself.
+    """
+    if not text or '|' not in text:
+        return text
+
+    _sep_re = re.compile(
+        r'^\s*\|[\s:]*-{2,}[\s:]*(\|[\s:]*-{2,}[\s:]*)+\|?\s*$'
+    )
+    lines = text.split('\n')
+    result: list[str] = []
+    in_table = False
+
+    for line in lines:
+        stripped = line.strip()
+        is_pipe = bool(
+            stripped.startswith('|') and stripped.endswith('|')
+            and stripped.count('|') >= 3
+        )
+        is_sep = bool(_sep_re.match(stripped))
+        is_table_line = is_pipe or is_sep
+
+        if is_table_line and not in_table:
+            # Entering a table block – ensure blank line before
+            if result and result[-1].strip():
+                result.append('')
+            in_table = True
+        elif not is_table_line and in_table:
+            # Leaving a table block – ensure blank line after
+            if result and result[-1].strip():
+                result.append('')
+            in_table = False
+
+        result.append(line)
+
+    return '\n'.join(result)
 
 
 # --- DOWNLOAD HELPER FUNCTIONS ---
@@ -2780,6 +2885,7 @@ if st.session_state["history"]:
             )
             # --- Repair malformed pipe-tables before rendering -----
             _display_content = repair_pipe_tables(msg["content"])
+            _display_content = _ensure_table_blank_lines(_display_content)
 
             # Detect markdown tables via separator row (|---|---|)
             # or explicit HTML tags — enable unsafe_allow_html so
