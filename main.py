@@ -2,6 +2,7 @@
 # Imports, Configuration, and Authentication Check
 
 import os
+import re
 import streamlit as st
 import openai
 import html
@@ -2644,11 +2645,17 @@ if st.session_state["history"]:
                 f"</div>",
                 unsafe_allow_html=True,
             )
-            if '|' in msg["content"] and '<br>' in msg["content"]:
-                # Allow HTML rendering for table content
+            # Detect markdown tables via separator row (|---|---|)
+            # or explicit HTML tags — enable unsafe_allow_html so
+            # in-cell formatting (<b>, <br>, <sup>, etc.) renders.
+            _has_table = bool(re.search(
+                r'^\s*\|[\s:]*-{2,}[\s:]*(\|[\s:]*-{2,}[\s:]*)+\|?\s*$',
+                msg["content"], re.MULTILINE,
+            ))
+            _has_html = bool(re.search(r'<(?:br|b|i|u|sup|sub|a |em|strong)\b', msg["content"]))
+            if _has_table or _has_html:
                 st.markdown(msg["content"], unsafe_allow_html=True)
             else:
-                # Regular markdown (safer)
                 st.markdown(msg["content"], unsafe_allow_html=False)
 
             
