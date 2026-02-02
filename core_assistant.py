@@ -429,12 +429,13 @@ atexit.register(_cleanup_container)
 
 def _reset_container_unlocked() -> None:
     """Inner reset — caller must hold _container_lock."""
-    global _ci_container_id, _ci_container_attempts, _cached_tools, _ci_container_created_at
+    global _ci_container_id, _ci_container_attempts, _cached_tools, _cached_tools_search_size, _ci_container_created_at
     old = _ci_container_id
     _ci_container_id = None
     _ci_container_attempts = 0
     _ci_container_created_at = None
     _cached_tools = None
+    _cached_tools_search_size = None
     _logger.info("Reset stale CI container (was %s); will recreate on next call", old)
 
 
@@ -447,10 +448,8 @@ def reset_container() -> None:
     fresh container.
     Thread-safe: acquires _container_lock.
     """
-    global _cached_tools
     with _container_lock:
         _reset_container_unlocked()
-    _cached_tools = None  # Clear all cached tool lists
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -705,26 +704,27 @@ def build_tools_list(search_context_size: str = "medium") -> List[dict]:
 _REQUIRED_TOOL_TYPES = frozenset({"web_search_preview", "file_search", "code_interpreter"})
 
 
-# Cache the tools list per search_context_size.  Only cached once the
-# code-interpreter container has been resolved (success OR permanent
-# fallback).  If the container creation fails transiently, the list is
-# rebuilt on the next call so the container can be retried.
-_cached_tools: Optional[dict] = None  # keyed by search_context_size
+# Cache the tools list.  Only cached once the code-interpreter
+# container has been resolved (success OR permanent fallback).
+# If the container creation fails transiently, the list is rebuilt
+# on the next call so the container can be retried.
+# When search_context_size changes, the cache is invalidated.
+_cached_tools: Optional[List[dict]] = None
+_cached_tools_search_size: Optional[str] = None
 
 
 def get_tools(search_context_size: str = "medium") -> List[dict]:
     """Return tools list for the given search context size.
 
-    Caches per search_context_size level.  Guarantees that
-    web_search_preview, file_search, and code_interpreter are always
-    present — raises immediately if the invariant is violated.
+    Caches the last-used search_context_size.  If the size changes,
+    the cache is rebuilt (cheap — no container recreation needed).
+    Guarantees that web_search_preview, file_search, and
+    code_interpreter are always present.
     """
-    global _cached_tools
-    if _cached_tools is None:
-        _cached_tools = {}
+    global _cached_tools, _cached_tools_search_size
 
-    if search_context_size in _cached_tools:
-        return _cached_tools[search_context_size]
+    if _cached_tools is not None and _cached_tools_search_size == search_context_size:
+        return _cached_tools
 
     tools = build_tools_list(search_context_size=search_context_size)
 
@@ -741,7 +741,8 @@ def get_tools(search_context_size: str = "medium") -> List[dict]:
     # unavailable after the grace window).  _ci_container_id is set to
     # a string on success; it stays None on transient failure.
     if _ci_container_id is not None:
-        _cached_tools[search_context_size] = tools
+        _cached_tools = tools
+        _cached_tools_search_size = search_context_size
     return tools
 
 
@@ -1449,6 +1450,7 @@ def run_responses_sync(
     model: str = DEFAULT_MODEL,
     input_messages: Optional[List[dict]] = None,
     input_text: Optional[str] = None,
+    user_query: Optional[str] = None,
     instructions: str = STATIC_CONTEXT_BLOCK,
     previous_response_id: Optional[str] = None,
     tool_router: Callable[[str, Dict[str, Any]], str] = _default_tool_router,
@@ -1483,6 +1485,11 @@ def run_responses_sync(
     - Proactive container age check before each tool round
 
     Args:
+        user_query: The raw user query (unassembled).  Used for query
+            complexity classification.  IMPORTANT: pass the original user
+            input here, NOT the assembled prompt (which includes history
+            and system context that would pollute the classifier).  When
+            None, falls back to input_text (less accurate).
         instructions: System instructions.  Defaults to STATIC_CONTEXT_BLOCK
             (the immutable prefix from prompt_cache.py) to maximise prompt
             cache hits.  MUST remain identical across requests — no dynamic
@@ -1515,13 +1522,16 @@ def run_responses_sync(
         raise ValueError("Either input_text or input_messages must be provided")
 
     # ── Query profile: derive pipeline params from query complexity ──
-    query_text = input_text or ""
-    if input_messages:
-        query_text = " ".join(
+    # Use user_query (raw input) for classification when available.
+    # Falls back to input_text only if user_query is not provided.
+    classify_text = user_query or input_text or ""
+    if not classify_text and input_messages:
+        # Last resort: extract from input_messages (e.g. direct API usage)
+        classify_text = " ".join(
             m.get("content", "") for m in input_messages
             if isinstance(m, dict)
         )
-    profile = get_query_profile(query_text)
+    profile = get_query_profile(classify_text)
     _logger.info(
         "Query profile: complexity=%s, reasoning=%s, search=%s, "
         "timeout=%ds, max_rounds=%d",
@@ -1933,6 +1943,7 @@ async def run_responses_async(
     model: str = DEFAULT_MODEL,
     input_messages: Optional[List[dict]] = None,
     input_text: Optional[str] = None,
+    user_query: Optional[str] = None,
     instructions: str = STATIC_CONTEXT_BLOCK,
     previous_response_id: Optional[str] = None,
     tool_router_async: Optional[Callable[[str, Dict[str, Any]], Coroutine[Any, Any, str]]] = None,
@@ -1974,13 +1985,14 @@ async def run_responses_async(
         raise ValueError("Either input_text or input_messages must be provided")
 
     # ── Query profile: derive pipeline params from query complexity ──
-    query_text = input_text or ""
-    if input_messages:
-        query_text = " ".join(
+    # Use user_query (raw input) for classification when available.
+    classify_text = user_query or input_text or ""
+    if not classify_text and input_messages:
+        classify_text = " ".join(
             m.get("content", "") for m in input_messages
             if isinstance(m, dict)
         )
-    profile = get_query_profile(query_text)
+    profile = get_query_profile(classify_text)
     _logger.info(
         "Async query profile: complexity=%s, reasoning=%s, search=%s, "
         "timeout=%ds, max_rounds=%d",
